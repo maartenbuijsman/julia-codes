@@ -1,4 +1,4 @@
-pathname = "C:/Users/w944461/Documents/JULIA/functions/"
+pathname = "/home/mbui/Documents/julia-codes/functions/"
 include(string(pathname,"include_functions.jl"))
 
 using CairoMakie
