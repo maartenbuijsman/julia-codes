@@ -17,6 +17,7 @@ using Oceananigans.Units
 using NCDatasets
 using Printf
 using CairoMakie
+using Statistics
 
 ###########------ SIMULATION PARAMETERS ------#############
 
@@ -24,7 +25,7 @@ using CairoMakie
 #fid = "_lat0_boundaryforce_sponge_closure"  #true U = 0.1  amplitude
 #fid = "_lat0_boundaryforce_closure"  #true U = 0.1  amplitude
 #fid = "_lat0_boundaryforce_closure_IW1" 
-fid = "_lat0_boundforce_advc4_sponge_8d_2min" 
+fid = "_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup" 
 
 # grid parameters
 pm = (lat=0, Nz=50, Nx=100, H=1000, L=500_000)
@@ -88,7 +89,6 @@ println("Ln =", 2*π./pm.kn/1e3, " km")
 println("cn =",  pm.ω./pm.kn," m/s")
 println("velocity u at z=0: ",-pm.an.*nn*π./(pm.kn*pm.H))
 
-
 #ueig(z,p) = cos(n*π*z/H)
 #weig(z,p) = sin(n*π*z/H)
 
@@ -98,7 +98,7 @@ println("velocity u at z=0: ",-pm.an.*nn*π./(pm.kn*pm.H))
 B_func(x, z, t, p) = p.N^2 * z
 B = BackgroundField(B_func, parameters=pm)
 
-# IW forcing
+#B_func(0, -1000, 0, pm)
 
 # sponge regions
 @inline heaviside(X)    = ifelse(X <0, 0.0, 1.0)
@@ -145,13 +145,23 @@ b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
 
 # boundary forcing
 # u and w functions per mode, from Gerkema syllabus
-fun(n,z,p)   = -p.an*n*π/(p.kn*p.H) * cos(n*π*z/p.H) * sin(          -p.ω*t)
-fwn(n,Dx,z,p) = p.an                * sin(n*π*z/p.H) * cos(-p.kn*Dx/2-p.ω*t)
 Dx = xspacings(grid, Center())[1]
+fun(z,t,n,p)    = -p.an[n] * n*π/(p.kn[n]*p.H) * cos(n*π*z/p.H) * sin(               -p.ω*t)
+fwn(z,t,n,Dx,p) =  p.an[n]                     * sin(n*π*z/p.H) * cos(p.kn[n]*(-Dx/2)-p.ω*t)
+
+# rampup function to start u and w from zero
+const Tr = pm.T/2
+framp(t,Tr) = 1-exp(-1/Tr*t)
+#framp.(range(0,2*pm.T,24),Tr)
+
+#= check
+fun(1000,pm.T/4,1,pm)
+fwn(-500,pm.T/4,1,Dx,pm) 
+=#
 
 # u at face, w at center offset by -Δx/2
-@inline umod(z,t,p) = fun(1,z,p)    + fun(2,z,p)
-@inline wmod(z,t,p) = fwn(1,Dx,z,p) + fwn(2,Dx,z,p)
+@inline umod(z,t,p) = (fun(z,t,1,p)    + fun(z,t,2,p))    * framp(t,Tr)
+@inline wmod(z,t,p) = (fwn(z,t,1,Dx,p) + fwn(z,t,2,Dx,p)) * framp(t,Tr)
 #@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
 
 u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
@@ -206,10 +216,14 @@ simulation = Simulation(model; Δt, stop_time)
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
 
 # write output
-fields = Dict("u" => model.velocities.u, "w" => model.velocities.w, "c" => model.tracers.b)
+fields = Dict("u" => model.velocities.u, 
+              "v" => model.velocities.v, 
+              "w" => model.velocities.w, 
+              "b" => model.tracers.b)
+
 pthnm = "/data3/mbui/ModelOutput/IW/"
 fname = "IW_fields_U0n"
-filename=string(pthnm,fname,U0n,fid,".nc")
+filename=string(pthnm,fname,pm.U0n[1],fid,".nc")
 
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filename, 
@@ -223,32 +237,44 @@ model.clock.iteration = 0
 model.clock.time = 0
 run!(simulation)
 
-# read the NC fields
+
+##################  read the NC fields   ##################### 
 # plot the velocity as a function of time
 
+ds = NCDataset(filename,"r");
 
-#= alternative               
-u_bcs = FieldBoundaryConditions(top = ValueBoundaryCondition(+0.1),
-                                       bottom = ValueBoundaryCondition(-0.1));
+tsec = ds["time"];
+tday = tsec/24/3600;
 
-model = NonhydrostaticModel(; grid, coriolis,
-                            tracers = :b,
-                            buoyancy = BuoyancyTracer(),
-                            background_fields = (; b=B)) 
+xf   = ds["x_faa"]; 
+xc   = ds["x_caa"]; 
+zc   = ds["z_aac"]; 
 
-# mmm also an error
-model = NonhydrostaticModel(grid=grid, boundary_conditions=(u=u_bcs,), tracers=:c)
+# u(x_faa, z_aac, time)
+ufs = ds["u"][:,1,:];
+ufb = ds["u"][:,end,:];
 
-topology = (Periodic, Periodic, Bounded);
+fig1 = Figure()
+ax1 = fig1[1, 1] 
+ax2 = fig1[2, 1] 
+heatmap(ax1, xf/1e3, tday, ufs)
 
-grid = RectilinearGrid(size=(16, 16, 16), extent=(1, 1, 1), topology=topology);
+heatmap(ax2, xf/1e3, tday, ufb)
+fig1
 
-u_bcs = FieldBoundaryConditions(top = ValueBoundaryCondition(+0.1),
-                                       bottom = ValueBoundaryCondition(-0.1));
+# compute some energy terms
+uf = ds["u"];
+uc = uf[1:end-1,:,:]/2 + uf[2:end,:,:]/2; #map to centers
 
-c_bcs = FieldBoundaryConditions(top = ValueBoundaryCondition(20.0),
-                                       bottom = GradientBoundaryCondition(0.01));
+KE = dropdims(mean(uc.^2, dims=3), dims=3);
 
-model = NonhydrostaticModel(grid=grid, boundary_conditions=(u=u_bcs, c=c_bcs), tracers=:c)
+fig2 = Figure()
+ax3 = fig2[1, 1] 
+heatmap(ax3, xc/1e3, zc, KE)
+fig2
 
-=#
+
+
+
+# close the nc file
+close(ds)
