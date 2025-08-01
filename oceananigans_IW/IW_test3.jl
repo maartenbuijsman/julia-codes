@@ -4,7 +4,9 @@ Set up IW test case for Oceananigans
 use open boundary forcing w and u
 also include a sponge layer on the right boundary
 
-todo: 1) include parameters in functions, 2) realistic N, 3) add a mode 2
+todo: 1) include parameters in functions, 
+      2) add a mode 2
+      3) realistic N, 
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -25,16 +27,26 @@ using CairoMakie
 fid = "_lat0_boundforce_advc4_sponge_8d_2min" 
 
 # grid parameters
-const lat = 0
-const Nz, Nx = 50, 100
-const H, L = 1000meters, 500_000meters
+pm = (lat=0, Nz=50, Nx=100, H=1000, L=500_000)
 
-println("Δx = ",L/Nx/1e3," km")
-println("Δz = ",H/Nz," m")
+coriolis = FPlane(latitude = pm.lat)    # Coriolis
+
 
 # internal wave parameters
-const gausW_width = 500/3
-const gausW_center = 250_000  # x position of Gaussian of forced wave
+# Imod: number of modes; U0n: modal amps; N: stratification; T:tidal period
+pm = merge(pm,(Imod=2, U0n=[0.1, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
+
+println("Δx = ",pm.L/pm.Nx/1e3," km")
+println("Δz = ",pm.H/pm.Nz," m")
+
+#= create parameter tuple == examples
+parameters are used as local variables in functions => faster
+pm = (; i, f, s)
+pm2 = (; k=1, g=2, j="top")
+pm4 = merge(pm,pm2,(ii = 1, ff = 3.14))
+aa, bb = 3,-5.3
+pm5 = merge(pm4,(; aa, bb))
+=#
 
 # sponge regions
 #const Sp_Region_right = 500                               # size of sponge region on RHS
@@ -43,66 +55,56 @@ const Sp_Region_right = 20000                              # size of sponge regi
 const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
-coriolis = FPlane(latitude = lat);    # Coriolis
+coriolis = FPlane(latitude = pm.lat);    # Coriolis
 
-grid = RectilinearGrid(size=(Nx, Nz), 
-                       x=(0,L), 
-                       z=(-H, 0), 
+grid = RectilinearGrid(size=(pm.Nx, pm.Nz), 
+                       x=(0,pm.L), 
+                       z=(-pm.H, 0), 
                        topology=(Bounded, Flat, Bounded))
 
 ###########-------- Parameters ----------------#############
 
-#=
-struct params
-    n::Int64
-    an::Float64
-    f::Float64
-    ω::Float64
-    N::Float64
+# internal wave derived parameters
+
+# frequency
+ω=2*π/pm.T
+pm = merge(pm,(; ω))
+
+# wave number and amplitude
+kn=zeros(pm.Imod)
+an=zeros(pm.Imod)
+for n in 1:pm.Imod 
+    kn[n] = n*π/pm.H*sqrt( (pm.ω^2-pm.f^2)/(pm.N^2-pm.ω^2))
+
+    # reverse engineer an (from Gerkema IW syllabus; to be consistent with w eq)
+    an[n] = pm.U0n[n]/(n*π/(kn[n]*pm.H))
 end
-=#
+pm = merge(pm,(; kn, an))
 
-const n=1
-const U0n = 0.1
-const an = 0.003
-const f = coriolis.f
-const N = 0.005
-const T = (12+25.2/60)*3600   # period in seconds
+# check values
+nn = 1:pm.Imod
+println("U0n =", an.*(nn*π./(kn*pm.H)))
+println("Ln =", 2*π./pm.kn/1e3, " km")
+println("cn =",  pm.ω./pm.kn," m/s")
+println("velocity u at z=0: ",-pm.an.*nn*π./(pm.kn*pm.H))
 
-ω = 2*π/T
-kn = n*π/H*sqrt( (ω^2-f^2)/(N^2-ω^2))
 
-# reverse engineer an
-const an = U0n/(n*π/(kn*H))
-#U0n = an*(n*π/(kn*H))
-
-ueig(z) = cos(n*π*z/H)
-weig(z) = sin(n*π*z/H)
-
-Ln = 2*π/kn
-cn = ω/kn
-
-println(" cn = ",cn)
-println(" Ln = ",Ln)
-
-println(" velocity u at 0: ",-an*n*π/(kn*H)*ueig(0))
-println(" velocity u at -H: ",-an*n*π/(kn*H)*ueig(-H))
-println(" velocity w at -H: ",an*weig(-H/2))
-
+#ueig(z,p) = cos(n*π*z/H)
+#weig(z,p) = sin(n*π*z/H)
 
 ###########------ FORCING ------#############
 
 # background 
-B_func(x, z, t, N) = N^2 * z
-B = BackgroundField(B_func, parameters=N)
+B_func(x, z, t, p) = p.N^2 * z
+B = BackgroundField(B_func, parameters=pm)
 
 # IW forcing
 
 # sponge regions
-@inline heaviside(X)  = ifelse(X <0, 0.0, 1.0)
-@inline mask2nd(X)    = heaviside(X)* X^2
-@inline right_mask(x) = mask2nd((x-L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
-@inline left_mask(x)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
+@inline heaviside(X)    = ifelse(X <0, 0.0, 1.0)
+@inline mask2nd(X)      = heaviside(X)* X^2
+@inline right_mask(x,p) = mask2nd((x-p.L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
+@inline left_mask(x,p)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
 
 #= plot function 
 heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
@@ -124,40 +126,37 @@ fig
 
 # nudging layer ∂x/∂t = F(x) + K(x_target - x) 
 # K has units [1/time]
-@inline u_sponge(x, z, t, u) = - 0.001 * right_mask(x) * u 
-@inline v_sponge(x, z, t, v) = - 0.001 * right_mask(x) * v 
-@inline w_sponge(x, z, t, w) = - 0.001 * right_mask(x) * w 
-@inline b_sponge(x, z, t, b) = - 0.001 * right_mask(x) * b 
+@inline u_sponge(x, z, t, u, p) = - 0.001 * right_mask(x, p) * u 
+@inline v_sponge(x, z, t, v, p) = - 0.001 * right_mask(x, p) * v 
+@inline w_sponge(x, z, t, w, p) = - 0.001 * right_mask(x, p) * w 
+@inline b_sponge(x, z, t, b, p) = - 0.001 * right_mask(x, p) * b 
 #@inline b_sponge(x, z, t, b) =   0.001 * right_mask(x) * (N^2 * z - b) + 0.001 * left_mask(x) * (N^2 * z - b)
 
-#= body force
-@inline gaus(x) = exp( -(x - gausW_center)^2 / (2 * gausW_width^2))
-@inline Fu_wave(x, z, t) = ω * an * ( n * π / ( kn* H)) * cos( n * π * z /  H ) *
-                                 sin( kn * x -  ω * t) * gaus(x)
-=#
-
 # additional body forcing can be added
-@inline force_u(x, z, t, u) = u_sponge(x, z, t, u) 
-@inline force_v(x, z, t, v) = v_sponge(x, z, t, v) 
-@inline force_w(x, z, t, w) = w_sponge(x, z, t, w) 
-@inline force_b(x, z, t, b) = b_sponge(x, z, t, b) 
+@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) 
+@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) 
+@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) 
+@inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
 
-u_forcing = Forcing(force_u, field_dependencies = :u)
-v_forcing = Forcing(force_v, field_dependencies = :v)
-w_forcing = Forcing(force_w, field_dependencies = :w)
-b_forcing = Forcing(force_b, field_dependencies = :b)
+u_forcing = Forcing(force_u, field_dependencies = :u, parameters = pm)
+v_forcing = Forcing(force_v, field_dependencies = :v, parameters = pm)
+w_forcing = Forcing(force_w, field_dependencies = :w, parameters = pm)
+b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
 
 # boundary forcing
-# u at face, w at center offset by -Δx/2
-@inline umod(z,t) = -an*n*π/(kn*H)*ueig(z)*sin(-ω*t)
-
+# u and w functions per mode, from Gerkema syllabus
+fun(n,z,p)   = -p.an*n*π/(p.kn*p.H) * cos(n*π*z/p.H) * sin(          -p.ω*t)
+fwn(n,Dx,z,p) = p.an                * sin(n*π*z/p.H) * cos(-p.kn*Dx/2-p.ω*t)
 Dx = xspacings(grid, Center())[1]
-@inline wmod(z,t) = an*weig(z)*cos(-kn*Dx/2-ω*t)
+
+# u at face, w at center offset by -Δx/2
+@inline umod(z,t,p) = fun(1,z,p)    + fun(2,z,p)
+@inline wmod(z,t,p) = fwn(1,Dx,z,p) + fwn(2,Dx,z,p)
 #@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
 
-u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod))
+u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
+w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 #v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod))
-w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod))
 
 #= WENO causes diffusion near the boundaries
 model = NonhydrostaticModel(; grid, coriolis,
