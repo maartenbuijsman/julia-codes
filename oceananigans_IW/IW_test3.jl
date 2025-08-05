@@ -241,6 +241,12 @@ run!(simulation)
 ##################  read the NC fields   ##################### 
 # plot the velocity as a function of time
 
+pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
+include(string(pathname,"include_functions.jl"))
+
+fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
+filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
+
 ds = NCDataset(filename,"r");
 
 tsec = ds["time"];
@@ -250,16 +256,19 @@ xf   = ds["x_faa"];
 xc   = ds["x_caa"]; 
 zc   = ds["z_aac"]; 
 
+Nz = length(zc);
+Nx = length(xc);
+Nt = length(tday);
+
 # u(x_faa, z_aac, time)
 ufs = ds["u"][:,1,:];
-ufb = ds["u"][:,end,:];
+ufs = ds["u"][:,end,:];   #surface velocity
 
 fig1 = Figure()
-ax1 = fig1[1, 1] 
-ax2 = fig1[2, 1] 
-heatmap(ax1, xf/1e3, tday, ufs)
-
-heatmap(ax2, xf/1e3, tday, ufb)
+ax1a = fig1[1, 1] 
+ax1b = fig1[2, 1] 
+heatmap(ax1a, xf/1e3, tday, ufs)
+heatmap(ax1b, xf/1e3, tday, ufs)
 fig1
 
 # compute some energy terms
@@ -269,12 +278,33 @@ uc = uf[1:end-1,:,:]/2 + uf[2:end,:,:]/2; #map to centers
 KE = dropdims(mean(uc.^2, dims=3), dims=3);
 
 fig2 = Figure()
-ax3 = fig2[1, 1] 
-heatmap(ax3, xc/1e3, zc, KE)
+ax2 = fig2[1, 1] 
+heatmap(ax2, xc/1e3, zc , KE)
 fig2
 
+# now do some fft on surface velocities along the transect
 
+# surf vel
+ucs = uc[:,end,:]
 
+fig3 = Figure()
+ax3 = fig3[1, 1] 
+heatmap(ax3, xc/1e3, tday, ucs)
+fig3
+
+tukeycf=0.0; numwin=1; linfit=true; prewhit=false;
+Nfreq = Nt÷numwin÷2;
+pwr = Matrix{Float64}(undef, Nx, Nfreq); 
+period=[]; freq=[];
+for i=1:Nx
+    period, freq, pwr[i,:] = fft_spectra(tday, ucs[i,:]; tukeycf, numwin, linfit, prewhit);    
+end
+
+fig4 = Figure()
+ax4 = Axis(fig4[1, 1])  # <-- create Axis, not GridPosition
+heatmap!(xc ./ 1e3, freq, log10.(pwr))
+ylims!(ax4, 0, 5)
+fig4
 
 # close the nc file
 close(ds)

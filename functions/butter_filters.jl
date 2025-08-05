@@ -2,9 +2,6 @@
    Maarten Buijsman, USM, 2025-7-30
    This function file includes band, low, and highpass butter filters
 =#
-
-using DSP
-
 """
 bandpass_butter(y,Tl,Th,dt,N)
 
