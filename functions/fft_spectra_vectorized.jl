@@ -1,7 +1,7 @@
 """
     fft_spectra(t, y; tukeycf=0.5, numwin=1, linfit=true, prewhit=false)
 
-Perform simple spectral analysis similar to the MATLAB's fft_spectra2 function.
+Perform simple spectral analysis similar to the MATLAB's fft_spectra function.
 
 # Arguments
 - `t::AbstractVector{<:Real}`: Time vector
@@ -17,21 +17,7 @@ Perform simple spectral analysis similar to the MATLAB's fft_spectra2 function.
 - `power::Vector{Float64}`
 
 # Example
-T1, T2, T3 = 0.5, 1, 2  # days
-t = collect(1:1447)/24
-y = 1.0 .*  cos.(2π .* t ./ T1) .+ 0.5 .*  cos.(2π .* t ./ T2) .+  0.25 .* cos.(2π .* t ./ T3)
-
-fig1 = Figure(); ax1 = fig1[1, 1]; lines(ax1, t, y); fig1  
-
-tukeycf=0.0; numwin=3; linfit=true; prewhit=false;
-period, freq, power = fft_spectra(t, y; tukeycf, numwin, linfit, prewhit);
-
-fig2 = Figure(); ax = Axis(fig2[1, 1], title = "Power Spectrum", xlabel = "Frequency [1/unit]", ylabel = "Power", yscale = log10)
-lines!(ax, freq, power, color = :green, linewidth = 2)
-expected_freqs = [1/T1, 1/T2, 1/T3]; expected_power = fill(mean(power), 3); # Mark expected frequencies
-scatter!(ax, expected_freqs, expected_power, color = [:red, :blue, :orange], markersize = 14)
-text!(ax, expected_freqs, expected_power .* 1.2; text = ["T1=$T1", "T2=$T2", "T3=$T3"], align = (:center, :bottom), fontsize = 14)
-xlims!(ax, (0, 2.5)); ylims!(ax, (1e-4, 1e2)); fig2
+See below the code of this function
 
 # Info
 Maarten Buijsman, USM, 2025-8-4l fft_spectra_vectorized.jl
@@ -126,4 +112,22 @@ end
 
     % NOTE that including re-reddening Parseval's theorem does not hold anymore ......
     % sum(yd.^2*dt)/sum(P1*df./freq.^2) 
+=#
+
+#= Example
+T1, T2, T3 = 0.5, 1, 2
+t = collect(1:1447)/24
+y = 1.0 .*  cos.(2π .* t ./ T1) .+ 0.5 .*  cos.(2π .* t ./ T2) .+  0.25 .* cos.(2π .* t ./ T3)
+
+fig1 = Figure(); ax1 = fig1[1, 1]; lines(ax1, t, y); fig1  
+
+tukeycf=0.0; numwin=3; linfit=true; prewhit=false;
+period, freq, power = fft_spectra(t, y; tukeycf, numwin, linfit, prewhit);
+
+fig2 = Figure(); ax = Axis(fig2[1, 1], title = "Power Spectrum", xlabel = "Frequency [1/unit]", ylabel = "Power", yscale = log10)
+lines!(ax, freq, power, color = :green, linewidth = 2)
+expected_freqs = [1/T1, 1/T2, 1/T3]; expected_power = fill(mean(power), 3); # Mark expected frequencies
+scatter!(ax, expected_freqs, expected_power, color = [:red, :blue, :orange], markersize = 14)
+text!(ax, expected_freqs, expected_power .* 1.2; text = ["T1=$T1", "T2=$T2", "T3=$T3"], align = (:center, :bottom), fontsize = 14)
+xlims!(ax, (0, 2.5)); ylims!(ax, (1e-4, 1e2)); fig2
 =#

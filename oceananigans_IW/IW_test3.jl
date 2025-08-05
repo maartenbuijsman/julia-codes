@@ -211,7 +211,7 @@ end
 #Δt = 30seconds
 Δt = 2minutes
 start_time = 0days
-stop_time = 16days
+stop_time  = 8days
 simulation = Simulation(model; Δt, stop_time)
 
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
@@ -242,20 +242,27 @@ run!(simulation)
 ##################  read the NC fields   ##################### 
 # plot the velocity as a function of time
 
-pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
+#pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
+pathname = "/home/mbui/Documents/julia-codes/functions/"
 include(string(pathname,"include_functions.jl"))
 
-fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
-filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
+
+#fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
+fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
+
+#filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
+filename = string("/data3/mbui/ModelOutput/IW/",fnames)
 
 ds = NCDataset(filename,"r");
 
 tsec = ds["time"];
 tday = tsec/24/3600;
+dt = tday[2]-tday[1]
 
 xf   = ds["x_faa"]; 
 xc   = ds["x_caa"]; 
 zc   = ds["z_aac"]; 
+dz   = ds["Δz_aac"];
 
 Nz = length(zc);
 Nx = length(xc);
@@ -265,6 +272,34 @@ Nt = length(tday);
 ufs = ds["u"][:,1,:];
 ufs = ds["u"][:,end,:];   #surface velocity
 
+# buoyancy [m/s2]
+# background = N^2 * z
+# b = N2 * z = -g/rho0*drho/dz * z
+# b = -g/rho0*rho_pert
+# rho_pert = -b*rho0/g 
+b = ds["b"];
+
+# MAR660 hydrostatic pressure
+# dp/dz = -g*rho 
+# Oceananigans - kinematic pressure p/rho [m2/s2]
+# dp/dz = b = -g/rho0*rho_pert [m2/s2]
+# 
+
+dzi  = dz[end:-1:1]; # reverse dz for surface down
+dzzi = repeat(dzi',Nx,1,Nt);
+
+bi  = b[:,end:-1:1,:];
+pki = cumsum(bi.*dzzi, dims=2);     
+
+
+# centered velocities
+uf = ds["u"];
+uc = uf[1:end-1,:,:]/2 + uf[2:end,:,:]/2; #map to centers
+
+# compute some energy terms
+
+
+
 fig1 = Figure()
 ax1a = fig1[1, 1] 
 ax1b = fig1[2, 1] 
@@ -272,18 +307,14 @@ heatmap(ax1a, xf/1e3, tday, ufs)
 heatmap(ax1b, xf/1e3, tday, ufs)
 fig1
 
-# compute some energy terms
-uf = ds["u"];
-uc = uf[1:end-1,:,:]/2 + uf[2:end,:,:]/2; #map to centers
-
 KE = dropdims(mean(uc.^2, dims=3), dims=3);
 
 fig2 = Figure()
-ax2 = fig2[1, 1] 
-heatmap(ax2, xc/1e3, zc , KE)
+ax2, hm = heatmap(fig2[1,1], xc/1e3, zc , KE, colormap = Reverse(:Spectral))
+Colorbar(fig2[1,2], hm)
 fig2
 
-# now do some fft on surface velocities along the transect
+# fft on surface velocities along the transect ==============
 
 # surf vel
 ucs = uc[:,end,:]
@@ -306,6 +337,28 @@ ax4 = Axis(fig4[1, 1])  # <-- create Axis, not GridPosition
 heatmap!(xc ./ 1e3, freq, log10.(pwr))
 ylims!(ax4, 0, 5)
 fig4
+
+
+# bandpass filtering ============================
+Tl,Th,dth,N = 9,15,dt*24,4
+
+ucsf = bandpass_butter(ucs',Tl,Th,dth,N)'
+
+ix = 50
+
+fig = Figure()
+ax = Axis(fig[1, 1]) 
+lines!(ax,tday,ucs[ix,:],color = :red)
+lines!(ax,tday,ucsf[ix,:],color = :green, linestyle = :dash)
+lines!(ax,tday,ucs[ix,:]-ucsf[ix,:],color = :magenta, linestyle = :dash)
+fig
+
+fig3 = Figure()
+ax3 = fig3[1, 1] 
+heatmap(ax3, xc/1e3, tday, ucsf)
+fig3
+
+
 
 # close the nc file
 close(ds)

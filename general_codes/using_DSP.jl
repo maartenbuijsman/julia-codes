@@ -16,15 +16,17 @@ fig1 = Figure()
 ax = Axis(fig1[1, 1])
 lines!(ax,t,uu)
 xlims!(ax, (0, 5*24))
-
 fig1
 
+# create two column vector
+uu2 = [uu uu]
+
 Tl,Th,dt,N = 9,15,1,4
-uuf = bandpass_butter(uu,Tl,Th,dt,N)
+uuf = bandpass_butter(uu2,Tl,Th,dt,N)
 
 #limits!(ax, (min_x, max_x, min_y, max_y))
 
-lines!(ax,t,uuf,color = :red)
+lines!(ax,t,uuf[:,2],color = :red)
 lines!(ax,t,1*cos.(2π/T1*t),color = :green, linestyle = :dash)
 lines!(ax,t,0.5*cos.(2π/T2*t),color = :orange, linestyle = :dash)
 xlims!(ax, (0*24, 7*24))

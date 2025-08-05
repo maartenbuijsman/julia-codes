@@ -3,7 +3,7 @@
    This function file includes band, low, and highpass butter filters
 =#
 """
-bandpass_butter(y,Tl,Th,dt,N)
+    bandpass_butter(y,Tl,Th,dt,N)
 
 bandpass butterworth filter, returns filtered time series
 
