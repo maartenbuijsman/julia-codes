@@ -35,7 +35,8 @@ coriolis = FPlane(latitude = pm.lat)    # Coriolis
 
 # internal wave parameters
 # Imod: number of modes; U0n: modal amps; N: stratification; T:tidal period
-pm = merge(pm,(Imod=2, U0n=[0.1, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
+#pm = merge(pm,(Imod=2, U0n=[0.1, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
+pm = merge(pm,(Imod=2, U0n=[0.2, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
 
 println("Δx = ",pm.L/pm.Nx/1e3," km")
 println("Δz = ",pm.H/pm.Nz," m")
@@ -210,7 +211,7 @@ end
 #Δt = 30seconds
 Δt = 2minutes
 start_time = 0days
-stop_time = 8days
+stop_time = 16days
 simulation = Simulation(model; Δt, stop_time)
 
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
