@@ -240,6 +240,27 @@ run!(simulation)
 
 
 ##################  read the NC fields   ##################### 
+
+#= make into function
+
+# Get the amount of free memory in bytes
+free_bytes = Sys.free_memory()
+
+# Convert bytes to megabytes
+free_mb = free_bytes / (1024^2)
+
+# Print the result
+println("Free RAM: ", free_mb, " MB")
+=#
+
+println("number of threads is ",Threads.nthreads())
+
+using Pkg
+using NCDatasets
+using Printf
+using CairoMakie
+using Statistics
+
 # plot the velocity as a function of time
 
 #pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
@@ -264,53 +285,127 @@ xc   = ds["x_caa"];
 zc   = ds["z_aac"]; 
 dz   = ds["Δz_aac"];
 
+H  = sum(dz);   # depth
+Nb = 0.005;     # buoyancy freq
+
 Nz = length(zc);
 Nx = length(xc);
 Nt = length(tday);
 
-# u(x_faa, z_aac, time)
-ufs = ds["u"][:,1,:];
-ufs = ds["u"][:,end,:];   #surface velocity
-
 # buoyancy [m/s2]
-# background = N^2 * z
+# background = 
 # b = N2 * z = -g/rho0*drho/dz * z
 # b = -g/rho0*rho_pert
 # rho_pert = -b*rho0/g 
+# rho = -(N^2 * z + b)*rho0/g 
 b = ds["b"];
 
-# MAR660 hydrostatic pressure
-# dp/dz = -g*rho 
-# Oceananigans - kinematic pressure p/rho [m2/s2]
-# dp/dz = b = -g/rho0*rho_pert [m2/s2]
-# 
+# create density as a function of time
+const rho0=1020; const grav=9.81; 
+Nb2z = Nb^2 .* reshape(zc, 1, :, 1);   # shape: (1, length(zc), 1)
+rho  = -(Nb2z .+ b) * rho0 / grav;       # broadcast without repeat
+#rho = @. -(Nb2z + b) * rho0 / grav;    # broadcast without repeat
 
-dzi  = dz[end:-1:1]; # reverse dz for surface down
-dzzi = repeat(dzi',Nx,1,Nt);
+it = 350
+fig = Figure(); Axis(fig[1,1],title="b & ρ"); 
+heatmap!(xc/1e3,zc,b[:,:,it]); 
+contour!(xc/1e3,zc,rho[:,:,it], color = :black); fig
 
-bi  = b[:,end:-1:1,:];
-pki = cumsum(bi.*dzzi, dims=2);     
+Figure(); lines(rho[10,:,100],zc)
+Figure(); lines(Nb2z[1,:,1],zc)
+Figure(); lines(-Nb2z[1,:,1]*rho0/grav,zc)
+
+#check memory
+
+# MAR660 hydrostatic pressure ============================
+# rho_pert = -b*rho0/g 
+# dp       = -g*rho*dz
+# In Oceananigans: dp/dz = b = -g/rho0*rho_pert [m2/s2]
+# because of kinematic pressure p/rho
+
+#= this is not really faster .....
+using Base.Threads
+
+#Nx, Nz, Nt = size(b)
+pfi = similar(b)
+cnt = zeros(Nx * Nt,2)
+Threads.@threads for t in 1:(Nx * Nt)
+    if rem(t,100)==0; println("t=",t); end
+    # Flatten (i,k) space to distribute across threads
+    i = ((t - 1) % Nx) + 1
+    k = ((t - 1) ÷ Nx) + 1
+
+    cnt[t,1] = i
+    cnt[t,2] = k    
+#    println(t,"; ",i,"; ",k)
+    acc = zero(eltype(b))
+    @inbounds @simd for j in Nz:-1:1
+        acc += b[i, j, k] * dz[j]
+        pfi[i, j, k] = acc
+    end
+end
+
+a = zeros(100)
+@threads for i = 1:100
+           a[i] = Threads.threadid()
+       end
+
+=#
+
+# hydrostatic pressure
+dzz  = reshape(dz, 1, :, 1);                                # shape: (1, length(zc), 1)
+pfi = cumsum(b[:,end:-1:1,:].*dzz[:,end:-1:1,:], dims=2);  # reverse, z surface down, at faces
+pfi = pfi * -1 * rho0 / grav;                             # convert to pert pressure
+
+# average to centers, and reverse back (z bottom up)
+pc = zeros(size(pfi));
+pc[:,1:end-1,:] = pfi[:,end:-1:2,:]/2 + pfi[:,end-1:-1:1,:]/2; # compute center values
+pc[:,end,:]     = pfi[:,1,:]/2;                                # add surface value
+#pc[1,:,10]
+
+# remove depth-mean
+pa  = sum(pc.*dzz,dims=2)/H; # depth-mean pressure
+#pa[1,:,100]
+pcp = pc .- pa;             # the perturbation pressure!
+
+#check integral of perturbation pressure should be zero 
+#sum(pcp[100,:,300].*dz)   
+Figure(); lines(pcp[10,:,100],zc)
+
+fig = Figure(); Axis(fig[1,1],title="pk [m2/s2]"); 
+heatmap!(xc/1e3,zc,pcp[:,:,300]); fig
+contour!(xc/1e3,zc,b[:,:,300], color = :black); fig
 
 
 # centered velocities
+# u(x_faa, z_aac, time)
 uf = ds["u"];
 uc = uf[1:end-1,:,:]/2 + uf[2:end,:,:]/2; #map to centers
 
-# compute some energy terms
-
-
-
+# some more hovmullers
 fig1 = Figure()
 ax1a = fig1[1, 1] 
 ax1b = fig1[2, 1] 
-heatmap(ax1a, xf/1e3, tday, ufs)
-heatmap(ax1b, xf/1e3, tday, ufs)
+heatmap(ax1a, xc/1e3, tday, b[:,Nz ÷ 2,:])
+heatmap(ax1b, xc/1e3, tday, uc[:,end,:])
 fig1
 
+# compute some energy terms ===================================
 KE = dropdims(mean(uc.^2, dims=3), dims=3);
 
 fig2 = Figure()
-ax2, hm = heatmap(fig2[1,1], xc/1e3, zc , KE, colormap = Reverse(:Spectral))
+ax2 = Axis(fig2[1,1]);
+hm = heatmap!(ax2, xc/1e3, zc , KE, colormap = Reverse(:Spectral))
+Colorbar(fig2[1,2], hm)
+fig2
+
+# depth-integrated pressure fluxes
+Fx = sum(uc.*pcp.*dzz, dims=2);
+Fx = dropdims(Fx, dims=2);
+
+fig2 = Figure()
+ax2 = Axis(fig2[1,1]);
+hm = heatmap!(ax2, xc/1e3, tday, Fx/1e3, colormap = Reverse(:Spectral))
 Colorbar(fig2[1,2], hm)
 fig2
 
