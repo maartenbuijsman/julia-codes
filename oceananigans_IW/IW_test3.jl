@@ -373,7 +373,7 @@ pcp = pc .- pa;             # the perturbation pressure!
 Figure(); lines(pcp[10,:,100],zc)
 
 fig = Figure(); Axis(fig[1,1],title="pk [m2/s2]"); 
-heatmap!(xc/1e3,zc,pcp[:,:,300]); fig
+vflmap!(xc/1e3,zc,pcp[:,:,300]); fig
 contour!(xc/1e3,zc,b[:,:,300], color = :black); fig
 
 # compute some energy terms ===================================
