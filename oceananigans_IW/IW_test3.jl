@@ -376,6 +376,7 @@ fig = Figure(); Axis(fig[1,1],title="pk [m2/s2]");
 heatmap!(xc/1e3,zc,pcp[:,:,300]); fig
 contour!(xc/1e3,zc,b[:,:,300], color = :black); fig
 
+# compute some energy terms ===================================
 
 # centered velocities
 # u(x_faa, z_aac, time)
@@ -390,7 +391,6 @@ heatmap(ax1a, xc/1e3, tday, b[:,Nz ÷ 2,:])
 heatmap(ax1b, xc/1e3, tday, uc[:,end,:])
 fig1
 
-# compute some energy terms ===================================
 KE = dropdims(mean(uc.^2, dims=3), dims=3);
 
 fig2 = Figure()
