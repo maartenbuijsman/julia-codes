@@ -12,7 +12,7 @@ using LinearAlgebra
 using FFTW
 
 # filtering and fft
-include(string(pathname,"butter_filters.jl"))
-include(string(pathname,"fft_spectra_vectorized.jl"))   # tested in using_DSP.jl
-#include(string(pathname,"fft_spectra.jl"))             # NOT TESTED!! 
-
+include(string(pathname,"butter_filters.jl"));
+include(string(pathname,"fft_spectra_vectorized.jl"));        # tested in using_DSP.jl
+#include(string(pathname,"fft_spectra.jl"));                  # NOT TESTED!! 
+include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testing_sturmL.jl

@@ -22,6 +22,8 @@ Make sure all the time variables have the same time units!
 # Example: 9-15 hour bandpass filter for 1 cph sampling (Δt=1hour)
 yf = bandpass_butter(y,9,15,1,4)
 
+# Info
+Maarten Buijsman, USM, 2025-8-8
 """
 function bandpass_butter(y,Tl,Th,dt,N);
     f1=1/Th  
@@ -55,6 +57,8 @@ Make sure all the time variables have the same time units!
 # Example: 9 hour low-bandpass filter for 1 cph sampling (Δt=1hour)
 yf = lowhighpass_butter(y,9,1,4,"low")
 
+# Info
+Maarten Buijsman, USM, 2025-8-8
 """
 function lowhighpass_butter(y,Tcut,dt,N,fstring);
     fcut=1/Tcut 
