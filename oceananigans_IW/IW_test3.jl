@@ -25,7 +25,7 @@ using Statistics
 #fid = "_lat0_boundaryforce_sponge_closure"  #true U = 0.1  amplitude
 #fid = "_lat0_boundaryforce_closure"  #true U = 0.1  amplitude
 #fid = "_lat0_boundaryforce_closure_IW1" 
-fid = "_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup" 
+fid = "_lat0_bndfrc_advc4_spng_16d_dt2m_2mds_rampup" 
 
 # grid parameters
 pm = (lat=0, Nz=50, Nx=100, H=1000, L=500_000)
@@ -36,7 +36,7 @@ coriolis = FPlane(latitude = pm.lat)    # Coriolis
 # internal wave parameters
 # Imod: number of modes; U0n: modal amps; N: stratification; T:tidal period
 #pm = merge(pm,(Imod=2, U0n=[0.1, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
-pm = merge(pm,(Imod=2, U0n=[0.2, 0.05], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
+pm = merge(pm,(Imod=2, U0n=[0.2, 0.1], N=0.005, T=(12+25.2/60)*3600, f=coriolis.f))
 
 println("Δx = ",pm.L/pm.Nx/1e3," km")
 println("Δz = ",pm.H/pm.Nz," m")
@@ -211,7 +211,7 @@ end
 #Δt = 30seconds
 Δt = 2minutes
 start_time = 0days
-stop_time  = 8days
+stop_time  = 16days
 simulation = Simulation(model; Δt, stop_time)
 
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
@@ -238,7 +238,7 @@ model.clock.iteration = 0
 model.clock.time = 0
 run!(simulation)
 
-
+return
 ##################  read the NC fields   ##################### 
 
 #= make into function
