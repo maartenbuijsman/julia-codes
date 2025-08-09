@@ -2,16 +2,64 @@
 # MCB, USM, 2025-8-8
 # testing this chatgpt concoction 
 
-pathname = "C://Users//w944461//Documents//JULIA//functions/";
-#pathname = "/home/mbui/Documents/julia-codes/functions/"
+#pathname = "C://Users//w944461//Documents//JULIA//functions/";
+pathname = "/home/mbui/Documents/julia-codes/functions/"
 include(string(pathname,"include_functions.jl"));
 
 using CairoMakie
 using NCDatasets
+using GibbsSeaWater
 
 Threads.nthreads()
 
-# load Greg Jacobs data set
+# load Gregg Jacobs' data set
+filename = "/home/jacobs/Projects/WOD/amazon/cov_amazon_080_01.nc"
+ds = NCDataset(filename,"r");
+
+depth = ds["depth"][:];
+double_depth1 = ds["double_depth1"][:];
+latitude = ds["latitude"][:];
+longitude = ds["longitude"][:];
+TSmean = ds["mean"];
+
+Nz = length(depth);
+
+LON, LAT = meshgrid(longitude,latitude);
+
+#=
+fig = Figure()
+ax = Axis(fig[1,1])
+scatter!(LON[:],LAT[:])
+scatter!(ax,LON[is,js],LAT[is,js], marker = '*', markersize = 50)
+fig
+=#
+
+lonsel = 360-42; latsel = 7
+lonsel = 360-45; latsel = 3
+d,is = findmin(abs.(longitude.-lonsel));
+d,js = findmin(abs.(latitude.-latsel));
+
+TSsel = TSmean[:,is,js];
+Ts = TSsel[1:Nz];
+Ss = TSsel[Nz+1:end];
+depths = ds["depth"][:]; 
+
+# check for bad values and remove them
+threshold = 1e4;
+ibad = [i for i in eachindex(Ts) if Ts[i] > threshold]
+if ~isempty(ibad)
+    deleteat!(Ts, ibad)
+    deleteat!(Ss, ibad)
+    deleteat!(depths, ibad)
+end
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,Ts,-depths)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,Ss,-depths)
+fig
 
 
 
