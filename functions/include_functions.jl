@@ -17,5 +17,9 @@ include(string(pathname,"gridding_functions.jl"));            # includes meshgri
 include(string(pathname,"fft_spectra_vectorized.jl"));        # tested in using_DSP.jl
 include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testing_sturmL.jl
 
+# other
+include(string(pathname,"coriolis.jl"));  # tested in testing_sturmL.jl
+
+
 # old
 #include(string(pathname,"fft_spectra.jl"));                  # NOT TESTED!! 

@@ -1,28 +1,31 @@
 """
-    sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
+    k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = 
+    sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
 
-Solve for n eigenfunctions and eigenvalues for given vector N2[zf]. n = length(zf)-1.
+Solve for n eigenfunctions and eigenvalues for given vector N2[zf]. N = length(zf)-1.
 Returns wavenumber k, wavelength L, phase, group, and eigen speeds C, Cg, and Ce, 
 and vertical velocity eigenfunctions W2 at faces and horizontal velocty eigenfunction Ueig2 (normalized) 
 and non-normalized Ueig1 at centers
 
 # Arguments    
-zf: layer faces [m], can either surface to bottom (e.g., 0 to -H) or bottom to surface,
+- `zf::Vector{Float64}`: layer faces [m], can either surface to bottom (e.g., 0 to -H) or bottom to surface,
 
-N2: Brunt-Väisälä frequency squared [rad^2/s^2] at layer faces zf,
+- `N2::Vector{Float64}`: Brunt-Väisälä frequency squared [rad^2/s^2] at layer faces zf,
 
-f: Coriolis frequency [rad/s],
+- `f::Float64`: Coriolis frequency [rad/s],
 
-om: internal wave frequency [rad/s],
+- `om::Float64`: internal wave frequency [rad/s],
 
-nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
+- `nonhyd::Int`: if 1, solve the non-hydrostatic Sturm-Liouville problem
+
+- `fillval::Float64`: Default is 1e12; replace negative values in N(z) fill value
 
 # info
 Maarten Buijsman, Oladeji Siyanbola, USM, 2025-8-8. Based on Ashok & Bhaduria (2009). 
 """
-function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
-    # Check direction of zf (depths): assume more negative = deeper
-    flipped = zf[1] > zf[end]  # if true, input is top to bottom (surface to bottom)
+function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
+
+    flipped = zf[1] > zf[end]  # if true, input is surface to bottom
     
     if !flipped
         zf = reverse(zf)
@@ -34,27 +37,27 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     N = length(dz)
 
     # Handle hydrostatic / nonhydrostatic modes
-    if nonhyd == -1
-        NN = clamp.(N2 .- om^2, 1e-12, Inf)
+    if nonhyd == 1
+        NN = clamp.(N2 .- om^2, fillval, Inf)
     else
-        NN = N2
+        NN = clamp.(N2, fillval, Inf)
     end
 
     # Construct B matrix
     B = Diagonal(-NN[2:end-1])
 
     # Construct A matrix
-    A = zeros(N - 2, N - 2)
+    A = zeros(N - 1, N - 1)
     A[1,1] = -2 / (dz[1] * dz[2])
     A[1,2] = 2 / (dz[2] * (dz[1] + dz[2]))
 
-    for i in 2:N-3
+    for i in 2:N-2
         A[i,i-1] =  2 / (dz[i] * (dz[i] + dz[i+1]))
         A[i,i]   = -2 / (dz[i] * dz[i+1])
         A[i,i+1] =  2 / (dz[i+1] * (dz[i] + dz[i+1]))
     end
 
-    i = N - 2
+    i = N - 1
     A[i,i-1] =  2 / (dz[i] * (dz[i] + dz[i+1]))
     A[i,i]   = -2 / (dz[i] * dz[i+1])
 
@@ -62,10 +65,11 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     invCe2, W1 = eigen(A, B)
     Ce2 = 1 ./ invCe2
     Ce = sqrt.(Ce2)
-    idx = sortperm(Ce, rev=true)
+    idx = sortperm(Ce, rev=true)  # order large to small
     Ce = Ce[idx]
     W1 = W1[:, idx]
 
+    # compute dispersion characteristics
     k = abs.(sqrt(om^2 - f^2) ./ Ce)
     C = om ./ k
     L = 2π ./ k
@@ -79,11 +83,12 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     dzu = repeat(dz, 1, size(W1,2))
     Ueig1 = dW2 ./ dzu
 
+    # normalize Ueig
     norm_factor = sqrt.(sum(Ueig1.^2 .* dzu, dims=1) ./ H)
     norm_factor[norm_factor .== 0] .= Inf
     Ueig2 = Ueig1 ./ norm_factor
 
-    # set the correct sign
+    # set the correct sign near the bottom
     for i in 1:size(Ueig2,2)
         if Ueig2[end,i] < 0
             Ueig1[:,i] .*= -1

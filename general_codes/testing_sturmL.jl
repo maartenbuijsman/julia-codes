@@ -114,7 +114,7 @@ zz  = [0; zmid[Iz]; -4000]
 N2c = [0; N2b[Iz]; N2b[Iz[end]]] 
 
 Iz = findall(item -> item ==0, N2c) 
-N2c[Iz] .= 1e-10
+N2c[Iz] .= 1e-12 
 
 """
     sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
@@ -128,14 +128,17 @@ nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
 
 zf = zz;
 N2 = N2c;
-
-#function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
-    # Check direction of zf (depths): assume more negative = deeper
+ 
     nonhyd = 1;
     om = 2*π/(12.4*3600)
     zeroval = 1e-12
+    lat = 45;
+    f = coriolis(lat)
 
-    flipped = zf[1] > zf[end]  # if true, input is top to bottom (surface to bottom)
+  k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
+  
+
+    flipped = zf[1] > zf[end]  # if true, input is surface to bottom
     
     if !flipped
         zf = reverse(zf)
@@ -202,6 +205,9 @@ N2 = N2c;
     norm_factor = sqrt.(sum(Ueig1.^2 .* dzu, dims=1) ./ H)
     norm_factor[norm_factor .== 0] .= Inf
     Ueig2 = Ueig1 ./ norm_factor
+
+        lines(Ueig2[:,2],zc)
+
 
     # set the correct sign
     for i in 1:size(Ueig2,2)
