@@ -9,6 +9,7 @@ include(string(pathname,"include_functions.jl"));
 using CairoMakie
 using NCDatasets
 using GibbsSeaWater
+using Interpolations
 
 Threads.nthreads()
 
@@ -34,8 +35,8 @@ scatter!(ax,LON[is,js],LAT[is,js], marker = '*', markersize = 50)
 fig
 =#
 
-lonsel = 360-42; latsel = 7
-lonsel = 360-45; latsel = 3
+lonsel = 360-42; latsel = 7    # deep cast 4000 m
+#lonsel = 360-45; latsel = 3   # shallow cast 2000 m
 d,is = findmin(abs.(longitude.-lonsel));
 d,js = findmin(abs.(latitude.-latsel));
 
@@ -61,8 +62,59 @@ ax2 = Axis(fig[1,2])
 lines!(ax2,Ss,-depths)
 fig
 
+Nz2 = length(depths);
 
+# compute N2 using TEOS10
+p  = gsw_p_from_z.(-depths,latsel)
+SA = gsw_sa_from_sp.(Ss, p, lonsel, latsel)
+CT = gsw_ct_from_t.(SA,Ts,p)
+sig2 = gsw_sigma2.(SA,CT)
 
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,CT,-p)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,SA,-p)
+fig
+
+N2   = zeros(Nz2-1) # Array for output of Brunt-Vaisalla values @ Pmid) 
+Pmid = zeros(Nz2-1) # Array for outputs of pressure for N2
+Lats = fill(latsel, Nz2) 
+gsw_nsquared(SA, CT, p, Lats, Nz2, N2, Pmid)
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,sig2,-p)
+ylims!(ax1, -500, 0)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,N2,-Pmid)
+ylims!(ax2, -500, 0)
+fig
+
+# find bad data points
+N2b = N2
+ibad = [i for i in eachindex(N2b) if N2b[i] < 0]
+ii = ibad[end]
+N2b[1:ii] .= 0.0
+
+lines!(ax2,N2b,-Pmid,color=:red)
+fig
+
+# new vectors for EVP
+itp = interpolate((p,), -depths, Gridded(Linear()))
+zmid = itp.(Pmid)
+
+# range is <4000
+Iz = findall(item -> item > -4000, zmid) 
+
+# create final vectors
+zz  = [0; zmid[Iz]; -4000]
+N2c = [0; N2b[Iz]; N2b[Iz[end]]] 
+
+Iz = findall(item -> item ==0, N2c) 
+N2c[Iz] .= 1e-10
 
 """
     sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
@@ -73,8 +125,16 @@ f: Coriolis frequency [rad/s],
 om: internal wave frequency [rad/s],
 nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
 """
+
+zf = zz;
+N2 = N2c;
+
 #function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
     # Check direction of zf (depths): assume more negative = deeper
+    nonhyd = 1;
+    om = 2*π/(12.4*3600)
+    zeroval = 1e-12
+
     flipped = zf[1] > zf[end]  # if true, input is top to bottom (surface to bottom)
     
     if !flipped
@@ -87,27 +147,27 @@ nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
     N = length(dz)
 
     # Handle hydrostatic / nonhydrostatic modes
-    if nonhyd == -1
-        NN = clamp.(N2 .- om^2, 1e-12, Inf)
+    if nonhyd == 1
+        NN = clamp.(N2 .- om^2, zeroval, Inf)
     else
-        NN = N2
+        NN = clamp.(N2, zeroval, Inf)
     end
 
     # Construct B matrix
     B = Diagonal(-NN[2:end-1])
 
     # Construct A matrix
-    A = zeros(N - 2, N - 2)
+    A = zeros(N - 1, N - 1)
     A[1,1] = -2 / (dz[1] * dz[2])
     A[1,2] = 2 / (dz[2] * (dz[1] + dz[2]))
 
-    for i in 2:N-3
+    for i in 2:N-2
         A[i,i-1] =  2 / (dz[i] * (dz[i] + dz[i+1]))
         A[i,i]   = -2 / (dz[i] * dz[i+1])
         A[i,i+1] =  2 / (dz[i+1] * (dz[i] + dz[i+1]))
     end
 
-    i = N - 2
+    i = N - 1
     A[i,i-1] =  2 / (dz[i] * (dz[i] + dz[i+1]))
     A[i,i]   = -2 / (dz[i] * dz[i+1])
 
@@ -118,6 +178,9 @@ nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
     idx = sortperm(Ce, rev=true)
     Ce = Ce[idx]
     W1 = W1[:, idx]
+
+    lines(W1[:,2],zf[2:end-1])
+
 
     k = abs.(sqrt(om^2 - f^2) ./ Ce)
     C = om ./ k
@@ -131,6 +194,10 @@ nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
     dW2 = W2[2:end, :] .- W2[1:end-1, :]
     dzu = repeat(dz, 1, size(W1,2))
     Ueig1 = dW2 ./ dzu
+
+    zc = zf[1:end-1]/2 + zf[2:end]/2
+    lines(Ueig1[:,1],zc)
+    sum(Ueig1[:,2].*dz)
 
     norm_factor = sqrt.(sum(Ueig1.^2 .* dzu, dims=1) ./ H)
     norm_factor[norm_factor .== 0] .= Inf
