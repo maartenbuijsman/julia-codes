@@ -70,6 +70,7 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     W1 = W1[:, idx]
 
     # compute dispersion characteristics
+    # println("f=",f)
     k = abs.(sqrt(om^2 - f^2) ./ Ce)
     C = om ./ k
     L = 2π ./ k

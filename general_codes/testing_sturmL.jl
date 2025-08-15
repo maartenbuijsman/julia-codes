@@ -3,13 +3,14 @@
 # testing this chatgpt concoction 
 
 #pathname = "C://Users//w944461//Documents//JULIA//functions/";
-pathname = "/home/mbui/Documents/julia-codes/functions/"
+pathname = "/home/mbui/Documents/julia-codes/functions/";
 include(string(pathname,"include_functions.jl"));
 
 using CairoMakie
 using NCDatasets
 using GibbsSeaWater
 using Interpolations
+using Trapz
 
 Threads.nthreads()
 
@@ -113,8 +114,9 @@ Iz = findall(item -> item > -4000, zmid)
 zz  = [0; zmid[Iz]; -4000]
 N2c = [0; N2b[Iz]; N2b[Iz[end]]] 
 
+zeroval = 1e-12
 Iz = findall(item -> item ==0, N2c) 
-N2c[Iz] .= 1e-12 
+N2c[Iz] .= zeroval 
 
 """
     sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
@@ -126,17 +128,99 @@ om: internal wave frequency [rad/s],
 nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
 """
 
+# make sure all values are from bottom to surface
+# to comply with Oceananigans
+
 zf = zz;
 N2 = N2c;
- 
-    nonhyd = 1;
-    om = 2*π/(12.4*3600)
-    zeroval = 1e-12
-    lat = 45;
-    f = coriolis(lat)
+Nzf = length(zf);
 
-  k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
-  
+flipped = zf[1] < zf[end]  # if false, input is surface to bottom
+
+if !flipped
+    zf = reverse(zf)
+    N2 = reverse(N2)
+end
+
+zc = zf[1:end-1]/2 + zf[2:end]/2;
+
+# eigen value problemn ===================================== 
+nonhyd = 1;
+om = 2*π/(12.4*3600)
+lat = 0
+f = coriolis(lat)
+
+k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
+
+#lines(W2[:,1],zf)
+#lines(Ueig2[:,1],zc)
+
+# WKB scale z 
+# pick a constant WKB scaled dz and convert it back
+# this will used for getting a scaled dz
+
+# depth-mean N 
+Nave = trapz(zf,sqrt.(N2))/H
+
+# WKB scaled z
+# integrate from surface to bottom
+zwkb = zeros(size(zf));
+for i in Nzf-1:-1:1
+    # reverse integrate, hence omit -
+    zwkb[i] = trapz(zf[Nzf:-1:i],sqrt.(N2[Nzf:-1:i]))/Nave
+    #println(zf[i])
+end
+
+dzkwb = diff(zwkb)
+# scatter(zwkb,zf)
+scatter(dzkwb,zc)
+
+# now interpolate equidistant dzwkb
+dzwkb2 = 40;
+zwkb2 = collect(-H:dzwkb2:0)
+#zwkb2 = vcat(collect(-H:dzwkb2:-40), collect(-35:5:0))
+
+# extract new z values
+#itz = interpolate((zwkb[end:-1:1],), zf[end:-1:1], Gridded(Linear()))
+#zf2 = itz.(zwkb2[2:end-1])
+
+interp_linextr = linear_interpolation(zwkb, zf, extrapolation_bc=Line())
+zfd = interp_linextr.(zwkb2)
+
+zcd = zfd[1:end-1]/2 + zfd[2:end]/2;
+dzd = diff(zfd)
+
+# fix the dz near the surface
+dzmin, Imin = findmin(dzd)
+zfdadd = collect(range(zfd[Imin],0,length=Int(ceil(abs(zfd[Imin])/dzmin))))
+
+zf2 = vcat(zfd[1:Imin],zfdadd[2:end])
+zc2 = zf2[1:end-1]/2 + zf2[2:end]/2;
+dz2 = diff(zf2)
+
+sum(dz2)
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,zwkb, zf)
+scatter!(ax1,zwkb2,zfd,color=:red)
+#ylims!(ax1, -500, 0)
+#xlims!(ax1, -2000, 10)
+fig
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+scatter!(dz2,zc2)
+ylims!(ax1, -500, 0)
+xlims!(ax1, 0, 40)
+fig
+
+# interpolate the eigen functions to zc2
+# make sure the depth-mean = 0 for Ueig
+
+    
+
+# all EIGEN function testing is below ======================================
 
     flipped = zf[1] > zf[end]  # if true, input is surface to bottom
     
