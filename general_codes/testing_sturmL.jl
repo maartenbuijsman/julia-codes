@@ -150,7 +150,7 @@ om = 2*π/(12.4*3600)
 lat = 0
 f = coriolis(lat)
 
-k, L, C, Cg, Ce, W1, Ueig1, Ueig2 = 
+k, L, C, Cg, Ce, Weig1, Ueig1, Ueig2 = 
     sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
 
 #lines(W2[:,1],zf)
@@ -221,7 +221,8 @@ fig
 
 Ueig2i = zeros(length(zc2),2);
 Ueig1i = zeros(length(zc2),2);  #not normalized
-W1i    = zeros(length(zf2),2);  #not normalized 
+Weig1i    = zeros(length(zf2),2);  #not normalized 
+Weig1ci   = zeros(length(zc2),2);  #not normalized 
 
 for i in 1:2
     intzc = linear_interpolation(zc, Ueig2[:,i], extrapolation_bc=Line())
@@ -243,8 +244,11 @@ for i in 1:2
     Ueig1i[:,i] = Ueig1i[:,i].-bias
     #sum(Ueig1i[:,i].*dz2)
 
-    intzc = linear_interpolation(zf, W1[:,i], extrapolation_bc=Line())
-    W1i[:,i] = intzc.(zf2)
+    intzc = linear_interpolation(zf, Weig1[:,i], extrapolation_bc=Line())
+    Weig1i[:,i] = intzc.(zf2)
+
+    intzc = linear_interpolation(zf, Weig1[:,i], extrapolation_bc=Line())
+    Weig1ci[:,i] = intzc.(zc2)
 
 end
 mean(Ueig2i[:,2]./Ueig1i[:,2])
@@ -259,9 +263,17 @@ scatter!(ax1,Ueig2i[:,2],zc2,color=:red)
 #xlims!(ax1, 0, 40)
 fig
 
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,Weig1[:,1],zf)
+scatter!(ax1,Weig1ci[:,1],zc2,color=:red)
+#ylims!(ax1, -500, 0)
+#xlims!(ax1, 0, 40)
+fig
 
-# save these eigen functions (U,W) and dz
+# save these eigen functions (Ueig1i, Ueig2i, Weig1i, Weig1ci) and dz2, zc2, and zf2
 # then load in Oceananigans
+# first use Ueig1i
 
 
 
