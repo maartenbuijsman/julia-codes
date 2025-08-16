@@ -150,7 +150,8 @@ om = 2*π/(12.4*3600)
 lat = 0
 f = coriolis(lat)
 
-k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
+k, L, C, Cg, Ce, W1, Ueig1, Ueig2 = 
+    sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
 
 #lines(W2[:,1],zf)
 #lines(Ueig2[:,1],zc)
@@ -218,7 +219,52 @@ fig
 # interpolate the eigen functions to zc2
 # make sure the depth-mean = 0 for Ueig
 
-    
+Ueig2i = zeros(length(zc2),2);
+Ueig1i = zeros(length(zc2),2);  #not normalized
+W1i    = zeros(length(zf2),2);  #not normalized 
+
+for i in 1:2
+    intzc = linear_interpolation(zc, Ueig2[:,i], extrapolation_bc=Line())
+    Ueig2i[:,i] = intzc.(zc2)
+
+    # remove bias due to interpolation and rescale
+    bias = sum(Ueig2i[:,i].*dz2)/H
+    Ueig2i[:,i] = Ueig2i[:,i].-bias
+    #sum(Ueig2i[:,i].*dz2)
+
+    norm_factor = sqrt.(sum(Ueig2i[:,i].^2 .* dz2, dims=1) ./ H)
+    Ueig2i[:,i] = Ueig2i[:,i]./norm_factor
+
+    intzc = linear_interpolation(zc, Ueig1[:,i], extrapolation_bc=Line())
+    Ueig1i[:,i] = intzc.(zc2)
+
+    # for un-norm, only remove bias
+    bias = sum(Ueig1i[:,i].*dz2)/H
+    Ueig1i[:,i] = Ueig1i[:,i].-bias
+    #sum(Ueig1i[:,i].*dz2)
+
+    intzc = linear_interpolation(zf, W1[:,i], extrapolation_bc=Line())
+    W1i[:,i] = intzc.(zf2)
+
+end
+mean(Ueig2i[:,2]./Ueig1i[:,2])
+sum((Ueig2i[:,1].^2).*dz2)
+sum(Ueig2i[:,2].*dz2)
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,Ueig2[:,2],zc)
+scatter!(ax1,Ueig2i[:,2],zc2,color=:red)
+#ylims!(ax1, -500, 0)
+#xlims!(ax1, 0, 40)
+fig
+
+
+# save these eigen functions (U,W) and dz
+# then load in Oceananigans
+
+
+
 
 # all EIGEN function testing is below ======================================
 
