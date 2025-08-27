@@ -1,16 +1,20 @@
 """
-    k, L, C, Cg, Ce, W2, Ueig1, Ueig2 = 
-    sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
+    k, L, C, Cg, Ce, Weig, Ueig, Ueig2 = 
+    sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
+    f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
 
-Solve for n eigenfunctions and eigenvalues for given vector N2[zf]. N = length(zf)-1.
+Solve for n eigenfunctions and eigenvalues for given vector N2[zf]; n = length(zf)-1. 
+
 Returns wavenumber k, wavelength L, phase, group, and eigen speeds C, Cg, and Ce, 
-and vertical velocity eigenfunctions W2 at faces and horizontal velocty eigenfunction Ueig2 (normalized) 
-and non-normalized Ueig1 at centers
+and non-normalized vertical velocity eigenfunctions Weig at faces 
+and horizontal velocty eigenfunction Ueig at centers and normalized Ueig2 at centers
 
 # Arguments    
-- `zf::Vector{Float64}`: layer faces [m], can either surface to bottom (e.g., 0 to -H) or bottom to surface,
+- `zf::Vector{Float64}`: layer faces [m], can either surface to bottom 
+                         (e.g., 0 to -H) or bottom to surface,
 
-- `N2::Vector{Float64}`: Brunt-Väisälä frequency squared [rad^2/s^2] at layer faces zf,
+- `N2::Vector{Float64}`: Brunt-Väisälä frequency squared [rad^2/s^2] 
+                         at layer faces zf,
 
 - `f::Float64`: Coriolis frequency [rad/s],
 
@@ -18,10 +22,11 @@ and non-normalized Ueig1 at centers
 
 - `nonhyd::Int`: if 1, solve the non-hydrostatic Sturm-Liouville problem
 
-- `fillval::Float64`: Default is 1e12; replace negative values in N(z) fill value
+- `fillval::Float64`: Default is 1e12; replace negative values 
+                      in N(z) fill value
 
 # info
-Maarten Buijsman, Oladeji Siyanbola, USM, 2025-8-8. Based on Ashok & Bhaduria (2009). 
+Maarten Buijsman, Oladeji Siyanbola, USM, 2025-8-27. Based on Ashok & Bhaduria (2009). 
 """
 function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
 
@@ -77,32 +82,35 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     Cg = Ce.^2 .* k ./ om
 
     # Compute vertical structure functions (Weig: faces)
-    W2 = vcat(zeros(1, size(W1,2)), W1, zeros(1, size(W1,2)))
+    Weig = vcat(zeros(1, size(W1,2)), W1, zeros(1, size(W1,2)))
 
     # Compute horizontal eigenfunctions (Ueig: centers)
-    dW2 = W2[2:end, :] .- W2[1:end-1, :]
+    dWeig = Weig[2:end, :] .- Weig[1:end-1, :]
     dzu = repeat(dz, 1, size(W1,2))
-    Ueig1 = dW2 ./ dzu
+    Ueig = dWeig ./ dzu
 
     # normalize Ueig
-    norm_factor = sqrt.(sum(Ueig1.^2 .* dzu, dims=1) ./ H)
+    norm_factor = sqrt.(sum(Ueig.^2 .* dzu, dims=1) ./ H)
     norm_factor[norm_factor .== 0] .= Inf
-    Ueig2 = Ueig1 ./ norm_factor
+    Ueig2 = Ueig ./ norm_factor
+
+    # need to normalize Weig
+
 
     # set the correct sign near the bottom
     for i in 1:size(Ueig2,2)
         if Ueig2[end,i] < 0
-            Ueig1[:,i] .*= -1
+            Ueig[:,i] .*= -1
             Ueig2[:,i] .*= -1            
         end
     end
 
     # Reverse output structure functions if input was reversed
     if !flipped
-        W2    = reverse(W2, dims=1)
-        Ueig1 = reverse(Ueig1, dims=1)
+        Weig  = reverse(Weig, dims=1)
+        Ueig  = reverse(Ueig, dims=1)
         Ueig2 = reverse(Ueig2, dims=1)        
     end
 
-    return k, L, C, Cg, Ce, W2, Ueig1, Ueig2
+    return k, L, C, Cg, Ce, Weig, Ueig, Ueig2
 end

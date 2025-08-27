@@ -87,11 +87,11 @@ gsw_nsquared(SA, CT, p, Lats, Nz2, N2, Pmid)
 fig = Figure()
 ax1 = Axis(fig[1,1])
 lines!(ax1,sig2,-p)
-ylims!(ax1, -500, 0)
+ylims!(ax1, -100, 0)
 
 ax2 = Axis(fig[1,2])
 lines!(ax2,N2,-Pmid)
-ylims!(ax2, -500, 0)
+ylims!(ax2, -100, 0)
 fig
 
 # find bad data points
@@ -107,11 +107,12 @@ fig
 itp = interpolate((p,), -depths, Gridded(Linear()))
 zmid = itp.(Pmid)
 
-# range is <4000
-Iz = findall(item -> item > -4000, zmid) 
+# range is < mindepth
+mindepth = -4000;
+Iz = findall(item -> item > mindepth, zmid) 
 
 # create final vectors
-zz  = [0; zmid[Iz]; -4000]
+zz  = [0; zmid[Iz]; mindepth]
 N2c = [0; N2b[Iz]; N2b[Iz[end]]] 
 
 zeroval = 1e-12
@@ -137,6 +138,7 @@ Nzf = length(zf);
 
 flipped = zf[1] < zf[end]  # if false, input is surface to bottom
 
+# !flipped means if flipped is true, then !flipped is not true
 if !flipped
     zf = reverse(zf)
     N2 = reverse(N2)
@@ -150,8 +152,20 @@ om = 2*π/(12.4*3600)
 lat = 0
 f = coriolis(lat)
 
-k, L, C, Cg, Ce, Weig1, Ueig1, Ueig2 = 
+k, L, C, Cg, Ce, Weig, Ueig, Ueig2 = 
     sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
+
+
+Imod = 2;
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,Ueig[:,Imod],zc)
+ylims!(ax1, mindepth, 0)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,Weig[:,Imod],zf)
+ylims!(ax2, mindepth, 0)
+fig
 
 #lines(W2[:,1],zf)
 #lines(Ueig2[:,1],zc)
@@ -161,6 +175,7 @@ k, L, C, Cg, Ce, Weig1, Ueig1, Ueig2 =
 # this will used for getting a scaled dz
 
 # depth-mean N 
+H = abs(zf[1]);
 Nave = trapz(zf,sqrt.(N2))/H
 
 # WKB scaled z
@@ -183,7 +198,7 @@ zwkb2 = collect(-H:dzwkb2:0)
 
 # extract new z values
 #itz = interpolate((zwkb[end:-1:1],), zf[end:-1:1], Gridded(Linear()))
-#zf2 = itz.(zwkb2[2:end-1])
+#zfw = itz.(zwkb2[2:end-1])
 
 interp_linextr = linear_interpolation(zwkb, zf, extrapolation_bc=Line())
 zfd = interp_linextr.(zwkb2)
@@ -195,11 +210,11 @@ dzd = diff(zfd)
 dzmin, Imin = findmin(dzd)
 zfdadd = collect(range(zfd[Imin],0,length=Int(ceil(abs(zfd[Imin])/dzmin))))
 
-zf2 = vcat(zfd[1:Imin],zfdadd[2:end])
-zc2 = zf2[1:end-1]/2 + zf2[2:end]/2;
-dz2 = diff(zf2)
+zfw = vcat(zfd[1:Imin],zfdadd[2:end])
+zcw = zfw[1:end-1]/2 + zfw[2:end]/2;
+dzw = diff(zfw)
 
-sum(dz2)
+sum(dzw)
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
@@ -211,72 +226,86 @@ fig
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
-scatter!(dz2,zc2)
+scatter!(dzw,zcw)
 ylims!(ax1, -500, 0)
 xlims!(ax1, 0, 40)
 fig
 
-# interpolate the eigen functions to zc2
+# interpolate the eigenfunctions to zcw
 # make sure the depth-mean = 0 for Ueig
 
-Ueig2i = zeros(length(zc2),2);
-Ueig1i = zeros(length(zc2),2);  #not normalized
-Weig1i    = zeros(length(zf2),2);  #not normalized 
-Weig1ci   = zeros(length(zc2),2);  #not normalized 
+Ueig2c = zeros(length(zcw),2);
+Ueigc  = zeros(length(zcw),2);  #not normalized
+Weigf  = zeros(length(zfw),2);  #not normalized 
+Weigc = zeros(length(zcw),2);  #not normalized 
 
+# loop over 2 modes
 for i in 1:2
     intzc = linear_interpolation(zc, Ueig2[:,i], extrapolation_bc=Line())
-    Ueig2i[:,i] = intzc.(zc2)
+    Ueig2c[:,i] = intzc.(zcw)
 
     # remove bias due to interpolation and rescale
-    bias = sum(Ueig2i[:,i].*dz2)/H
-    Ueig2i[:,i] = Ueig2i[:,i].-bias
-    #sum(Ueig2i[:,i].*dz2)
+    bias = sum(Ueig2c[:,i].*dzw)/H
+    Ueig2c[:,i] = Ueig2c[:,i].-bias
+    #sum(Ueig2c[:,i].*dzw)
 
-    norm_factor = sqrt.(sum(Ueig2i[:,i].^2 .* dz2, dims=1) ./ H)
-    Ueig2i[:,i] = Ueig2i[:,i]./norm_factor
+    norm_factor = sqrt.(sum(Ueig2c[:,i].^2 .* dzw, dims=1) ./ H)
+    Ueig2c[:,i] = Ueig2c[:,i]./norm_factor
 
-    intzc = linear_interpolation(zc, Ueig1[:,i], extrapolation_bc=Line())
-    Ueig1i[:,i] = intzc.(zc2)
+    intzc = linear_interpolation(zc, Ueig[:,i], extrapolation_bc=Line())
+    Ueigc[:,i] = intzc.(zcw)
 
     # for un-norm, only remove bias
-    bias = sum(Ueig1i[:,i].*dz2)/H
-    Ueig1i[:,i] = Ueig1i[:,i].-bias
-    #sum(Ueig1i[:,i].*dz2)
+    bias = sum(Ueigc[:,i].*dzw)/H
+    Ueigc[:,i] = Ueigc[:,i].-bias
+    #sum(Ueigc[:,i].*dzw)
 
-    intzc = linear_interpolation(zf, Weig1[:,i], extrapolation_bc=Line())
-    Weig1i[:,i] = intzc.(zf2)
+    intzc = linear_interpolation(zf, Weig[:,i], extrapolation_bc=Line())
+    Weigf[:,i] = intzc.(zfw)
 
-    intzc = linear_interpolation(zf, Weig1[:,i], extrapolation_bc=Line())
-    Weig1ci[:,i] = intzc.(zc2)
+    intzc = linear_interpolation(zf, Weig[:,i], extrapolation_bc=Line())
+    Weigc[:,i] = intzc.(zcw)
 
 end
-mean(Ueig2i[:,2]./Ueig1i[:,2])
-sum((Ueig2i[:,1].^2).*dz2)
-sum(Ueig2i[:,2].*dz2)
+mean(Ueig2c[:,2]./Ueigc[:,2])
+sum((Ueig2c[:,1].^2).*dzw)
+sum(Ueig2c[:,2].*dzw)
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
 lines!(ax1,Ueig2[:,2],zc)
-scatter!(ax1,Ueig2i[:,2],zc2,color=:red)
+scatter!(ax1,Ueig2c[:,2],zcw,color=:red)
 #ylims!(ax1, -500, 0)
 #xlims!(ax1, 0, 40)
 fig
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
-lines!(ax1,Weig1[:,1],zf)
-scatter!(ax1,Weig1ci[:,1],zc2,color=:red)
+lines!(ax1,Weig[:,1],zf)
+scatter!(ax1,Weigc[:,1],zcw,color=:red)
 #ylims!(ax1, -500, 0)
 #xlims!(ax1, 0, 40)
 fig
 
-# save these eigen functions (Ueig1i, Ueig2i, Weig1i, Weig1ci) and dz2, zc2, and zf2
+# save these eigen functions (Ueigc @ c, Ueig2c @ c, Weigf @ f, Weigc) and dzw, zcw, and zfw
 # then load in Oceananigans
-# first use Ueig1i
+# first use Ueigc
 
+dirout = "/data3/mbui/ModelOutput/IW/forcingfiles/"
+fnameAZ = "EIG_grid_amz1.jld2"
 
+using JLD2
+jldsave(string(dirout,fnameAZ); Ueigc, Ueig2c, Weigf, Weigc, dzw, zcw, zfw)
 
+#using HDF5
+#h5write(string(dirout,fnameAZ), )
+
+# Open the JLD2 file
+file = jldopen(string(dirout,fnameAZ), "r")
+
+# List the keys (variables) in the file
+println(keys(file))
+data = file["dzw"]
 
 # all EIGEN function testing is below ======================================
 
@@ -338,15 +367,15 @@ fig
     # Compute horizontal eigenfunctions (Ueig: centers)
     dW2 = W2[2:end, :] .- W2[1:end-1, :]
     dzu = repeat(dz, 1, size(W1,2))
-    Ueig1 = dW2 ./ dzu
+    Ueig = dW2 ./ dzu
 
     zc = zf[1:end-1]/2 + zf[2:end]/2
-    lines(Ueig1[:,1],zc)
-    sum(Ueig1[:,2].*dz)
+    lines(Ueig[:,1],zc)
+    sum(Ueig[:,2].*dz)
 
-    norm_factor = sqrt.(sum(Ueig1.^2 .* dzu, dims=1) ./ H)
+    norm_factor = sqrt.(sum(Ueig.^2 .* dzu, dims=1) ./ H)
     norm_factor[norm_factor .== 0] .= Inf
-    Ueig2 = Ueig1 ./ norm_factor
+    Ueig2 = Ueig ./ norm_factor
 
         lines(Ueig2[:,2],zc)
 
@@ -354,7 +383,7 @@ fig
     # set the correct sign
     for i in 1:size(Ueig2,2)
         if Ueig2[end,i] < 0
-            Ueig1[:,i] .*= -1
+            Ueig[:,i] .*= -1
             Ueig2[:,i] .*= -1            
         end
     end
@@ -362,7 +391,7 @@ fig
     # Reverse output structure functions if input was reversed
     if !flipped
         W2    = reverse(W2, dims=1)
-        Ueig1 = reverse(Ueig1, dims=1)
+        Ueig = reverse(Ueig, dims=1)
         Ueig2 = reverse(Ueig2, dims=1)        
     end
 
