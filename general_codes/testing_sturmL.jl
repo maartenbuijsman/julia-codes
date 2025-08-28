@@ -11,6 +11,7 @@ using NCDatasets
 using GibbsSeaWater
 using Interpolations
 using Trapz
+using JLD2
 
 Threads.nthreads()
 
@@ -40,6 +41,9 @@ lonsel = 360-42; latsel = 7    # deep cast 4000 m
 #lonsel = 360-45; latsel = 3   # shallow cast 2000 m
 d,is = findmin(abs.(longitude.-lonsel));
 d,js = findmin(abs.(latitude.-latsel));
+
+lonsel = LON[is,js]
+latsel = LAT[is,js]
 
 TSsel = TSmean[:,is,js];
 Ts = TSsel[1:Nz];
@@ -119,15 +123,11 @@ zeroval = 1e-12
 Iz = findall(item -> item ==0, N2c) 
 N2c[Iz] .= zeroval 
 
-"""
-    sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int)
-# Arguments    
-zf: layer faces [m], can either surface to bottom (e.g., 0 to -H) or bottom to surface,
-N2: Brunt-Väisälä frequency squared [rad^2/s^2] at layer faces zf,
-f: Coriolis frequency [rad/s],
-om: internal wave frequency [rad/s],
-nonhyd: if -1, solve the non-hydrostatic Sturm-Liouville problem
-"""
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,N2c,zz)
+ylims!(ax1, -200, 0)
+fig
 
 # make sure all values are from bottom to surface
 # to comply with Oceananigans
@@ -146,33 +146,11 @@ end
 
 zc = zf[1:end-1]/2 + zf[2:end]/2;
 
-# eigen value problemn ===================================== 
-nonhyd = 1;
-om = 2*π/(12.4*3600)
-lat = 0
-f = coriolis(lat)
 
-k, L, C, Cg, Ce, Weig, Ueig, Ueig2 = 
-    sturm_liouville_noneqDZ_norm(zf, N2, f, om, nonhyd);
-
-
-Imod = 2;
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,Ueig[:,Imod],zc)
-ylims!(ax1, mindepth, 0)
-
-ax2 = Axis(fig[1,2])
-lines!(ax2,Weig[:,Imod],zf)
-ylims!(ax2, mindepth, 0)
-fig
-
-#lines(W2[:,1],zf)
-#lines(Ueig2[:,1],zc)
-
+# ==============================================================
 # WKB scale z 
 # pick a constant WKB scaled dz and convert it back
-# this will used for getting a scaled dz
+# this will be used for getting a scaled dz
 
 # depth-mean N 
 H = abs(zf[1]);
@@ -213,6 +191,7 @@ zfdadd = collect(range(zfd[Imin],0,length=Int(ceil(abs(zfd[Imin])/dzmin))))
 zfw = vcat(zfd[1:Imin],zfdadd[2:end])
 zcw = zfw[1:end-1]/2 + zfw[2:end]/2;
 dzw = diff(zfw)
+nzw = length(dzw)
 
 sum(dzw)
 
@@ -230,6 +209,83 @@ scatter!(dzw,zcw)
 ylims!(ax1, -500, 0)
 xlims!(ax1, 0, 40)
 fig
+
+# interpolate N2 to the new zfw
+# then compute eigenfunctions
+# these do not need rescaling :-) because of interpolation
+intzc = linear_interpolation(zf, N2, extrapolation_bc=Line())
+N2w = intzc.(zfw)
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,N2, zf)
+scatter!(ax1,N2w,zfw,color=:red)
+ylims!(ax1, -200, 0)
+#xlims!(ax1, -2000, 10)
+fig
+
+# =============================================================================
+# save the stratification 
+# and N2w and zfw
+# then load in Oceananigans
+
+dirout = "/data3/mbui/ModelOutput/IW/forcingfiles/"
+fnameAZ = "N2_amz1.jld2"
+
+jldsave(string(dirout,fnameAZ); N2w, zfw, lonsel, latsel);
+println(string(fnameAZ)," data saved ........ ")
+
+
+
+# OLD OLD OLD ========================================
+# OLD OLD OLD ========================================
+# OLD OLD OLD ========================================
+
+# eigen value problemn ===================================== 
+nonhyd = 1;
+om = 2*π/(12.4*3600)
+lat = 0
+f = coriolis(lat)
+
+k, L, C, Cg, Ce, Weig, Ueig, Ueig2 = 
+    sturm_liouville_noneqDZ_norm(zfw, N2w, f, om, nonhyd);
+
+
+Imod = 1;
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,Ueig[:,Imod],zcw)
+ylims!(ax1, mindepth, 0)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,Weig[:,Imod],zfw)
+ylims!(ax2, mindepth, 0)
+fig
+
+#lines(W2[:,1],zf)
+#lines(Ueig2[:,1],zc)
+
+#check
+mean(Ueig2[:,2]./Ueig[:,2])
+sum((Ueig2[:,1].^2).*dzw)
+sum(Ueig2[:,1].*Ueig2[:,2].*dzw)
+sum(Ueig2[:,2].*dzw)
+
+# Weigc at centers
+Weigc = Weig[1:end-1,:]/2 + Weig[2:end,:]/2;
+
+Weigf = Weig;
+Ueigc = Ueig;
+Ueig2c = Ueig2;
+N2wf   = N2w
+N2wc = N2wf[1:end-1]/2 + N2wf[2:end]/2;
+
+
+
+
+# OLD OLD OLD ========================================
+# OLD OLD OLD ========================================
+# OLD OLD OLD ========================================
 
 # interpolate the eigenfunctions to zcw
 # make sure the depth-mean = 0 for Ueig

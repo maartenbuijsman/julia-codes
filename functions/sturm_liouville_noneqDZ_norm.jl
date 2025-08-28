@@ -3,7 +3,7 @@
     sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
 
-Solve for n eigenfunctions and eigenvalues for given vector N2[zf]; n = length(zf)-1. 
+Solve for n eigenfunctions and eigenvalues for given vector N2[zf]; n = length(zf)-2. 
 
 Returns wavenumber k, wavelength L, phase, group, and eigen speeds C, Cg, and Ce, 
 and non-normalized vertical velocity eigenfunctions Weig at faces 
