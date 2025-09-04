@@ -223,7 +223,7 @@ fields = Dict("u" => model.velocities.u,
               "b" => model.tracers.b)
 
 pthnm = "/data3/mbui/ModelOutput/IW/"
-fname = "IW_fields_U0n"
+fname = "testrun_IW_fields_U0n"
 filename=string(pthnm,fname,pm.U0n[1],fid,".nc")
 
 simulation.output_writers[:field_writer] =

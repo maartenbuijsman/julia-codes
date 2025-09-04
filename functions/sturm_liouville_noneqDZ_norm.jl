@@ -7,10 +7,11 @@ Solve for n eigenfunctions and eigenvalues for given vector N2[zf]; n = length(z
 
 Returns wavenumber k, wavelength L, phase, group, and eigen speeds C, Cg, and Ce, 
 and non-normalized vertical velocity eigenfunctions Weig at faces 
-and horizontal velocty eigenfunction Ueig at centers and normalized Ueig2 at centers
+and horizontal velocty eigenfunction Ueig=1/k*dW/dz (Gerkema IW syllabus) 
+at centers and normalized Ueig2 at centers
 
 # Arguments    
-- `zf::Vector{Float64}`: layer faces [m], can either surface to bottom 
+- `zf::Vector{Float64}`: layer faces [m], can either surface to bottom (default)
                          (e.g., 0 to -H) or bottom to surface,
 
 - `N2::Vector{Float64}`: Brunt-Väisälä frequency squared [rad^2/s^2] 
@@ -30,8 +31,8 @@ Maarten Buijsman, Oladeji Siyanbola, USM, 2025-8-27. Based on Ashok & Bhaduria (
 """
 function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, f::Float64, om::Float64, nonhyd::Int; fillval::Float64 = 1e-12)
 
+    # code is set up for surface to bottom ordered profiles
     flipped = zf[1] > zf[end]  # if true, input is surface to bottom
-    
     if !flipped
         zf = reverse(zf)
         N2 = reverse(N2)
@@ -85,9 +86,11 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
     Weig = vcat(zeros(1, size(W1,2)), W1, zeros(1, size(W1,2)))
 
     # Compute horizontal eigenfunctions (Ueig: centers)
+    # and normalize dw/dz by k as in Gerkema
     dWeig = Weig[2:end, :] .- Weig[1:end-1, :]
-    dzu = repeat(dz, 1, size(W1,2))
-    Ueig = dWeig ./ dzu
+    dzu   = repeat(dz, 1, size(W1,2))
+    kk    = repeat(transpose(k), length(dz),1)
+    Ueig  = dWeig ./ dzu ./kk
 
     # normalize Ueig
     norm_factor = sqrt.(sum(Ueig.^2 .* dzu, dims=1) ./ H)
@@ -96,10 +99,17 @@ function sturm_liouville_noneqDZ_norm(zf::Vector{Float64}, N2::Vector{Float64}, 
 
     # need to normalize Weig
 
+    # set the correct sign near the surface (positive)
+    # Weig (negative; see Gerkema IW syllabus)
+    for i in 1:size(Weig,2)
+        if Weig[2,i] > 0
+            Weig[:,i] .*= -1
+        end
+    end
 
-    # set the correct sign near the bottom
+    #Ueig (positive)
     for i in 1:size(Ueig2,2)
-        if Ueig2[end,i] < 0
+        if Ueig2[1,i] < 0
             Ueig[:,i] .*= -1
             Ueig2[:,i] .*= -1            
         end
