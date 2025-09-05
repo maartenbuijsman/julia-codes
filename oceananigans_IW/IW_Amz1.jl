@@ -26,9 +26,11 @@ include(string(pathname,"include_functions.jl"));
 
 ###########------ OUTPUT FILE NAME ------#############
 # file ID
-
-fid      = "AMZ1_lat0_16d_mode1_U1" 
 pathout  = "/data3/mbui/ModelOutput/IW/"
+
+#fid      = "AMZ1_lat0_2d_mode1_U1" 
+fid      = "AMZ1_lat0_8d_mode1_2_U1" 
+
 
 ###########------ LOAD N and grid params ------#############
 
@@ -54,8 +56,15 @@ ylims!(ax1, -500, 0)
 fig
 
 ###########------ SIMULATION PARAMETERS ------#############
-numM = 1;       
-#numM = [1 2];    
+
+# simulation time stepping
+#Δt = 30seconds
+Δt = 1minutes
+start_time = 0days
+stop_time  = 8days
+
+#numM = 1;       
+numM = [1 2];    
 Nz = length(zfw)-1;
 DX = 4000;
 L  = 500_000;
@@ -64,7 +73,7 @@ H  = abs(round(minimum(zfw)));
 
 # surface velocities of modes
 #Usur1, Usur2 = 0.2, 0.1
-Usur1, Usur2 = 0.05, 0.0
+Usur1, Usur2 = 0.05, 0.025
 
 TM2 = (12+25.2/60)*3600 # M2 tidal period
 
@@ -76,7 +85,7 @@ const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
 # grid parameters
-pm = (lat=0, Nz=Nz, Nx=Nx, H=H, L=L);
+pm = (lat=0, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM);
 
 # surface velocities; T:tidal period
 pm = merge(pm,(Usur=[Usur1, Usur2], T=TM2));
@@ -140,14 +149,13 @@ fig
 # create functions fun u and fwm for w 
 # for rightward propagating wave following Gerkema IW syllabus
 
-#=
 using Interpolations
 
 # u velocity field at the west boundary (x=0)
-function fun(x,z,t,n,p)
+function fun(x,z,t,p)
     u = 0.0
     # loop over n modes
-    for i in n
+    for i in p.numM
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
@@ -157,10 +165,10 @@ function fun(x,z,t,n,p)
 end
 
 # w velocity field at the west boundary (x=-Dx/2)
-function fwn(x,z,t,n,p)
+function fwn(x,z,t,p)
     w = 0.0
     # loop over n modes
-    for i in n    
+    for i in p.numM    
         Weig = p.Weig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zfw, Weig, extrapolation_bc=Line());
         Weigi = intzc.(z);
@@ -169,7 +177,7 @@ function fwn(x,z,t,n,p)
     return w
 end
 
-
+#=
 fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
 fun(Ln[1]*3/4,zcw[end],0*2π/pm.ω,1,pm)
 
@@ -188,14 +196,13 @@ lines!(ax1,fwn(0,zcw,0*2π/pm.ω,1,pm),zcw)
 fig
 =#
 
+
 # maybe include strain of U due to W
 
 ###########------ FORCING ------#############
 
-#bb = cumtrapz(zfw, N2w);
-
 # background 
-#= buoyancy = -g/rho0*rho_pert
+# buoyancy = -g/rho0*rho_pert
 function B_func(x,z,t,p)
     # computes buoyancy field and interpolates values at z
     bb = cumtrapz(p.zfw, p.N2w);
@@ -203,10 +210,10 @@ function B_func(x,z,t,p)
     bbi  = intzc.(z);
     return bbi
 end
-=#
 
 #B_func(x, z, t, p) = p.N^2 * z
-B_func(x, z, t, p) = 0.001 * z
+#B_func(x, z, t, p) = 0.001 * z
+
 B = BackgroundField(B_func, parameters=pm);
 
 fig = Figure()
@@ -222,8 +229,6 @@ fig
 @inline mask2nd(X)      = heaviside(X)* X^2
 @inline right_mask(x,p) = mask2nd((x-p.L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
 @inline left_mask(x,p)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
-
-
 
 #= plot function 
 heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
@@ -270,11 +275,11 @@ framp(t,Tr) = 1-exp(-1/Tr*t)
 
 # u at face, w at center offset by -Δx/2
 Dx = -0.5*xspacings(grid, Center())[1]
-#@inline umod(z,t,p) = fun(0,z,t,numM,p)  * framp(t,Tr)
-#@inline wmod(z,t,p) = fwn(Dx,z,t,numM,p) * framp(t,Tr)
+@inline umod(z,t,p) = fun(0,z,t,p)  * framp(t,Tr)
+@inline wmod(z,t,p) = fwn(Dx,z,t,p) * framp(t,Tr)
 
-@inline umod(z,t,p) = 0.0 * framp(t,Tr)
-@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
+#@inline umod(z,t,p) = 0.0 * framp(t,Tr)
+#@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
 
 #@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
 
@@ -321,10 +326,6 @@ function progress(sim)
 end
 
 # simulation time stepping
-#Δt = 30seconds
-Δt = 2minutes
-start_time = 0days
-stop_time  = 2days
 simulation = Simulation(model; Δt, stop_time)
 
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
