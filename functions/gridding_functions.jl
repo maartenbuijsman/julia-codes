@@ -39,9 +39,10 @@ Cumulative integrated value vector with same length as X
 Maarten Buijsman, USM, 2025-9-3
 https://stackoverflow.com/questions/58139195/cumulative-integration-options-with-julia
 """
-function cumtrapz(X::T, Y::T) where {T <: AbstractVector}
+function cumtrapz(X, Y) 
+#function cumtrapz(X::T, Y::T) where {T <: AbstractVector}
   # Check matching vector length
-  @assert length(X) == length(Y)
+
   # Initialize Output
   out = similar(X)
   out[1] = 0

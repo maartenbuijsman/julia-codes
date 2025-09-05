@@ -1,14 +1,14 @@
-#= IW_Amz1.jl
-Maarten Buijsman, USM DMS, 2025-8-28
-use realistic N(z) and eigenfunctions generated in testing_sturmL.jl
+#= IW_test4.jl
+Maarten Buijsman, USM DMS, 2025-9-05
+Set up IW test case for Oceananigans
 use open boundary forcing w and u
 also include a sponge layer on the right boundary
-based on IW_test3.jl
-
-todo: 1) include parameters in functions, 
-      2) add a mode 2
-      3) realistic N, 
+IW_Amz1 blows up; make gradual changes to this code to test it
+WORKING with interpolation functions to prescribe background and forcing fields
+does not work :-()
 =#
+
+println("number of threads is ",Threads.nthreads())
 
 using Pkg
 using Oceananigans
@@ -17,203 +17,128 @@ using NCDatasets
 using Printf
 using CairoMakie
 using Statistics
-using JLD2
-
-println("number of threads is ",Threads.nthreads())
-
-pathname = "/home/mbui/Documents/julia-codes/functions/";
-include(string(pathname,"include_functions.jl"));
-
-###########------ OUTPUT FILE NAME ------#############
-# file ID
-
-fid      = "AMZ1_lat0_16d_mode1_U1" 
-pathout  = "/data3/mbui/ModelOutput/IW/"
-
-###########------ LOAD N and grid params ------#############
-
-dirin     = "/data3/mbui/ModelOutput/IW/forcingfiles/";
-fnamegrid = "N2_amz1.jld2";
-path_fname = string(dirin,fnamegrid);
-
-# variables loaded
-# "N2w", "zfw", "lonsel", "latsel"
-
-# Open the JLD2 file
-gridfile = jldopen(path_fname, "r")
-println(keys(gridfile))  # List the keys (variables) in the file
-close(gridfile)
-
-@load path_fname N2w zfw
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,N2w, zfw)
-ylims!(ax1, -500, 0)
-#xlims!(ax1, -2000, 10)
-fig
 
 ###########------ SIMULATION PARAMETERS ------#############
-numM = 1;       
-#numM = [1 2];    
-Nz = length(zfw)-1;
-DX = 4000;
-L  = 500_000;
-Nx = Integer(L/DX);
-H  = abs(round(minimum(zfw)));
 
-# surface velocities of modes
-#Usur1, Usur2 = 0.2, 0.1
-Usur1, Usur2 = 0.05, 0.0
+# file ID
+#fid = "_lat0_boundaryforce_sponge_closure"  #true U = 0.1  amplitude
+#fid = "_lat0_boundaryforce_closure"  #true U = 0.1  amplitude
+#fid = "_lat0_boundaryforce_closure_IW1" 
+fid = "_lat0_bndfrc_advc4_spng_16d_dt2m_2mds_rampup" 
 
-TM2 = (12+25.2/60)*3600 # M2 tidal period
+# grid parameters
+pm = (lat=0, Nz=50, Nx=100, H=1000, L=500_000)
 
-# sponge parameters
+fcor = FPlane(latitude = pm.lat)    # Coriolis
+
+
+# internal wave parameters
+# Imod: number of modes; U0n: modal amps; N: stratification; T:tidal period
+#pm = merge(pm,(Imod=2, U0n=[0.1, 0.05], N=0.005, T=(12+25.2/60)*3600, f=fcor.f))
+pm = merge(pm,(Imod=2, U0n=[0.2, 0.1], N=0.005, T=(12+25.2/60)*3600, f=fcor.f))
+
+println("Δx = ",pm.L/pm.Nx/1e3," km")
+println("Δz = ",pm.H/pm.Nz," m")
+
+
+alpha = 3.0 
+z_faces(k) =  0.5 .* pm.H .* (.-1 .+ tanh.(alpha .* (2 .*(k.-1)./(pm.Nz).-1)) ./ tanh(alpha))
+
+#z_faces(1)
+#z_faces(pm.Nz+1)  
+#kk = 1:pm.Nz+1
+#scatter(kk,z_faces(kk))
+
+#= create parameter tuple == examples
+parameters are used as local variables in functions => faster
+pm = (; i, f, s)
+pm2 = (; k=1, g=2, j="top")
+pm4 = merge(pm,pm2,(ii = 1, ff = 3.14))
+aa, bb = 3,-5.3
+pm5 = merge(pm4,(; aa, bb))
+=#
+
+# sponge regions
 #const Sp_Region_right = 500                               # size of sponge region on RHS
 #const Sp_Region_left = 500
 const Sp_Region_right = 20000                              # size of sponge region on RHS
 const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
-# grid parameters
-pm = (lat=0, Nz=Nz, Nx=Nx, H=H, L=L);
-
-# surface velocities; T:tidal period
-pm = merge(pm,(Usur=[Usur1, Usur2], T=TM2));
-
-# Estimate velocities from surface KE
-
-# surface velocities from surface KE
-# surface KE = ave(1/2*rho*u^2) = 1/2*rho*ave(U^2*cos^2 om*t) 
-# = 1/2*rho*U^2*ave(cos^2 om*t) = 1/2*rho*U^2*1/2 => KE = 1/4*rho*U^2 
-# U = sqrt(4*KE/rho)
-rhos = 1034
-KEs1 = 15.0 #max 15 J/m3 mode 1
-KEs2 = 10.0  #max 10 J/m3 mode 2
-Usur1tst = sqrt(4*KEs1/rhos);
-Usur2tst = sqrt(4*KEs2/rhos);
-@printf("Based on KE, U1 = %.2f, U2 = %.2f\n",Usur1tst,Usur2tst)
-
-println("Δx = ",pm.L/pm.Nx/1e3," km")
-println("Δz = ",pm.H/pm.Nz," m on average")
-
 grid = RectilinearGrid(size=(pm.Nx, pm.Nz), 
                        x=(0,pm.L), 
-                       z=zfw,                               # provide z-faces
+                       z=z_faces, 
                        topology=(Bounded, Flat, Bounded))
 
 ###########-------- Parameters ----------------#############
 
 # internal wave derived parameters
 
-# tide and Coriolis frequencies
+# frequency
 ω=2*π/pm.T
-fcor = FPlane(latitude = pm.lat);    # Coriolis
-pm = merge(pm,(f=fcor.f, ω=ω))
+pm = merge(pm,(; ω))
 
-# eigen value problem 
-nonhyd = 1;
-kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = 
-    sturm_liouville_noneqDZ_norm(zfw, N2w, pm.f, pm.ω, nonhyd);
+# wave number and amplitude
+kn=zeros(pm.Imod)
+an=zeros(pm.Imod)
+for n in 1:pm.Imod 
+    kn[n] = n*π/pm.H*sqrt( (pm.ω^2-pm.f^2)/(pm.N^2-pm.ω^2))
 
-# compute z at cel lcenters
-zcw = zfw[1:end-1]/2 + zfw[2:end]/2;
+    # reverse engineer an (from Gerkema IW syllabus; to be consistent with w eq)
+    an[n] = pm.U0n[n]/(n*π/(kn[n]*pm.H))
+end
+pm = merge(pm,(; kn, an))
 
-pm = merge(pm,(zcw=zcw, zfw=zfw, kn=kn[1:2], Ueig=Ueig[:,1:2], Weig=Weig[:,1:2], N2w=N2w));
+# check values
+nn = 1:pm.Imod
+println("U0n =", an.*(nn*π./(kn*pm.H)))
+println("Ln =", 2*π./pm.kn/1e3, " km")
+println("cn =",  pm.ω./pm.kn," m/s")
+println("velocity u at z=0: ",-pm.an.*nn*π./(pm.kn*pm.H))
 
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,Weig[:,1], zfw)
-lines!(ax1,Weig[:,2], zfw)
-
-ax2 = Axis(fig[1,2])
-lines!(ax2,Ueig[:,1], zcw)
-lines!(ax2,Ueig[:,2], zcw)
-
-#ylims!(ax1, -500, 0)
-#xlims!(ax1, -2000, 10)
-fig
+#ueig(z,p) = cos(n*π*z/H)
+#weig(z,p) = sin(n*π*z/H)
 
 ###########------ FORCING ------#############
 
-# create functions fun u and fwm for w 
-# for rightward propagating wave following Gerkema IW syllabus
-
-#=
-using Interpolations
-
-# u velocity field at the west boundary (x=0)
-function fun(x,z,t,n,p)
-    u = 0.0
-    # loop over n modes
-    for i in n
-        Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
-        intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
-        Ueigi = intzc.(z);
-        u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t)
-    end
-    return u
-end
-
-# w velocity field at the west boundary (x=-Dx/2)
-function fwn(x,z,t,n,p)
-    w = 0.0
-    # loop over n modes
-    for i in n    
-        Weig = p.Weig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
-        intzc = linear_interpolation(p.zfw, Weig, extrapolation_bc=Line());
-        Weigi = intzc.(z);
-        w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t)  
-    end
-    return w
-end
-
-
-fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
-fun(Ln[1]*3/4,zcw[end],0*2π/pm.ω,1,pm)
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,fun(0,zfw,3/4*2π/pm.ω,1,pm),zfw)
-lines!(ax1,fun(0,zcw,3/4*2π/pm.ω,1,pm),zcw)
-fig
-
-fwn(Ln[1]*4/4,zfw[end-10],0*2π/pm.ω,1,pm)
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,fwn(0,zfw,0*2π/pm.ω,1,pm),zfw)
-lines!(ax1,fwn(0,zcw,0*2π/pm.ω,1,pm),zcw)
-fig
+#= background 
+B_func(x, z, t, p) = p.N^2 * z
+B = BackgroundField(B_func, parameters=pm)
 =#
 
-# maybe include strain of U due to W
-
-###########------ FORCING ------#############
-
-#bb = cumtrapz(zfw, N2w);
+#replace the background with a interpolation function
+# needs to be a column vector
+zz = [-pm.H; -pm.H/2; 0]
+NN = [pm.N^2; pm.N^2; pm.N^2]
 
 # background 
-#= buoyancy = -g/rho0*rho_pert
+# buoyancy = -g/rho0*rho_pert
+
+pathname = "/home/mbui/Documents/julia-codes/functions/";
+include(string(pathname,"include_functions.jl"));
+
+###=
+using Interpolations
+
 function B_func(x,z,t,p)
     # computes buoyancy field and interpolates values at z
-    bb = cumtrapz(p.zfw, p.N2w);
-    intzc = linear_interpolation(p.zfw, bb, extrapolation_bc=Line());
+    bb = cumtrapz(p.zz, p.NN);
+    intzc = linear_interpolation(p.zz, bb, extrapolation_bc=Line());
     bbi  = intzc.(z);
     return bbi
 end
-=#
+#bb = cumtrapz(zz, NN)
 
-#B_func(x, z, t, p) = p.N^2 * z
-B_func(x, z, t, p) = 0.001 * z
-B = BackgroundField(B_func, parameters=pm);
+pm = merge(pm,(; zz, NN))
+B = BackgroundField(B_func, parameters=pm)
+##=#
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
-lines!(ax1,B_func(0, zfw, 0, pm),zfw)
+lines!(ax1,B_func(0, zz, 0, pm),zz)
 #lines!(ax1,bb*-1000/10,zfw)
 fig
+
 
 #B_func(0, -1000, 0, pm)
 
@@ -222,8 +147,6 @@ fig
 @inline mask2nd(X)      = heaviside(X)* X^2
 @inline right_mask(x,p) = mask2nd((x-p.L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
 @inline left_mask(x,p)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
-
-
 
 #= plot function 
 heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
@@ -263,19 +186,24 @@ w_forcing = Forcing(force_w, field_dependencies = :w, parameters = pm)
 b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
 
 # boundary forcing
+# u and w functions per mode, from Gerkema syllabus
+Dx = xspacings(grid, Center())[1]
+fun(z,t,n,p)    = -p.an[n] * n*π/(p.kn[n]*p.H) * cos(n*π*z/p.H) * sin(               -p.ω*t)
+fwn(z,t,n,Dx,p) =  p.an[n]                     * sin(n*π*z/p.H) * cos(p.kn[n]*(-Dx/2)-p.ω*t)
 
 # rampup function to start u and w from zero
 const Tr = pm.T/2
 framp(t,Tr) = 1-exp(-1/Tr*t)
+#framp.(range(0,2*pm.T,24),Tr)
+
+#= check
+fun(1000,pm.T/4,1,pm)
+fwn(-500,pm.T/4,1,Dx,pm) 
+=#
 
 # u at face, w at center offset by -Δx/2
-Dx = -0.5*xspacings(grid, Center())[1]
-#@inline umod(z,t,p) = fun(0,z,t,numM,p)  * framp(t,Tr)
-#@inline wmod(z,t,p) = fwn(Dx,z,t,numM,p) * framp(t,Tr)
-
-@inline umod(z,t,p) = 0.0 * framp(t,Tr)
-@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
-
+@inline umod(z,t,p) = (fun(z,t,1,p)    + fun(z,t,2,p))    * framp(t,Tr)
+@inline wmod(z,t,p) = (fwn(z,t,1,Dx,p) + fwn(z,t,2,Dx,p)) * framp(t,Tr)
 #@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
 
 u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
@@ -335,12 +263,12 @@ fields = Dict("u" => model.velocities.u,
               "w" => model.velocities.w, 
               "b" => model.tracers.b)
 
-
-filenameout=string(pathout,fid,pm.Usur[1],".nc")
-
+pthnm = "/data3/mbui/ModelOutput/IW/"
+fname = "testrun_IW_fields_U0n"
+filename=string(pthnm,fname,pm.U0n[1],fid,".nc")
 
 simulation.output_writers[:field_writer] =
-    NetCDFWriter(model, fields, filename=filenameout, 
+    NetCDFWriter(model, fields, filename=filename, 
     schedule=TimeInterval(30minutes),
     overwrite_existing = true)
 
@@ -350,5 +278,4 @@ simulation.output_writers[:field_writer] =
 model.clock.iteration = 0
 model.clock.time = 0
 run!(simulation)
-
 
