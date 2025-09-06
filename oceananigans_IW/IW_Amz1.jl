@@ -37,10 +37,17 @@ Usur1, Usur2 = 0.05, 0.025
 fid      = "AMZ1_lat0_8d_mode1_2_U1" 
 =#
 
-# mode 1 only, strong velocity
+#= mode 1 only, strong velocity
 numM = [1];    
 Usur1, Usur2 = 0.25, 0.0
-fid      = "AMZ1_lat0_8d_mode1_U1" 
+fid      = string("AMZ1_lat0_8d_U1_",Usur1,"_U2_",Usur2) 
+=#
+
+# mode 2 only, strong velocity
+numM = [2];    
+Usur1, Usur2 = 0.0, 0.2
+fid      = string("AMZ1_lat0_8d_U1_",Usur1,"_U2_",Usur2) 
+
 
 ###########------ LOAD N and grid params ------#############
 
@@ -340,9 +347,7 @@ fields = Dict("u" => model.velocities.u,
               "w" => model.velocities.w, 
               "b" => model.tracers.b)
 
-
-filenameout=string(pathout,fid,pm.Usur[1],".nc")
-
+filenameout=string(pathout,fid,".nc")
 
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filenameout, 
