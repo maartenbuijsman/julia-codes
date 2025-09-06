@@ -17,8 +17,10 @@ include(string(pathname,"include_functions.jl"))
 # load variables ===========================================
 pathin  = "/data3/mbui/ModelOutput/IW/"
 
-fnames = "AMZ1_lat0_2d_mode1_U10.05.nc"
-#fnames = "AMZ1_lat0_8d_mode1_2_U10.05.nc"
+#fnames = "AMZ1_lat0_2d_mode1_U10.05.nc"
+fnames = "AMZ1_lat0_8d_mode1_2_U10.05.nc"
+
+movienm = fnames[1:27]
 
 filename = string(pathin,fnames)
 
@@ -80,10 +82,10 @@ Colorbar(fig[1, 2], hm)
 
 # 4. Define the animation parameters
 frames = 2:(size(uc)[3]) # Number of frames in the animation
-framerate = 4 # Frames per second
+framerate = 8 # Frames per second
 
 # 5. Record the animation
-record(fig, "/data3/mbui/ModelOutput/movies/AMZ_mode1.mp4", frames; 
+record(fig, string("/data3/mbui/ModelOutput/movies/",movienm,".mp4"), frames; 
 framerate = framerate) do frame_num
     # Update the data for each frame
     # For example, simulate some change in the heatmap
@@ -91,7 +93,8 @@ framerate = framerate) do frame_num
     #heatmap_data[] = clamp.(new_data, 0, 1) # Clamp values to a range (e.g., 0 to 1)
     heatmap_data[] = uc[:,:,frame_num]
     # You can also change other plot attributes here, like the title
-    ax.title[] = "Frame $(frame_num)"
+    ax.title[] = string(frame_num*30/60/24," days")
+    #ax.title[] = string(movienm,"time",$(frame_num)")
     println("frame ",frame_num)
 end
 

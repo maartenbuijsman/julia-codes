@@ -24,13 +24,23 @@ println("number of threads is ",Threads.nthreads())
 pathname = "/home/mbui/Documents/julia-codes/functions/";
 include(string(pathname,"include_functions.jl"));
 
-###########------ OUTPUT FILE NAME ------#############
-# file ID
 pathout  = "/data3/mbui/ModelOutput/IW/"
 
-#fid      = "AMZ1_lat0_2d_mode1_U1" 
-fid      = "AMZ1_lat0_8d_mode1_2_U1" 
+###########------ OUTPUT FILE NAME ------#############
+# file ID
 
+#fid      = "AMZ1_lat0_2d_mode1_U1" 
+
+#= mode 1 + 2 weak velocity
+numM = [1 2];    
+Usur1, Usur2 = 0.05, 0.025
+fid      = "AMZ1_lat0_8d_mode1_2_U1" 
+=#
+
+# mode 1 only, strong velocity
+numM = [1];    
+Usur1, Usur2 = 0.25, 0.0
+fid      = "AMZ1_lat0_8d_mode1_U1" 
 
 ###########------ LOAD N and grid params ------#############
 
@@ -64,17 +74,11 @@ start_time = 0days
 stop_time  = 8days
 
 #numM = 1;       
-numM = [1 2];    
 Nz = length(zfw)-1;
 DX = 4000;
 L  = 500_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
-
-# surface velocities of modes
-#Usur1, Usur2 = 0.2, 0.1
-Usur1, Usur2 = 0.05, 0.025
-
 TM2 = (12+25.2/60)*3600 # M2 tidal period
 
 # sponge parameters
