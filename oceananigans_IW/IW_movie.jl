@@ -19,12 +19,13 @@ include(string(pathname,"include_functions.jl"))
 # file names
 #fnames = "AMZ1_lat0_2d_mode1_U10.05.nc"
 #fnames = "AMZ1_lat0_8d_mode1_2_U10.05.nc"
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.0.nc"; clims  = (-0.25,0.25)
+#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"; clims  = (-0.25,0.25)
+fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"; clims  = (-0.25,0.25)
 
 pathin  = "/data3/mbui/ModelOutput/IW/"
 pathout = "/data3/mbui/ModelOutput/movies/"
 
-movienm = fnames[1:27]
+movienm = fnames[1:28]
 filename = string(pathin,fnames)
 
 # open nc file =============================================
