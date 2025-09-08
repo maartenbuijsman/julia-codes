@@ -19,7 +19,8 @@ include(string(pathname,"include_functions.jl"))
 
 
 #fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
-fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
+#fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
+fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"
 
 #filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
 filename = string("/data3/mbui/ModelOutput/IW/",fnames)
@@ -49,19 +50,31 @@ Nt = length(tday);
 # NOTE: in future select a certain x range away from boundaries
 
 # 
-uf = ds["u"]; #x_faa × z_aac × time
-vf = ds["v"]; #x_caa × z_aac × time
-wf = ds["w"]; #x_caa × z_aaf × time
+#uf = ds["u"]; #x_faa × z_aac × time
+#vf = ds["v"]; #x_caa × z_aac × time
+#wf = ds["w"]; #x_caa × z_aaf × time
 
-# work with permuted matrices: time, x, z
+# is a loop a faster way of permuting?
+uf = zeros(Nt,Nx+1,Nz);
+vf = zeros(Nt,Nx,Nz);
+wf = zeros(Nt,Nx,Nz+1);
+
+for i in 1:Nt
+    println(i)
+    uf[i,:,:] = ds["u"][:, :, i];
+    vf[i,:,:] = ds["v"][:, :, i];
+    wf[i,:,:] = ds["w"][:, :, i];
+end
 
 
+#= work with permuted matrices: time, x, z
 @time begin
     pp = permutedims(uf, (3, 1, 2)); uf = pp;
     pp = permutedims(vf, (3, 1, 2)); vf = pp;
     pp = permutedims(wf, (3, 1, 2)); wf = pp;
     println("finished permutation in ")
 end
+=#
 
 # compute at cell centers
 # v is already at x,W centers
