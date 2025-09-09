@@ -10,37 +10,48 @@ using NCDatasets
 using Printf
 using CairoMakie
 using Statistics
-
-# load variables ===========================================
+using JLD2
 
 #pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
 pathname = "/home/mbui/Documents/julia-codes/functions/"
 include(string(pathname,"include_functions.jl"))
 
+dirsim = "/data3/mbui/ModelOutput/IW/";
+dirfig = "/data3/mbui/ModelOutput/figs/";
+
+# print figures
+figflag = 1
+
+# load simulations ===========================================
 
 #fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
 #fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"
+
+fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
+fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"  # mode 2
+fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"  # mode 1+2
+
+fname_short = fnames[1:28]
 
 #filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
-filename = string("/data3/mbui/ModelOutput/IW/",fnames)
+filename = string(dirsim,fnames)
+
+const T2 = 12+25.2/60
 
 ds = NCDataset(filename,"r");
 
-tsec = ds["time"];
+tsec = ds["time"][:];
 tday = tsec/24/3600;
 dt = tday[2]-tday[1]
 
-xf   = ds["x_faa"]; 
-xc   = ds["x_caa"]; 
-zc   = ds["z_aac"]; 
+xf   = ds["x_faa"][:]; 
+xc   = ds["x_caa"][:]; 
+zc   = ds["z_aac"][:]; 
 
-dx   = ds["Δx_caa"];
-dz   = ds["Δz_aac"];
+dx   = ds["Δx_caa"][:];
+dz   = ds["Δz_aac"][:];
 
 H  = sum(dz);   # depth
-const Nb = 0.005;     # buoyancy freq
-const T2 = 12+25.2/60
 
 Nz = length(zc);
 Nx = length(xc);
@@ -66,6 +77,8 @@ for i in 1:Nt
     wf[i,:,:] = ds["w"][:, :, i];
 end
 
+# close the nc file
+close(ds)
 
 #= work with permuted matrices: time, x, z
 @time begin
@@ -81,9 +94,22 @@ end
 uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2; 
 wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
 
-fig = Figure(); ax = Axis(fig[1, 1])
+#= fig = Figure(); ax = Axis(fig[1, 1])
 lines!(ax,tday,uf[:,1,1],color=:red)
-fig
+fig =#
+
+
+# some more hovmullers
+clims = (-0.5,0.5)
+fig1 = Figure()
+ax1 = Axis(fig1[1, 1], xlabel = "x [km]", ylabel = "time [days]", title=string("u surf [m/s] ",fname_short)) 
+hm=heatmap!(ax1, xc/1e3, tday , uc[:,:,end]', colormap = Reverse(:Spectral), colorrange = clims)
+Colorbar(fig1[1, 2], hm)
+fig1
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"hovmuller_",fname_short,".png"), fig1)
+end
 
 # filter all velocities ======================================
 # low-pass
@@ -211,31 +237,54 @@ w*w - w*w * dwdz
       -(wcl.*wcl .- wwcl).*dwdz; 
 
 
+ylim = -500;
+clims = (-maximum(Πx[:]),maximum(Πx[:]))
+
 fig1 = Figure()
 axa = Axis(fig1[1, 1])
 axb = Axis(fig1[2, 1])
 axc = Axis(fig1[3, 1])
-hm = heatmap!(axa, xc/1e3, zc, Πx[300,:,:], colormap = :Spectral); Colorbar(fig1[1,2], hm)
-hm = heatmap!(axb, xc/1e3, zc, Πz[300,:,:], colormap = :Spectral); Colorbar(fig1[2,2], hm)
-hm = heatmap!(axc, xc/1e3, zc, Πnh[300,:,:], colormap = :Spectral); Colorbar(fig1[3,2], hm)
-fig1      
+hma = heatmap!(axa, xc/1e3, zc, Πx[300,:,:], colormap = Reverse(:Spectral), colorrange = clims);
+hmb = heatmap!(axb, xc/1e3, zc, Πz[300,:,:], colormap = Reverse(:Spectral), colorrange = clims); 
+hmc = heatmap!(axc, xc/1e3, zc, Πnh[300,:,:], colormap = Reverse(:Spectral), colorrange = clims); 
+
+Colorbar(fig1[1,2], hma); ylims!(axa, ylim, 0)
+Colorbar(fig1[2,2], hmb); ylims!(axb, ylim, 0)
+Colorbar(fig1[3,2], hmc); ylims!(axc, ylim, 0)
+fig1  
+
 
 # time average
+# use an fixed number of tidal cycles after 4 days to capture modes 1 and 2
+# and before Tend-TM2 to avoid ringing effects
+
+t1,t2 = 4, tday[end]-T2/24
+numcycles = floor((t2-t1)/(T2/24))
+t2 = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
+#tday[Iday]
+
 # f(x,z)
-Πxa = dropdims(mean(Πx,dims=1),dims=1);
-Πza = dropdims(mean(Πz,dims=1),dims=1);
-Πnha = dropdims(mean(Πnh,dims=1),dims=1);
+Πxa = dropdims(mean(Πx[Iday,:,:],dims=1),dims=1);
+Πza = dropdims(mean(Πz[Iday,:,:],dims=1),dims=1);
+Πnha = dropdims(mean(Πnh[Iday,:,:],dims=1),dims=1);
 
 fig1 = Figure(size = (600, 800))
-axa = Axis(fig1[1, 1])
-axb = Axis(fig1[2, 1])
-axc = Axis(fig1[3, 1])
-axd = Axis(fig1[4, 1])
-hm = heatmap!(axa, xc/1e3, zc, Πxa,  colormap = :Spectral); Colorbar(fig1[1,2], hm)
-hm = heatmap!(axb, xc/1e3, zc, Πza,  colormap = :Spectral); Colorbar(fig1[2,2], hm)
-hm = heatmap!(axc, xc/1e3, zc, Πnha, colormap = :Spectral); Colorbar(fig1[3,2], hm)
-hm = heatmap!(axd, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = :Spectral); Colorbar(fig1[4,2], hm)
-fig1      
+axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short));  ylims!(axa, ylim, 0)
+axb = Axis(fig1[2, 1],title=string("Piz [W/kg] "));  ylims!(axb, ylim, 0)
+axc = Axis(fig1[3, 1],title=string("Pinh [W/kg] "));  ylims!(axc, ylim, 0)
+axd = Axis(fig1[4, 1],title=string("Pisum [W/kg] "));  ylims!(axd, ylim, 0)
+hm = heatmap!(axa, xc/1e3, zc, Πxa, colormap = (:Spectral)); Colorbar(fig1[1,2], hm); 
+hm = heatmap!(axb, xc/1e3, zc, Πza, colormap = (:Spectral)); Colorbar(fig1[2,2], hm); 
+hm = heatmap!(axc, xc/1e3, zc, Πnha, colormap = (:Spectral)); Colorbar(fig1[3,2], hm);
+hm = heatmap!(axd, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = (:Spectral)); Colorbar(fig1[4,2], hm); 
+fig1    
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"PIxz_",fname_short,".png"), fig1)
+end
+
+
 
 # f(z)
 Πxza = dropdims(mean(Πxa,dims=1),dims=1);
@@ -243,12 +292,12 @@ fig1
 Πnhza = dropdims(mean(Πnha,dims=1),dims=1);
 
 fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "Π [W/kg]", ylabel = "z [m]")
+ax = Axis(fig[1, 1], xlabel = "Π [W/kg]", ylabel = "z [m]", title=fname_short)
 lines!(ax,Πxza,zc,color=:red, label="Πx")
 lines!(ax,Πzza,zc,color=:green, label="Πz")
 lines!(ax,Πnhza,zc,color=:black, label="Πnh")
 lines!(ax,Πnhza+Πzza+Πxza,zc,color=:orange, label="sum")
-axislegend(position = :rb)
+axislegend(position = :lb)
 fig
 
 # f(x)
@@ -257,26 +306,81 @@ dzz = reshape(dz,1,:)
 Πzxa  = dropdims(sum(Πza.*dzz,dims=2),dims=2);
 Πnhxa = dropdims(sum(Πnha.*dzz,dims=2),dims=2);
 
+#fig = Figure(); 
+ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=fname_short)
+lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
+lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
+lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
+lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum")
+axislegend(position = :lb)
+fig
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"PIz_PIx_",fname_short,".png"), fig)
+end
+
+# save f(x) profiles
+dirout = "/data3/mbui/ModelOutput/diagout/"
+fnameout = string("Etran_",fname_short,".jld2")
+
+jldsave(string(dirout,fnameout); xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
+println(string(fnameout)," data saved ........ ")
+# =#
+
+
+##=
+# load and compare the CG transects =======================================
+dirin = "/data3/mbui/ModelOutput/diagout/"
+
+fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
+          "AMZ1_lat0_8d_U1_0.00_U2_0.20",  # mode 2
+          "AMZ1_lat0_8d_U1_0.25_U2_0.20"]  # mode 1+2
+
+
+
+
+# load simulations
+Πsum = 0;
+xc=0;  Πnhxa=0;  Πzxa=0;  Πxxa=0;
+for i in 1:2
+    path_fname = string(dirin,"Etran_",fnamal[i],".jld2")
+
+    @load path_fname xc  Πnhxa  Πzxa  Πxxa    
+    Πsum = Πsum .+ Πnhxa .+ Πzxa .+ Πxxa
+end
+
+
+# Open the JLD2 file
+path_fname = string(dirin,"Etran_",fnamal[3],".jld2");
+
+fff = jldopen(path_fname, "r")
+println(keys(fff))  # List the keys (variables) in the file
+close(fff)
+
+@load path_fname xc  Πnhxa  Πzxa  Πxxa    
+Πsum2 = Πnhxa .+ Πzxa .+ Πxxa
+
+
 fig = Figure(); 
 ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]")
-lines!(ax,xc/1e3,Πxxa,color=:red, label="Πx")
-lines!(ax,xc/1e3,Πzxa,color=:green, label="Πz")
-lines!(ax,xc/1e3,Πnhxa,color=:black, label="Πnh")
-lines!(ax,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum")
+lines!(ax,xc/1e3,Πsum,color=:red, label="Π1 + Π2")
+lines!(ax,xc/1e3,Πsum2,color=:green, label="Π1+2")
 axislegend(position = :rb)
 fig
 
 
+# cumulative sum
+Πcumsum  = cumtrapz(xc,Πsum);
+Πcumsum2 = cumtrapz(xc,Πsum2);
 
+fig = Figure(); 
+ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "ΣΠ [W/kg*m^2]", title = "cumulative Π")
+lines!(ax,xc/1e3,Πcumsum,color=:red, label="Π1 + Π2")
+lines!(ax,xc/1e3,Πcumsum2,color=:green, label="Π1+2")
+axislegend(position = :rt)
+fig
 
+if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
+end
 
-
-
-#@time begin 
-#    println("finished in ")
-#end
-
-
-
-# close the nc file
-close(ds)
+##=#

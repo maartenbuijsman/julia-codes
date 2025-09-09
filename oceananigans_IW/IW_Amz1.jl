@@ -59,6 +59,7 @@ fid = @sprintf("AMZ1_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2)
 
 ###########------ LOAD N and grid params ------#############
 
+# load profile created by AMZ_stratification_profile.jl
 dirin     = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 fnamegrid = "N2_amz1.jld2";
 path_fname = string(dirin,fnamegrid);
