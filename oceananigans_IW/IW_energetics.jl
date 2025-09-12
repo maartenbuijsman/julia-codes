@@ -19,6 +19,7 @@ include(string(pathname,"include_functions.jl"))
 
 dirsim = "/data3/mbui/ModelOutput/IW/";
 dirfig = "/data3/mbui/ModelOutput/figs/";
+dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 
 # load simulations ===========================================
 
@@ -83,7 +84,7 @@ wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2;
 
 
 # compute some ffts of surface velocity ======================================================
-tukeycf=0.1; numwin=1; linfit=true; prewhit=false;
+tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
 
 i=1;
 period, freq, pp = fft_spectra(tday, uc[:,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
@@ -114,8 +115,8 @@ clims = (-0.05,0.05)
 fig1 = Figure()
 axa = Axis(fig1[1, 1],title=string("KE [m^2/s^2] ",fname_short));  
 #ylims!(axa, ylim[1], ylim[2])
-#hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)), colormap = Reverse(:Spectral)); 
-hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom1)), colormap = Reverse(:Spectral)); 
+hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)), colormap = Reverse(:Spectral)); 
+#hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom1)), colormap = Reverse(:Spectral)); 
 #hm = heatmap!(axa, xc/1e3, freq, (transpose(KEomdiff)), colormap = Reverse(:Spectral), colorrange = clims); 
 Colorbar(fig1[1,2], hm); 
 fig1   
@@ -123,18 +124,127 @@ fig1
 
 # line plots 
 Isel = 49; xc[Isel]/1e3 # hotspot
-Isel = 68; xc[Isel]/1e3 # in between hotspots
+#Isel = 68; xc[Isel]/1e3 # in between hotspots
 
 fig = Figure()
 ax = Axis(fig[1, 1], title = "Power Spectrum",xlabel = "Frequency [cpd]", ylabel = "KE",yscale = log10)
 lines!(ax, freq, KEom[:,Isel], color = :black, linewidth = 2)
-lines!(ax, freq, KEom1[:,Isel]+KEom2[:,Isel], color = :red, linewidth = 2)
+#lines!(ax, freq, KEom1[:,Isel]+KEom2[:,Isel], color = :red, linewidth = 2)
 fig
 
 
 
 # project velocities on modes and then compute energetics per mode ------------------------------
 
+# load eigen functions
+# ["f", "om2", "zfw", "N2w", "nonhyd", "kn", "Ln", "Cn", "Cgn", "Cen", "Weig", "Ueig", "Ueig2"]
+fnameEIG = "EIG_amz1.jld2";
+path_fname2 = string(dirEIG,fnameEIG);
+
+#=
+datafile = jldopen(path_fname2, "r")
+println(keys(datafile))  # List the keys (variables) in the file
+close(datafile)
+=#
+
+@load path_fname2 kn Ueig zfw
+lines(Ueig[:,1],zc)
+
+# Ueig should be a zc
+zU = zfw[1:end-1]/2 + zfw[2:end]/2;
+Float32.(zU) == zc  # zU is a Float64
+
+# project the first 5 modes on velocities
+# un = 1/H*sum(uc*Ueig*dz)
+MEIG = 5
+un = zeros(Nt,Nx,MEIG);
+vn = zeros(Nt,Nx,MEIG);
+for l in 1:Nt            # time
+    for i in 1:Nx        # x
+        for m in 1:MEIG
+            un[l,i,m] = 1/H*sum(uc[l,i,:].*Ueig[:,m].*dz);   
+            vn[l,i,m] = 1/H*sum(vc[l,i,:].*Ueig[:,m].*dz);               
+            # need perturbation pressure
+        end
+    end
+end
+
+# time series
+fig = Figure()
+ax = Axis(fig[1, 1],xlabel = "time [days]", ylabel = "u [m/s]")
+lines!(ax, tday, un[:,100,1], color = :black, linewidth = 2)
+lines!(ax, tday, un[:,100,2], color = :red, linewidth = 2)
+lines!(ax, tday, un[:,100,3], color = :green, linewidth = 2)
+lines!(ax, tday, un[:,100,4], color = :orange, linewidth = 2)
+fig
+
+# spectra
+# power units y_unit^2*t_unit^2
+tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
+Pun = zeros(length(period),Nx,MEIG);
+Pvn = zeros(length(period),Nx,MEIG);
+for m in 1:MEIG
+    for i in 1:Nx
+        period, freq, Pun[:,i,m] = fft_spectra(tday, un[:,i,m]; tukeycf, numwin, linfit, prewhit);
+        period, freq, Pvn[:,i,m] = fft_spectra(tday, vn[:,i,m]; tukeycf, numwin, linfit, prewhit);    
+    end
+end
+
+# KE per mode as f(x)
+KEn = Pun + Pvn;   
+
+# heatmap of spectral power
+ylim = [0 8];
+clims = (-0.05,0.05)
+
+Im = 2
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1],title=string("KE [m^2/s^2] mode ",Im));  
+#ylims!(axa, ylim[1], ylim[2])
+hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEn[:,:,Im])), colormap = Reverse(:Spectral)); 
+Colorbar(fig1[1,2], hm); 
+fig1   
+
+# PLOT PER FREQUENCY BAND
+I2 = findall(x->x>24/T2-0.5 && x<24/T2+0.5, freq)
+freq[I2]
+
+I4 = findall(x->x>2*24/T2-0.5 && x<2*24/T2+0.5, freq)
+freq[I4]
+
+I6 = findall(x->x>3*24/T2-0.5 && x<3*24/T2+0.5, freq)
+freq[I6]
+
+# sum over freqs
+df = freq[2]-freq[1]
+KEnf = zeros(3,Nx,MEIG)
+for k in 1:3
+    if     k==1; II=I2
+    elseif k==2; II=I4        
+    elseif k==3; II=I6
+    end                
+    for i in 1:Nx
+        for m in 1:MEIG
+            KEnf[k,i,m] = sum(Pun[II,i,m] + Pvn[II,i,m])*df  # unit of m2/s2
+        end
+    end
+end
+
+
+fig = Figure(size = (600, 800))
+for Im=1:3
+    if Im==1; titstr = string(fname_short,"; mode ",Im)
+    else;     titstr = string("mode ",Im)
+    end
+    ax = Axis(fig[Im, 1], title = titstr, xlabel = "x [km]", ylabel = "P [m2/s2]", yscale = log10)
+    ylims!(ax, (1e-8, 1e-2))
+    lines!(ax, xc/1e3, KEnf[1,:,Im], color = :black, linewidth = 2, label = "M2")
+    lines!(ax, xc/1e3, KEnf[2,:,Im], color = :red, linewidth = 2, label = "M4")
+    lines!(ax, xc/1e3, KEnf[3,:,Im], color = :green, linewidth = 2, label = "M6")
+    axislegend(ax, position = :rb)
+end
+fig
 
 
 #####################################################################
