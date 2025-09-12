@@ -188,7 +188,7 @@ power_matrix = map(segments) do seg
 end
 
 
-# Convert to matrix and average
+# Convert to matrix and log10.(transpose(KEom))average
 power = reduce(+, power_matrix) ./ numwin
 
 sum(y.^2*dt)/sum(P1*df) 

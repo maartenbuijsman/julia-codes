@@ -20,7 +20,6 @@ using Statistics
 using JLD2
 using Printf
 
-
 println("number of threads is ",Threads.nthreads())
 
 pathname = "/home/mbui/Documents/julia-codes/functions/";
@@ -29,6 +28,7 @@ include(string(pathname,"include_functions.jl"));
 pathout  = "/data3/mbui/ModelOutput/IW/"
 
 ###########------ OUTPUT FILE NAME ------#############
+
 # file ID
 
 #fid      = "AMZ1_lat0_2d_mode1_U1" 
@@ -53,9 +53,12 @@ Usur1, Usur2 = 0.0, 0.2
 numM = [1 2];    
 Usur1, Usur2 = 0.25, 0.2
 
+# dx grid size
+#DX = 4000;
+DX = 200;
 
-fid = @sprintf("AMZ1_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
-
+#fid = @sprintf("AMZ1_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+fid = @sprintf("AMZ1_test_dx200m_lat0_1d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) # DX = 200;
 
 ###########------ LOAD N and grid params ------#############
 
@@ -91,7 +94,6 @@ stop_time  = 8days
 
 #numM = 1;       
 Nz = length(zfw)-1;
-DX = 4000;
 L  = 500_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
@@ -141,9 +143,27 @@ fcor = FPlane(latitude = pm.lat);    # Coriolis
 pm = merge(pm,(f=fcor.f, ω=ω))
 
 # eigen value problem 
+#= store once and load everytime
 nonhyd = 1;
 kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = 
     sturm_liouville_noneqDZ_norm(zfw, N2w, pm.f, pm.ω, nonhyd);
+
+fnameEIG = "EIG_amz1.jld2";
+f=fcor.f;
+om2 = ω;
+jldsave(string(dirin,fnameEIG); f, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2);
+println(string(fnameEIG)," Ueig data saved ........ ")
+=#
+
+fnameEIG = "EIG_amz1.jld2";
+path_fname2 = string(dirin,fnameEIG);
+@load path_fname2 kn Ueig Weig
+
+#= Open the JLD2 file
+gridfile = jldopen(path_fname, "r")
+println(keys(gridfile))  # List the keys (variables) in the file
+close(gridfile)
+=#
 
 # compute z at cel lcenters
 zcw = zfw[1:end-1]/2 + zfw[2:end]/2;
