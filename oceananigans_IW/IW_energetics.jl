@@ -82,6 +82,59 @@ close(ds)
 uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2; 
 wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
 
+# compute pressure -----------------------------------------------------------
+
+# rho_pert = -b*rho0/g 
+# dp       = -g*rho*dz
+# In Oceananigans: dp/dz = b = -g/rho0*rho_pert [m2/s2]
+# because of kinematic pressure p/rho
+
+const rho0=1020; const grav=9.81; 
+
+# hydrostatic pressure
+dzz = reshape(dz,1,1,:);                                    # shape: (1, length(zc), 1)
+pfi = cumsum(bc[:,:,end:-1:1].*dzz[:,:,end:-1:1], dims=3);  # reverse, z surface down, at faces
+pfi = pfi * -1 * rho0 / grav;                               # convert to pert pressure
+
+# average to centers, and reverse back (z bottom up)
+pc = zeros(size(pfi));
+pc[:,:,1:end-1] = pfi[:,:,end:-1:2]/2 + pfi[:,:,end-1:-1:1]/2; # compute center values
+pc[:,:,end]     = pfi[:,:,1]/2;                                # add surface value
+#pc[1,:,10]
+
+# remove depth-mean
+pa  = sum(pc.*dzz,dims=3)/H; # depth-mean pressure
+#pa[1,:,100]
+pcp = pc .- pa;             # the perturbation pressure!
+
+#check integral of perturbation pressure should be zero 
+#sum(pcp[100,:,300].*dz)   
+Figure(); lines(pcp[end,100,:],zc)
+
+fig = Figure(); Axis(fig[1,1],title="pk [m2/s2]"); 
+heatmap!(xc/1e3,zc,pcp[300,:,:]); fig
+contour!(xc/1e3,zc,bc[300,:,:], color = :black); fig
+
+# depth-integrated flux
+Fx = sum(uc.*pcp.*dzz,dims=3)
+
+# time-mean flux
+Fxa = dropdims(mean(Fx,dims=1), dims=(1,3))
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1],title=string("F [W/^2] ",fname_short));  
+lines!(axa,xc/1e3,Fxa)
+fig1
+
+# make sure fluxes line up with HYCOM (they are too small now)
+# u surface should be ~0.5 m/s?
+# TO DO
+# lowpass / highpass , compute fluxes, divergence
+#  => high-pass divergence should aree with coarsegraining patterns
+#  => compare patterns for different sims
+# compute modal fluxes for lowpass / highpass, divergence 
+#  => is decay of mode 1 the same for the two sims?
+#  => is decay of mode 2 the same for the two sims?
 
 # compute some ffts of surface velocity ======================================================
 tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
@@ -245,6 +298,8 @@ for Im=1:3
     axislegend(ax, position = :rb)
 end
 fig
+
+
 
 
 #####################################################################
