@@ -49,16 +49,35 @@ numM = [2];
 Usur1, Usur2 = 0.0, 0.2
 =#
 
-# mode 1+2, strong velocity
+#= mode 1+2, strong velocity
 numM = [1 2];    
 Usur1, Usur2 = 0.25, 0.2
-
-# dx grid size
-#DX = 4000;
-DX = 200;
+=#
 
 #fid = @sprintf("AMZ1_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
-fid = @sprintf("AMZ1_test_dx200m_lat0_1d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) # DX = 200;
+#fid = @sprintf("AMZ1_test_dx200m_lat0_1d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) # DX = 200;
+
+
+# double the velocity ===========================
+# mode 1+2, stronger velocity
+#numM = [1 2];    
+#Usur1, Usur2 = 0.5, 0.4
+
+#numM = [1];    
+#Usur1, Usur2 = 0.5, 0.0
+
+numM = [2];    
+Usur1, Usur2 = 0.0, 0.4
+
+
+
+# dx grid size
+DX = 4000;
+#DX = 200;
+
+fid = @sprintf("AMZ2_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+println("running",fid)
 
 ###########------ LOAD N and grid params ------#############
 

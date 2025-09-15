@@ -108,33 +108,167 @@ pa  = sum(pc.*dzz,dims=3)/H; # depth-mean pressure
 pcp = pc .- pa;             # the perturbation pressure!
 
 #check integral of perturbation pressure should be zero 
-#sum(pcp[100,:,300].*dz)   
-Figure(); lines(pcp[end,100,:],zc)
+sum(pcp[200,50,:].*dz)   
+Figure(); lines(pcp[200,50,:],zc)
 
-fig = Figure(); Axis(fig[1,1],title="pk [m2/s2]"); 
-heatmap!(xc/1e3,zc,pcp[300,:,:]); fig
-contour!(xc/1e3,zc,bc[300,:,:], color = :black); fig
+# project velocities/pressures on modes and then compute energetics per mode ------------------------------
 
-# depth-integrated flux
-Fx = sum(uc.*pcp.*dzz,dims=3)
+# load eigen functions
+# ["f", "om2", "zfw", "N2w", "nonhyd", "kn", "Ln", "Cn", "Cgn", "Cen", "Weig", "Ueig", "Ueig2"]
+fnameEIG = "EIG_amz1.jld2";
+path_fname2 = string(dirEIG,fnameEIG);
 
-# time-mean flux
-Fxa = dropdims(mean(Fx,dims=1), dims=(1,3))
+#=
+datafile = jldopen(path_fname2, "r")
+println(keys(datafile))  # List the keys (variables) in the file
+close(datafile)
+=#
 
-fig1 = Figure()
-axa = Axis(fig1[1, 1],title=string("F [W/^2] ",fname_short));  
-lines!(axa,xc/1e3,Fxa)
-fig1
+# make sure to use the normalized Ueig2!
+@load path_fname2 kn Ueig2 zfw
+lines(Ueig2[:,1],zc)
+sum(Ueig2[:,2].^2 .*dz)/H   # depth-mean = 1
 
-# make sure fluxes line up with HYCOM (they are too small now)
-# u surface should be ~0.5 m/s?
-# TO DO
-# lowpass / highpass , compute fluxes, divergence
-#  => high-pass divergence should aree with coarsegraining patterns
-#  => compare patterns for different sims
-# compute modal fluxes for lowpass / highpass, divergence 
-#  => is decay of mode 1 the same for the two sims?
-#  => is decay of mode 2 the same for the two sims?
+# Ueig should be a zc
+zU = zfw[1:end-1]/2 + zfw[2:end]/2;
+Float32.(zU) == zc  # zU is a Float64
+
+# project the first 5 modes on velocities
+# un = 1/H*sum(uc*Ueig*dz)
+MEIG = 5
+un = zeros(Nt,Nx,MEIG);
+vn = zeros(Nt,Nx,MEIG);
+pn = zeros(Nt,Nx,MEIG);
+for l in 1:Nt            # time
+    for i in 1:Nx        # x
+        for m in 1:MEIG
+            un[l,i,m] = 1/H*sum(uc[l,i,:].*Ueig2[:,m].*dz);   
+            vn[l,i,m] = 1/H*sum(vc[l,i,:].*Ueig2[:,m].*dz);               
+            pn[l,i,m] = 1/H*sum(pcp[l,i,:].*Ueig2[:,m].*dz);                           
+        end
+    end
+end
+
+# need to compute the residual variance
+# there is very little haha
+
+
+# time series
+fig = Figure()
+ax = Axis(fig[1, 1],xlabel = "time [days]", ylabel = "u [m/s]")
+lines!(ax, tday, un[:,100,1], color = :black, linewidth = 2)
+lines!(ax, tday, un[:,100,2], color = :red, linewidth = 2)
+lines!(ax, tday, un[:,100,3], color = :green, linewidth = 2)
+lines!(ax, tday, un[:,100,4], color = :orange, linewidth = 2)
+fig
+
+ax2 = Axis(fig[2, 1],xlabel = "time [days]", ylabel = "p [N/m2]")
+lines!(ax2, tday, pn[:,100,1], color = :black, linewidth = 2)
+lines!(ax2, tday, pn[:,100,2], color = :red, linewidth = 2)
+lines!(ax2, tday, pn[:,100,3], color = :green, linewidth = 2)
+lines!(ax2, tday, pn[:,100,4], color = :orange, linewidth = 2)
+fig
+
+# filter variables  ======================================================
+Tcut = 9/24;
+Nf = 4;
+
+# undecomposed variables (as a function of depth)
+uh = lowhighpass_butter(uc,Tcut,dt,Nf,"high");
+ph = lowhighpass_butter(pcp,Tcut,dt,Nf,"high");
+ul = uc - uh;
+pl = pcp - ph;
+
+# modes
+unh = lowhighpass_butter(un,Tcut,dt,Nf,"high");
+pnh = lowhighpass_butter(pn,Tcut,dt,Nf,"high");
+unl = un - unh;
+pnl = pn - pnh;
+
+# time series
+fig = Figure()
+ax = Axis(fig[1, 1],xlabel = "time [days]", ylabel = "u [m/s]")
+lines!(ax, tday, unh[:,100,2], color = :black, linewidth = 2)
+lines!(ax, tday, unl[:,100,2], color = :red, linewidth = 2)
+fig
+
+# fluxes =======================================================
+
+# need to adjust for ringing etc *******************************************************
+# need to adjust for ringing etc *******************************************************
+
+# undecomposed time-mean flux 
+Fx  = dropdims(mean(sum(uc.*pcp.*dzz,dims=3),dims=1), dims=(1,3))
+Fxh = dropdims(mean(sum(uh.*ph.*dzz,dims=3),dims=1), dims=(1,3))
+Fxl = dropdims(mean(sum(ul.*pl.*dzz,dims=3),dims=1), dims=(1,3))
+
+# modal time-mean flux
+Fxn  = dropdims(mean(H*un.*pn,dims=1),dims=1)
+Fxnh = dropdims(mean(H*unh.*pnh,dims=1),dims=1)
+Fxnl = dropdims(mean(H*unl.*pnl,dims=1),dims=1)
+
+#=
+ylim = [0 3000]
+fig = Figure()
+ax = Axis(fig[1, 1],xlabel = "x [km]", ylabel = "Fx [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+lines!(ax, xc/1e3, Fxn[:,1], color = :black, linewidth = 2)
+lines!(ax, xc/1e3, Fxn[:,2], color = :red, linewidth = 2)
+lines!(ax, xc/1e3, Fxn[:,3], color = :green, linewidth = 2)
+fig
+=#
+
+ylim = [0 3000]
+
+fig = Figure(size=(600,800))
+ax = Axis(fig[1, 1],title = fname_short, xlabel = "x [km]", ylabel = "mode 1 Fx [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+lines!(ax, xc/1e3, Fxnl[:,1], color = :black, linewidth = 2)
+lines!(ax, xc/1e3, Fxnh[:,1], color = :red, linewidth = 2)
+
+ax2 = Axis(fig[2, 1],xlabel = "x [km]", ylabel = "mode 2 Fx [W/m]")
+ylims!(ax2, ylim[1], ylim[2])
+lines!(ax2, xc/1e3, Fxnl[:,2], color = :black, linewidth = 2)
+lines!(ax2, xc/1e3, Fxnh[:,2], color = :red, linewidth = 2)
+
+ax3 = Axis(fig[3, 1],xlabel = "x [km]", ylabel = "mode 2 Fx [W/m]")
+ylims!(ax3, ylim[1], ylim[2])
+lines!(ax3, xc/1e3, Fxnl[:,3], color = :black, linewidth = 2)
+lines!(ax3, xc/1e3, Fxnh[:,3], color = :red, linewidth = 2)
+fig
+
+# compare sum of modes with undecomposed fluxes
+Fxnt  = dropdims(sum(Fxn,dims=2),dims=2)
+Fxnht = dropdims(sum(Fxnh,dims=2),dims=2)
+Fxnlt = dropdims(sum(Fxnl,dims=2),dims=2)
+
+fig = Figure()
+ax = Axis(fig[1, 1],title = string("total flux",fname_short), xlabel = "x [km]", ylabel = "total Fx [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+lines!(ax, xc/1e3, Fxnt, color = :yellow, linewidth = 3)
+lines!(ax, xc/1e3, Fxnlt, color = :black, linewidth = 3)
+lines!(ax, xc/1e3, Fxnht, color = :red, linewidth = 3)
+scatterlines!(ax, xc/1e3, Fx, marker = :cross, color = :green, linewidth = 1, linestyle = :dash)
+scatterlines!(ax, xc/1e3, Fxl, marker = :cross, color = :grey, linewidth = 1, linestyle = :dash)
+scatterlines!(ax, xc/1e3, Fxh, marker = :cross, color = :orange, linewidth = 1, linestyle = :dash)
+fig
+
+
+# TO DO:
+# -adjust for ringing and traveltime!! 
+#    => comp. means over shorter time period!
+# -increase velocities to match fluxes amazon
+#    u surface should be ~0.5 m/s?
+# -divergence for undecomposed filtered fields
+#    => high-pass divergence should agree with coarsegraining patterns
+# -compare sims and their patterns
+
+# large conclusions for 4-km coarse resolution simulations:
+# 1) for low velocities decay of mode 1 is the same for diff sims
+#    as are integrated energy transfers along transect
+# 2) however, spatial patterns are different
+#    does this affect mixing? solitary wave formation? 
+
 
 # compute some ffts of surface velocity ======================================================
 tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
@@ -187,49 +321,7 @@ fig
 
 
 
-# project velocities on modes and then compute energetics per mode ------------------------------
 
-# load eigen functions
-# ["f", "om2", "zfw", "N2w", "nonhyd", "kn", "Ln", "Cn", "Cgn", "Cen", "Weig", "Ueig", "Ueig2"]
-fnameEIG = "EIG_amz1.jld2";
-path_fname2 = string(dirEIG,fnameEIG);
-
-#=
-datafile = jldopen(path_fname2, "r")
-println(keys(datafile))  # List the keys (variables) in the file
-close(datafile)
-=#
-
-@load path_fname2 kn Ueig zfw
-lines(Ueig[:,1],zc)
-
-# Ueig should be a zc
-zU = zfw[1:end-1]/2 + zfw[2:end]/2;
-Float32.(zU) == zc  # zU is a Float64
-
-# project the first 5 modes on velocities
-# un = 1/H*sum(uc*Ueig*dz)
-MEIG = 5
-un = zeros(Nt,Nx,MEIG);
-vn = zeros(Nt,Nx,MEIG);
-for l in 1:Nt            # time
-    for i in 1:Nx        # x
-        for m in 1:MEIG
-            un[l,i,m] = 1/H*sum(uc[l,i,:].*Ueig[:,m].*dz);   
-            vn[l,i,m] = 1/H*sum(vc[l,i,:].*Ueig[:,m].*dz);               
-            # need perturbation pressure
-        end
-    end
-end
-
-# time series
-fig = Figure()
-ax = Axis(fig[1, 1],xlabel = "time [days]", ylabel = "u [m/s]")
-lines!(ax, tday, un[:,100,1], color = :black, linewidth = 2)
-lines!(ax, tday, un[:,100,2], color = :red, linewidth = 2)
-lines!(ax, tday, un[:,100,3], color = :green, linewidth = 2)
-lines!(ax, tday, un[:,100,4], color = :orange, linewidth = 2)
-fig
 
 # spectra
 # power units y_unit^2*t_unit^2
