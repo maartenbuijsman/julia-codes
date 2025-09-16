@@ -26,9 +26,14 @@ dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 #fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
 #fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
 
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
+#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
 #fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"  # mode 2
 #fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"  # mode 1+2
+
+#fnames = "AMZ2_lat0_8d_U1_0.50_U2_0.00.nc"  # mode 1
+#fnames = "AMZ2_lat0_8d_U1_0.00_U2_0.40.nc"  # mode 2
+fnames = "AMZ2_lat0_8d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
 
 fname_short = fnames[1:28]
 
@@ -82,6 +87,14 @@ close(ds)
 uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2; 
 wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
 
+# some more hovmullers
+fig1 = Figure(size=(660,800))
+ax1a = fig1[1, 1] 
+ax1b = fig1[2, 1] 
+heatmap(ax1a, xc/1e3, tday, transpose(bc[:,:,Nz ÷ 2]))
+heatmap(ax1b, xc/1e3, tday, transpose(uc[:,:,end]))
+fig1
+
 # compute pressure -----------------------------------------------------------
 
 # rho_pert = -b*rho0/g 
@@ -109,7 +122,7 @@ pcp = pc .- pa;             # the perturbation pressure!
 
 #check integral of perturbation pressure should be zero 
 sum(pcp[200,50,:].*dz)   
-Figure(); lines(pcp[200,50,:],zc)
+Figure(); lines(tday, pcp[:,50,end])
 
 # project velocities/pressures on modes and then compute energetics per mode ------------------------------
 
@@ -139,15 +152,66 @@ MEIG = 5
 un = zeros(Nt,Nx,MEIG);
 vn = zeros(Nt,Nx,MEIG);
 pn = zeros(Nt,Nx,MEIG);
-for l in 1:Nt            # time
-    for i in 1:Nx        # x
+ucr = copy(uc);
+vcr = copy(vc);
+pcpr = copy(pcp);
+for i in 1:Nx        # x
+    for l in 1:Nt            # time
         for m in 1:MEIG
+            # #=
             un[l,i,m] = 1/H*sum(uc[l,i,:].*Ueig2[:,m].*dz);   
             vn[l,i,m] = 1/H*sum(vc[l,i,:].*Ueig2[:,m].*dz);               
-            pn[l,i,m] = 1/H*sum(pcp[l,i,:].*Ueig2[:,m].*dz);                           
+            pn[l,i,m] = 1/H*sum(pcp[l,i,:].*Ueig2[:,m].*dz);
+            ## =#
+
+            #=removing fit does not make a difference
+            un[l,i,m] = 1/H*sum(ucr[l,i,:].*Ueig2[:,m].*dz);   
+            vn[l,i,m] = 1/H*sum(vcr[l,i,:].*Ueig2[:,m].*dz);               
+            pn[l,i,m] = 1/H*sum(pcpr[l,i,:].*Ueig2[:,m].*dz);
+            =#
+            
+            # remove fit for residual
+            ucr[l,i,:]  = ucr[l,i,:] - un[l,i,m].*Ueig2[:,m]
+            vcr[l,i,:]  = vcr[l,i,:] - vn[l,i,m].*Ueig2[:,m]
+            pcpr[l,i,:] = pcpr[l,i,:] - pn[l,i,m].*Ueig2[:,m]
+            ## =#
         end
     end
 end
+
+# show residual (small)
+# depth-integrate
+fig1 = Figure(size=(660,800))
+ax1a = Axis(fig1[1, 1])
+lines!(ax1a,tday,uc[:,100,end])
+lines!(ax1a,tday,ucr[:,100,end])
+fig1
+
+# some more hovmullers
+# no reflections
+# mode 2s with mode 1 speed????
+clims1 = (-0.2,0.2)
+clims2 = (-0.1,0.1)
+fig1 = Figure(size=(660,800))
+ax1a = Axis(fig1[1, 1])
+ax1b = Axis(fig1[2, 1]) 
+hm1 = heatmap!(ax1a, xc/1e3, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims1)
+hm2 = heatmap!(ax1b, xc/1e3, tday, transpose(un[:,:,2]), colormap = Reverse(:Spectral), colorrange = clims2)
+Colorbar(fig1[1, 2], hm1)
+Colorbar(fig1[2, 2], hm2)
+fig1
+
+# plot mode 1 mode 2 reconstructed field
+for l in 1:Nt
+    un[l,i,m].*Ueig2[:,m]
+
+fig1 = Figure(size=(660,800))
+ax1a = Axis(fig1[1, 1])
+hm1 = heatmap!(ax1a, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims1)
+Colorbar(fig1[1, 2], hm1)
+Colorbar(fig1[2, 2], hm2)
+fig1
+
 
 # need to compute the residual variance
 # there is very little haha
@@ -170,20 +234,38 @@ lines!(ax2, tday, pn[:,100,4], color = :orange, linewidth = 2)
 fig
 
 # filter variables  ======================================================
-Tcut = 9/24;
-Nf = 4;
+
+Nf = 6;
 
 # undecomposed variables (as a function of depth)
-uh = lowhighpass_butter(uc,Tcut,dt,Nf,"high");
-ph = lowhighpass_butter(pcp,Tcut,dt,Nf,"high");
-ul = uc - uh;
-pl = pcp - ph;
+
+# remove the low frequency motions - if any?
+Tcut1 = 16/24;
+uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
+pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
+
+Tcut2 = 9/24;
+uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
+ph = lowhighpass_butter(pcp2,Tcut2,dt,Nf,"high");
+ul = uc2 - uh;
+pl = pcp2 - ph;
+
+uh2 = lowhighpass_butter(uc,Tcut2,dt,Nf,"high");
+ul2 = uc-uh2
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax,tday,ul[:,100,end], color = :black)
+lines!(ax,tday,ul2[:,100,end], color = :red)
+fig
 
 # modes
-unh = lowhighpass_butter(un,Tcut,dt,Nf,"high");
-pnh = lowhighpass_butter(pn,Tcut,dt,Nf,"high");
-unl = un - unh;
-pnl = pn - pnh;
+un2 = lowhighpass_butter(un,Tcut1,dt,Nf,"high");
+pn2 = lowhighpass_butter(pn,Tcut1,dt,Nf,"high");
+
+unh = lowhighpass_butter(un2,Tcut2,dt,Nf,"high");
+pnh = lowhighpass_butter(pn2,Tcut2,dt,Nf,"high");
+unl = un2 - unh;
+pnl = pn2 - pnh;
 
 # time series
 fig = Figure()
@@ -192,20 +274,39 @@ lines!(ax, tday, unh[:,100,2], color = :black, linewidth = 2)
 lines!(ax, tday, unl[:,100,2], color = :red, linewidth = 2)
 fig
 
+# some more hovmullers
+# no reflections
+clims = (-0.2,0.2)
+fig1 = Figure(size=(660,800))
+ax1a = fig1[1, 1] 
+ax1b = fig1[2, 1] 
+#heatmap(ax1a, xc/1e3, tday, transpose(unl[:,:,2]))
+#heatmap(ax1b, xc/1e3, tday, transpose(unh[:,:,2]))
+heatmap(ax1a, xc/1e3, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims)
+heatmap(ax1b, xc/1e3, tday, transpose(un[:,:,2]), colormap = Reverse(:Spectral), colorrange = clims)
+#heatmap(ax1a, xc/1e3, tday, transpose(ul[:,:,end]))
+#heatmap(ax1b, xc/1e3, tday, transpose(uh[:,:,end]))
+fig1
+
 # fluxes =======================================================
 
 # need to adjust for ringing etc *******************************************************
 # need to adjust for ringing etc *******************************************************
+t1,t2 = 4, tday[end]-2*T2/24
+numcycles = floor((t2-t1)/(T2/24))
+t2 = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
 
 # undecomposed time-mean flux 
-Fx  = dropdims(mean(sum(uc.*pcp.*dzz,dims=3),dims=1), dims=(1,3))
-Fxh = dropdims(mean(sum(uh.*ph.*dzz,dims=3),dims=1), dims=(1,3))
-Fxl = dropdims(mean(sum(ul.*pl.*dzz,dims=3),dims=1), dims=(1,3))
+Fx  = dropdims(mean(sum(uc2[Iday,:,:].*pcp2[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxl = dropdims(mean(sum(ul[Iday,:,:].*pl[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fx2 = Fxh + Fxl
 
 # modal time-mean flux
-Fxn  = dropdims(mean(H*un.*pn,dims=1),dims=1)
-Fxnh = dropdims(mean(H*unh.*pnh,dims=1),dims=1)
-Fxnl = dropdims(mean(H*unl.*pnl,dims=1),dims=1)
+Fxn  = dropdims(mean(H*un2[Iday,:,:].*pn2[Iday,:,:],dims=1),dims=1)
+Fxnh = dropdims(mean(H*unh[Iday,:,:].*pnh[Iday,:,:],dims=1),dims=1)
+Fxnl = dropdims(mean(H*unl[Iday,:,:].*pnl[Iday,:,:],dims=1),dims=1)
 
 #=
 ylim = [0 3000]
@@ -218,7 +319,7 @@ lines!(ax, xc/1e3, Fxn[:,3], color = :green, linewidth = 2)
 fig
 =#
 
-ylim = [0 3000]
+ylim = [0 12000]
 
 fig = Figure(size=(600,800))
 ax = Axis(fig[1, 1],title = fname_short, xlabel = "x [km]", ylabel = "mode 1 Fx [W/m]")
@@ -241,16 +342,20 @@ fig
 Fxnt  = dropdims(sum(Fxn,dims=2),dims=2)
 Fxnht = dropdims(sum(Fxnh,dims=2),dims=2)
 Fxnlt = dropdims(sum(Fxnl,dims=2),dims=2)
+Fxnt2 = Fxnht + Fxnlt   # shpuld be the same as 
 
 fig = Figure()
 ax = Axis(fig[1, 1],title = string("total flux",fname_short), xlabel = "x [km]", ylabel = "total Fx [W/m]")
 ylims!(ax, ylim[1], ylim[2])
-lines!(ax, xc/1e3, Fxnt, color = :yellow, linewidth = 3)
-lines!(ax, xc/1e3, Fxnlt, color = :black, linewidth = 3)
-lines!(ax, xc/1e3, Fxnht, color = :red, linewidth = 3)
-scatterlines!(ax, xc/1e3, Fx, marker = :cross, color = :green, linewidth = 1, linestyle = :dash)
-scatterlines!(ax, xc/1e3, Fxl, marker = :cross, color = :grey, linewidth = 1, linestyle = :dash)
-scatterlines!(ax, xc/1e3, Fxh, marker = :cross, color = :orange, linewidth = 1, linestyle = :dash)
+lines!(ax, xc/1e3, Fxnt, label = "tot", color = :yellow, linewidth = 3)
+lines!(ax, xc/1e3, Fxnlt, label = "9-16h", color = :black, linewidth = 3)
+lines!(ax, xc/1e3, Fxnht, label = "<9h", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, Fxnt2, label = "<16h", color = :blue, linewidth = 3) #
+scatterlines!(ax, xc/1e3, Fx, label = "tot", marker = :cross, color = :green, linewidth = 1, linestyle = :dash)
+scatterlines!(ax, xc/1e3, Fxl, label = "9-16h", marker = :cross, color = :grey, linewidth = 1, linestyle = :dash)
+scatterlines!(ax, xc/1e3, Fxh, label = "<9h", marker = :cross, color = :orange, linewidth = 1, linestyle = :dash)
+scatterlines!(ax, xc/1e3, Fx2, label = "<16h", marker = :cross, color = :cyan, linewidth = 1, linestyle = :dash)
+axislegend(ax, position = :rt)
 fig
 
 
@@ -269,7 +374,7 @@ fig
 # 2) however, spatial patterns are different
 #    does this affect mixing? solitary wave formation? 
 
-
+return
 # compute some ffts of surface velocity ======================================================
 tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
 

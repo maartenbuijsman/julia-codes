@@ -258,7 +258,7 @@ fig1
 # use an fixed number of tidal cycles after 4 days to capture modes 1 and 2
 # and before Tend-TM2 to avoid ringing effects
 
-t1,t2 = 4, tday[end]-T2/24
+t1,t2 = 4, tday[end]-2*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
