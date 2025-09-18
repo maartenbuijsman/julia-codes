@@ -27,11 +27,19 @@ figflag = 1
 #fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
 #fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
 
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
-fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"  # mode 2
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"  # mode 1+2
+#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
+#fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"  # mode 2
+#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"  # mode 1+2
 
-fname_short = fnames[1:28]
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
+#fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+#fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+fname_short = fnames[1:29]
 
 #filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
 filename = string(dirsim,fnames)
@@ -258,7 +266,10 @@ fig1
 # use an fixed number of tidal cycles after 4 days to capture modes 1 and 2
 # and before Tend-TM2 to avoid ringing effects
 
-t1,t2 = 4, tday[end]-2*T2/24
+# number of tidal cycles to exclude from the end
+#EXCL = 2 
+EXCL = 4
+t1,t2 = 4, tday[end]-EXCL*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
@@ -332,12 +343,15 @@ println(string(fnameout)," data saved ........ ")
 # load and compare the CG transects =======================================
 dirin = "/data3/mbui/ModelOutput/diagout/"
 
+#=
 fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
           "AMZ1_lat0_8d_U1_0.00_U2_0.20",  # mode 2
           "AMZ1_lat0_8d_U1_0.25_U2_0.20"]  # mode 1+2
+          =#
 
-
-
+fnamal = ["AMZ2_lat0_12d_U1_0.50_U2_0.00",  # mode 1
+          "AMZ2_lat0_12d_U1_0.00_U2_0.40",  # mode 2
+          "AMZ2_lat0_12d_U1_0.50_U2_0.40"]  # mode 1+2
 
 # load simulations
 Πsum = 0;

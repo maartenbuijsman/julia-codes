@@ -66,18 +66,47 @@ Usur1, Usur2 = 0.25, 0.2
 #numM = [1];    
 #Usur1, Usur2 = 0.5, 0.0
 
+#numM = [2];    
+#Usur1, Usur2 = 0.0, 0.4
+
+# WMTD seminar double the velocity ===========================
+# mode 1+2, stronger velocity
+#numM = [1 2];    
+#Usur1, Usur2 = 0.4, 0.3
+
+#numM = [1];    
+#Usur1, Usur2 = 0.4, 0.0
+
 numM = [2];    
-Usur1, Usur2 = 0.0, 0.4
-
-
+Usur1, Usur2 = 0.0, 0.3
 
 # dx grid size
 DX = 4000;
 #DX = 200;
 
-fid = @sprintf("AMZ2_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+# simulation time stepping
+#Δt = 30seconds
+Δt = 1minutes
+start_time = 0days
+#stop_time  = 8days
+stop_time  = 12days
 
-println("running",fid)
+#fid = @sprintf("AMZ2_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+#fid = @sprintf("AMZ2_lat0_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy; try WENO?
+#fid = @sprintf("AMZ3_weno_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy;
+# I likely need to increase my viscosities
+#fid = @sprintf("AMZ3_visc_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy;
+# I likely need to increase my horiz and bert viscosities 
+#               closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+fid = @sprintf("AMZ3_hvis_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+println("running ",fid)
 
 ###########------ LOAD N and grid params ------#############
 
@@ -105,11 +134,6 @@ fig
 
 ###########------ SIMULATION PARAMETERS ------#############
 
-# simulation time stepping
-#Δt = 30seconds
-Δt = 1minutes
-start_time = 0days
-stop_time  = 8days
 
 #numM = 1;       
 Nz = length(zfw)-1;
@@ -215,10 +239,11 @@ function fun(x,z,t,p)
     u = 0.0
     # loop over n modes
     for i in p.numM
+        phi = [0 π] # mode 1 and mode 2 are out of phase
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
-        u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t)
+        u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
     end
     return u
 end
@@ -227,11 +252,12 @@ end
 function fwn(x,z,t,p)
     w = 0.0
     # loop over n modes
-    for i in p.numM    
+    for i in p.numM   
+        phi = [0 π] # mode 1 and mode 2 are out of phase
         Weig = p.Weig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zfw, Weig, extrapolation_bc=Line());
         Weigi = intzc.(z);
-        w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t)  
+        w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t - phi[i])  
     end
     return w
 end
@@ -346,22 +372,23 @@ u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = 
 w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 #v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod))
 
-#= WENO causes diffusion near the boundaries
-model = NonhydrostaticModel(; grid, coriolis,
-# try order = 9                advection = WENO(order=9),
-                advection = Centered(order=4),
-                buoyancy = BuoyancyTracer(),
-                timestepper = :RungeKutta3,
+#= WENO works very well; smooth field, but run is twice as long
+model = NonhydrostaticModel(; grid, coriolis=fcor,
+                advection = WENO(),
                 tracers = :b,
+                buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                boundary_conditions=(u=u_bcs, w=w_bcs))
-#                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
+                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
+                boundary_conditions=(u=u_bcs, w=w_bcs)) 
 =#
 
 # this model does not cause diffusion near the botom amd surface boundaries
+# order?
+#                closure = ScalarDiffusivity(ν=1e-6, κ=1e-6),
+#                closure = ScalarDiffusivity(ν=1e-4, κ=1e-4),
 model = NonhydrostaticModel(; grid, coriolis=fcor,
                 advection = Centered(order=4),
-                closure = ScalarDiffusivity(ν=1e-6, κ=1e-6),
+                closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),

@@ -23,10 +23,16 @@ include(string(pathname,"include_functions.jl"))
 #fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"; clims  = (-0.25,0.25)
 fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"; clims  = (-0.5,0.5)
 
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
+#fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+
 pathin  = "/data3/mbui/ModelOutput/IW/"
 pathout = "/data3/mbui/ModelOutput/movies/"
 
-movienm = fnames[1:28]
+movienm = fnames[1:29]
 filename = string(pathin,fnames)
 
 # open nc file =============================================
@@ -75,7 +81,7 @@ fig1
 
 
 # 1. Initialize Figure and Axis
-fig = Figure()
+fig = Figure(size = (1000,500))
 ax = Axis(fig[1, 1], title = movienm)
 
 # 2. Create an Observable for your heatmap data

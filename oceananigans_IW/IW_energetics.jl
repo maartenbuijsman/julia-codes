@@ -32,10 +32,21 @@ dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 
 #fnames = "AMZ2_lat0_8d_U1_0.50_U2_0.00.nc"  # mode 1
 #fnames = "AMZ2_lat0_8d_U1_0.00_U2_0.40.nc"  # mode 2
-fnames = "AMZ2_lat0_8d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ2_lat0_8d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
+#fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
+#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+# very smooth; but causes large decay
+#fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
 
-fname_short = fnames[1:28]
+
+
+fname_short = fnames[1:29]
 
 #filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
 filename = string(dirsim,fnames)
@@ -183,8 +194,8 @@ end
 # depth-integrate
 fig1 = Figure(size=(660,800))
 ax1a = Axis(fig1[1, 1])
-lines!(ax1a,tday,uc[:,100,end])
-lines!(ax1a,tday,ucr[:,100,end])
+lines!(ax1a,tday,uc[:,115,end])
+lines!(ax1a,tday,ucr[:,115,end])
 fig1
 
 # some more hovmullers
@@ -202,14 +213,37 @@ Colorbar(fig1[2, 2], hm2)
 fig1
 
 # plot mode 1 mode 2 reconstructed field
-for l in 1:Nt
-    un[l,i,m].*Ueig2[:,m]
+# reconstruct all modes + residual
+umode = zeros(Nt,Nx,Nz);
+Im = 1
+for i in 1:Nx
+    for l in 1:Nt
+        umode[l,i,:] = un[l,i,Im].*Ueig2[:,Im]
+    end
+end
 
-fig1 = Figure(size=(660,800))
+# time series
+clims1 = (-0.15,0.15)
+fig1 = Figure(size=(800,600))
 ax1a = Axis(fig1[1, 1])
-hm1 = heatmap!(ax1a, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims1)
+hm1 = heatmap!(ax1a, tday, zc, (umode[:,115,:]),colormap = Reverse(:Spectral), colorrange = clims1)
 Colorbar(fig1[1, 2], hm1)
-Colorbar(fig1[2, 2], hm2)
+fig1
+
+# snapshot in time
+clims1 = (-0.15,0.15)
+fig1 = Figure(size=(800,600))
+ax1a = Axis(fig1[1, 1])
+hm1 = heatmap!(ax1a, xc/1e3, zc, (umode[100,:,:]),colormap = Reverse(:Spectral), colorrange = clims1)
+Colorbar(fig1[1, 2], hm1)
+fig1
+
+# hovmuller
+fig1 = Figure(size=(600,800))
+ax1a = Axis(fig1[1, 1])
+#hm1 = heatmap!(ax1a, tday, transpose(un[:,:,2]), colormap = Reverse(:Spectral), colorrange = clims1)
+hm1 = heatmap!(ax1a, xc/1e3, tday, transpose(umode[:,:,end]), colormap = Reverse(:Spectral))
+Colorbar(fig1[1, 2], hm1)
 fig1
 
 
@@ -235,7 +269,7 @@ fig
 
 # filter variables  ======================================================
 
-Nf = 6;
+Nf = 8;
 
 # undecomposed variables (as a function of depth)
 
@@ -270,8 +304,8 @@ pnl = pn2 - pnh;
 # time series
 fig = Figure()
 ax = Axis(fig[1, 1],xlabel = "time [days]", ylabel = "u [m/s]")
-lines!(ax, tday, unh[:,100,2], color = :black, linewidth = 2)
-lines!(ax, tday, unl[:,100,2], color = :red, linewidth = 2)
+lines!(ax, tday, unh[:,10,2], color = :black, linewidth = 2)
+lines!(ax, tday, unl[:,10,2], color = :red, linewidth = 2)
 fig
 
 # some more hovmullers
@@ -292,7 +326,8 @@ fig1
 
 # need to adjust for ringing etc *******************************************************
 # need to adjust for ringing etc *******************************************************
-t1,t2 = 4, tday[end]-2*T2/24
+EXCL = 4;
+t1,t2 = 4, tday[end]-EXCL*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
@@ -374,44 +409,45 @@ fig
 # 2) however, spatial patterns are different
 #    does this affect mixing? solitary wave formation? 
 
-return
+
 # compute some ffts of surface velocity ======================================================
+
+EXCL = 4;
+t1,t2 = 4, tday[end]-EXCL*T2/24
+numcycles = floor((t2-t1)/(T2/24))
+t2 = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
+
 tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
 
 i=1;
-period, freq, pp = fft_spectra(tday, uc[:,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
+period, freq, pp = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
 poweru = zeros(length(period),Nx);
 powerv = zeros(length(period),Nx);
 for i in 1:Nx
-    period, freq, poweru[:,i] = fft_spectra(tday, uc[:,i,end]; tukeycf, numwin, linfit, prewhit);
-    period, freq, powerv[:,i] = fft_spectra(tday, vc[:,i,end]; tukeycf, numwin, linfit, prewhit);    
+    period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);
+    period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
 end
 
 KEom = poweru .+ powerv;    # mode 1+2
-#KEom1 = poweru .+ powerv;  # mode 1
-#KEom2 = poweru .+ powerv;  # mode 2
-#KEomdiff = KEom - (KEom1 + KEom2);
-
-#=
-lines(uc[:,100,end])
-period, freq, pp = fft_spectra(tday, uc[:,100,end]; tukeycf, numwin, linfit, prewhit);
-lines(pp)
-lines(poweru[:,100])
-=#
-
 
 # heatmap of spectral power
-ylim = [0 8];
+ylim = [0 11];
 clims = (-0.05,0.05)
 
+tistr = " mode 1 + mode 2"
+
 fig1 = Figure()
-axa = Axis(fig1[1, 1],title=string("KE [m^2/s^2] ",fname_short));  
-#ylims!(axa, ylim[1], ylim[2])
-hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)), colormap = Reverse(:Spectral)); 
-#hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom1)), colormap = Reverse(:Spectral)); 
-#hm = heatmap!(axa, xc/1e3, freq, (transpose(KEomdiff)), colormap = Reverse(:Spectral), colorrange = clims); 
+axa = Axis(fig1[1, 1],yticks = (0:2:10),title=string("log10 KE [m^2/s^2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
+ylims!(axa, ylim[1], ylim[2])
+hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)),colormap = Reverse(:Spectral)); 
 Colorbar(fig1[1,2], hm); 
+hm.colorrange = (-6, 0)
 fig1   
+
+
+
+return
 
 
 # line plots 
