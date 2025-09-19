@@ -37,7 +37,11 @@ figflag = 1
 
 #fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+
+fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"  # mode 1
+#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"  # mode 2
 
 fname_short = fnames[1:29]
 
@@ -352,6 +356,11 @@ fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
 fnamal = ["AMZ2_lat0_12d_U1_0.50_U2_0.00",  # mode 1
           "AMZ2_lat0_12d_U1_0.00_U2_0.40",  # mode 2
           "AMZ2_lat0_12d_U1_0.50_U2_0.40"]  # mode 1+2
+
+fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
+          "AMZ3_hvis_12d_U1_0.00_U2_0.30",  # mode 2
+          "AMZ3_hvis_12d_U1_0.40_U2_0.30"]  # mode 1+2
+
 
 # load simulations
 Πsum = 0;

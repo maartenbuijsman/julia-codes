@@ -39,9 +39,9 @@ dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
 # very smooth; but causes large decay
-#fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
 
 

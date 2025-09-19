@@ -11,6 +11,7 @@ using Printf
 using CairoMakie
 using Statistics
 using Printf
+using ColorSchemes
 
 pathname = "/home/mbui/Documents/julia-codes/functions/"
 include(string(pathname,"include_functions.jl"))
@@ -21,18 +22,23 @@ include(string(pathname,"include_functions.jl"))
 #fnames = "AMZ1_lat0_8d_mode1_2_U10.05.nc"
 #fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"; clims  = (-0.25,0.25)
 #fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"; clims  = (-0.25,0.25)
-fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"; clims  = (-0.5,0.5)
+#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"; clims  = (-0.5,0.5)
 
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
 #fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 1
+fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; movienm = "mode 2"  # mode 2
+
+clims  = (-0.3,0.3)
 
 pathin  = "/data3/mbui/ModelOutput/IW/"
 pathout = "/data3/mbui/ModelOutput/movies/"
 
-movienm = fnames[1:29]
+movienm2 = fnames[1:29]
 filename = string(pathin,fnames)
 
 # open nc file =============================================
@@ -81,32 +87,32 @@ fig1
 
 
 # 1. Initialize Figure and Axis
-fig = Figure(size = (1000,500))
-ax = Axis(fig[1, 1], title = movienm)
+fig = Figure(size = (1000,250))
+ax = Axis(fig[1, 1], xlabel="x [km]", ylabel="z [m]")
 
 # 2. Create an Observable for your heatmap data
 # This allows you to efficiently update the plot without redrawing everything
 initial_data = uc[:,:,1] # Example initial data
 heatmap_data = Observable(initial_data)
 
-# 3. Plot the heatmap using the Observable data
-hm=heatmap!(ax, xc/1e3, zc, heatmap_data, colormap = Reverse(:Spectral), colorrange = clims) # Customize colormap as needed
+# 3. Plot the heatmap using the Observable data :balance :RdBu_11
+#hm=heatmap!(ax, xc/1e3, zc, heatmap_data, colormap = Reverse(:Spectral), colorrange = clims) # Customize colormap as needed
+hm=heatmap!(ax, xc/1e3, zc, heatmap_data, colormap = Reverse(:RdBu_11), colorrange = clims) # Customize colormap as needed
 Colorbar(fig[1, 2], hm)
 
 # 4. Define the animation parameters
 frames = 2:(size(uc)[3]) # Number of frames in the animation
-framerate = 8 # Frames per second
+framerate = 20 # Frames per second
 
 # 5. Record the animation
-record(fig, string(pathout,movienm,".mp4"), frames; 
+record(fig, string(pathout,movienm2,".mp4"), frames; 
 framerate = framerate) do frame_num
     # Update the data for each frame
     heatmap_data[] = uc[:,:,frame_num]
 
     # You can also change other plot attributes here, like the title
     str = @sprintf("%5.2f days",frame_num*30/60/24);
-    ax.title[] = str
-    #ax.title[] = string(movienm,"time",$(frame_num)")
+    ax.title[] = string("sim. ",movienm,"; u velocity [m/s]; ",str)
     println("frame ",frame_num)
 end
 
