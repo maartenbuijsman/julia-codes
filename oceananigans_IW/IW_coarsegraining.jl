@@ -11,13 +11,24 @@ using Printf
 using CairoMakie
 using Statistics
 using JLD2
+using LaTeXStrings
 
-#pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
-pathname = "/home/mbui/Documents/julia-codes/functions/"
+
+WIN = 1;
+
+if WIN==1
+    pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
+    dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
+    dirfig = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\figs\\";  
+    dirout = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\diagout\\";  
+else
+    pathname = "/home/mbui/Documents/julia-codes/functions/"
+    dirsim = "/data3/mbui/ModelOutput/IW/";
+    dirfig = "/data3/mbui/ModelOutput/figs/";
+    dirout = "/data3/mbui/ModelOutput/diagout/";
+end
+
 include(string(pathname,"include_functions.jl"))
-
-dirsim = "/data3/mbui/ModelOutput/IW/";
-dirfig = "/data3/mbui/ModelOutput/figs/";
 
 # print figures
 figflag = 1
@@ -39,13 +50,12 @@ figflag = 1
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
-fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"  # mode 1+2
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"  # mode 1
-#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"  # mode 2
+fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; titlenm = "mode 1"  # mode 1
+#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; titlenm = "mode 2"  # mode 2
 
-fname_short = fnames[1:29]
+fname_short2 = fnames[1:29]
 
-#filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
 filename = string(dirsim,fnames)
 
 const T2 = 12+25.2/60
@@ -114,13 +124,13 @@ fig =#
 # some more hovmullers
 clims = (-0.5,0.5)
 fig1 = Figure()
-ax1 = Axis(fig1[1, 1], xlabel = "x [km]", ylabel = "time [days]", title=string("u surf [m/s] ",fname_short)) 
+ax1 = Axis(fig1[1, 1], xlabel = "x [km]", ylabel = "time [days]", title=string("u surf [m/s] ",fname_short2)) 
 hm=heatmap!(ax1, xc/1e3, tday , uc[:,:,end]', colormap = Reverse(:Spectral), colorrange = clims)
 Colorbar(fig1[1, 2], hm)
 fig1
 
 # Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"hovmuller_",fname_short,".png"), fig1)
+if figflag==1; save(string(dirfig,"hovmuller_",fname_short2,".png"), fig1)
 end
 
 # filter all velocities ======================================
@@ -241,13 +251,13 @@ w*u - w*u * dwdx  3
 w*w - w*w * dwdz
 =#
 
-Πx = -(ucl.*ucl .- uucl).*dudx +   
-     -(vfl.*ucl .- uvcl).*dvdx; 
-Πz = -(ucl.*wcl .- uwcl).*dudz +   
-     -(vfl.*wcl .- vwcl).*dvdz; 
-Πnh = -(ucl.*wcl .- uwcl).*dwdx +   
-      -(wcl.*wcl .- wwcl).*dwdz; 
-
+# switch to positive -=>+
+Πx = (ucl.*ucl .- uucl).*dudx +   
+     (vfl.*ucl .- uvcl).*dvdx; 
+Πz = (ucl.*wcl .- uwcl).*dudz +   
+     (vfl.*wcl .- vwcl).*dvdz; 
+Πnh = (ucl.*wcl .- uwcl).*dwdx +   
+      (wcl.*wcl .- wwcl).*dwdz; 
 
 ylim = -500;
 clims = (-maximum(Πx[:]),maximum(Πx[:]))
@@ -285,7 +295,7 @@ Iday = findall(item -> item >= t1 && item<= t2, tday)
 Πnha = dropdims(mean(Πnh[Iday,:,:],dims=1),dims=1);
 
 fig1 = Figure(size = (600, 800))
-axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short));  ylims!(axa, ylim, 0)
+axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short2));  ylims!(axa, ylim, 0)
 axb = Axis(fig1[2, 1],title=string("Piz [W/kg] "));  ylims!(axb, ylim, 0)
 axc = Axis(fig1[3, 1],title=string("Pinh [W/kg] "));  ylims!(axc, ylim, 0)
 axd = Axis(fig1[4, 1],title=string("Pisum [W/kg] "));  ylims!(axd, ylim, 0)
@@ -296,9 +306,24 @@ hm = heatmap!(axd, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = (:Spectral)); Color
 fig1    
 
 # Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"PIxz_",fname_short,".png"), fig1)
+if figflag==1; save(string(dirfig,"PIxz_",fname_short2,".png"), fig1)
 end
 
+#title=latexstring("sim. ",titlenm,"; \$\\Pi\$ [W/kg] ")
+
+# only plot the sum of all coarse graining terms :balance
+clims = (-1e-6,1e-6)
+fig1 = Figure(size = (1000, 250))
+axa = Axis(fig1[1, 1], title=string("sim. ",titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
+#hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:Spectral), colorrange = clims); 
+hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = :balance, colorrange = clims); 
+ylims!(axa, ylim, 0)
+Colorbar(fig1[1,2], hm); 
+fig1    
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"PIsumxz_",fname_short2,".png"), fig1)
+end
 
 
 # f(z)
@@ -307,7 +332,7 @@ end
 Πnhza = dropdims(mean(Πnha,dims=1),dims=1);
 
 fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "Π [W/kg]", ylabel = "z [m]", title=fname_short)
+ax = Axis(fig[1, 1], xlabel = "Π [W/kg]", ylabel = "z [m]", title=fname_short2)
 lines!(ax,Πxza,zc,color=:red, label="Πx")
 lines!(ax,Πzza,zc,color=:green, label="Πz")
 lines!(ax,Πnhza,zc,color=:black, label="Πnh")
@@ -322,7 +347,7 @@ dzz = reshape(dz,1,:)
 Πnhxa = dropdims(sum(Πnha.*dzz,dims=2),dims=2);
 
 #fig = Figure(); 
-ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=fname_short)
+ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=fname_short2)
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
 lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
 lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
@@ -331,12 +356,11 @@ axislegend(position = :lb)
 fig
 
 # Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"PIz_PIx_",fname_short,".png"), fig)
+if figflag==1; save(string(dirfig,"PIz_PIx_",fname_short2,".png"), fig)
 end
 
 # save f(x) profiles
-dirout = "/data3/mbui/ModelOutput/diagout/"
-fnameout = string("Etran_",fname_short,".jld2")
+fnameout = string("Etran_",fname_short2,".jld2")
 
 jldsave(string(dirout,fnameout); xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
@@ -345,7 +369,7 @@ println(string(fnameout)," data saved ........ ")
 
 ##=
 # load and compare the CG transects =======================================
-dirin = "/data3/mbui/ModelOutput/diagout/"
+dirin = copy(dirout)
 
 #=
 fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
@@ -353,9 +377,9 @@ fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
           "AMZ1_lat0_8d_U1_0.25_U2_0.20"]  # mode 1+2
           =#
 
-fnamal = ["AMZ2_lat0_12d_U1_0.50_U2_0.00",  # mode 1
-          "AMZ2_lat0_12d_U1_0.00_U2_0.40",  # mode 2
-          "AMZ2_lat0_12d_U1_0.50_U2_0.40"]  # mode 1+2
+#fnamal = ["AMZ2_lat0_12d_U1_0.50_U2_0.00",  # mode 1
+#          "AMZ2_lat0_12d_U1_0.00_U2_0.40",  # mode 2
+#          "AMZ2_lat0_12d_U1_0.50_U2_0.40"]  # mode 1+2
 
 fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
           "AMZ3_hvis_12d_U1_0.00_U2_0.30",  # mode 2
