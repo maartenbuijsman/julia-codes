@@ -13,13 +13,24 @@ using CairoMakie
 using Statistics
 using JLD2
 
-#pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\"
-pathname = "/home/mbui/Documents/julia-codes/functions/"
-include(string(pathname,"include_functions.jl"))
+figflag = 1
+WIN = 1;
 
-dirsim = "/data3/mbui/ModelOutput/IW/";
-dirfig = "/data3/mbui/ModelOutput/figs/";
-dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
+if WIN==1
+    pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
+    dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
+    dirfig = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\figs\\";  
+    dirout = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\diagout\\";  
+    dirEIG = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
+else
+    pathname = "/home/mbui/Documents/julia-codes/functions/"
+    dirsim = "/data3/mbui/ModelOutput/IW/";
+    dirfig = "/data3/mbui/ModelOutput/figs/";
+    dirout = "/data3/mbui/ModelOutput/diagout/";
+    dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
+end
+
+include(string(pathname,"include_functions.jl"))
 
 # load simulations ===========================================
 
@@ -39,14 +50,15 @@ dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
 # very smooth; but causes large decay
-fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
+#fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
+fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; titlenm = "mode 1"  # mode 1
+#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; titlenm = "mode 2"  # mode 2
 
-
-
-fname_short = fnames[1:29]
+fname_short2 = fnames[1:29]
 
 #filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
 filename = string(dirsim,fnames)
@@ -149,9 +161,20 @@ close(datafile)
 =#
 
 # make sure to use the normalized Ueig2!
-@load path_fname2 kn Ueig2 zfw
+@load path_fname2 kn Ueig2 zfw N2w
 lines(Ueig2[:,1],zc)
 sum(Ueig2[:,2].^2 .*dz)/H   # depth-mean = 1
+
+
+fig = Figure(size=(500,500))
+ax = Axis(fig[1, 1],title = "N(z) Amazon", xlabel = "N [rad/s]", ylabel = "z [m]",yticks=(-1000:200:0))
+lines!(ax, sqrt.(N2w), zfw, color = :red, linewidth = 3)
+ylims!(ax, -1000,0)
+fig
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"N2_AMZ.png"), fig)
+end
 
 # Ueig should be a zc
 zU = zfw[1:end-1]/2 + zfw[2:end]/2;
@@ -316,10 +339,10 @@ ax1a = fig1[1, 1]
 ax1b = fig1[2, 1] 
 #heatmap(ax1a, xc/1e3, tday, transpose(unl[:,:,2]))
 #heatmap(ax1b, xc/1e3, tday, transpose(unh[:,:,2]))
-heatmap(ax1a, xc/1e3, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims)
-heatmap(ax1b, xc/1e3, tday, transpose(un[:,:,2]), colormap = Reverse(:Spectral), colorrange = clims)
-#heatmap(ax1a, xc/1e3, tday, transpose(ul[:,:,end]))
-#heatmap(ax1b, xc/1e3, tday, transpose(uh[:,:,end]))
+#heatmap(ax1a, xc/1e3, tday, transpose(un[:,:,1]), colormap = Reverse(:Spectral), colorrange = clims)
+#heatmap(ax1b, xc/1e3, tday, transpose(un[:,:,2]), colormap = Reverse(:Spectral), colorrange = clims)
+heatmap(ax1a, xc/1e3, tday, transpose(ul[:,:,end]), colormap = Reverse(:Spectral), colorrange = clims)
+heatmap(ax1b, xc/1e3, tday, transpose(uh[:,:,end]), colormap = Reverse(:Spectral), colorrange = clims)
 fig1
 
 # fluxes =======================================================
@@ -343,6 +366,99 @@ Fxn  = dropdims(mean(H*un2[Iday,:,:].*pn2[Iday,:,:],dims=1),dims=1)
 Fxnh = dropdims(mean(H*unh[Iday,:,:].*pnh[Iday,:,:],dims=1),dims=1)
 Fxnl = dropdims(mean(H*unl[Iday,:,:].*pnl[Iday,:,:],dims=1),dims=1)
 
+# compare sum of modes with undecomposed fluxes
+Fxnt  = dropdims(sum(Fxn,dims=2),dims=2)
+Fxnht = dropdims(sum(Fxnh,dims=2),dims=2)
+Fxnlt = dropdims(sum(Fxnl,dims=2),dims=2)
+Fxnt2 = Fxnht + Fxnlt   # should be the same as 
+
+# save the fluxes for plotting in the same figure
+fnameout = string("fluxes_",fname_short2,".jld2")
+
+jldsave(string(dirout,fnameout); xc, Fx, Fxh, Fxl, Fx2, Fxn, Fxnh, Fxnl);
+println(string(fnameout)," data saved ........ ")
+
+
+# load and compare the fluxes  =======================================
+
+fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
+          "AMZ3_hvis_12d_U1_0.40_U2_0.30"]  # mode 1+2
+
+# load and plot simulations
+
+ylim = [0 7]
+
+fig = Figure(size=(750,500))
+ax = Axis(fig[1, 1],title = "mode 1  D2 tidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+
+ax2 = Axis(fig[2, 1],title = "mode 1 supertidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ylims!(ax2, ylim[1], ylim[2])
+
+xc=0;  Fxl=0;  Fxh=0; Fxnl=0;  Fxnh=0;  
+for i in 1:2
+    path_fname = string(dirout,"fluxes_",fnamal[i],".jld2")
+
+    @load path_fname xc Fxl Fxh Fxnl  Fxnh  
+    if i==1 
+        lines!(ax, xc/1e3, Fxnl[:,1]/1e3, label = "sim. mode 1", color = :red, linewidth = 3)
+        lines!(ax2, xc/1e3, Fxnh[:,1]/1e3, label = "sim. mode 1", color = :red, linewidth = 3)
+    elseif i==2
+        lines!(ax, xc/1e3, Fxnl[:,1]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :dash)
+        lines!(ax2, xc/1e3, Fxnh[:,1]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :dash)
+    end
+end
+axislegend(ax, position = :rt)
+xlims!(ax, 0, 500)
+xlims!(ax2, 0, 500)
+fig
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"flux_mode_hi_lo.png"), fig)
+end
+
+
+# plot total flux
+fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
+          "AMZ3_hvis_12d_U1_0.00_U2_0.30",  # mode 2
+          "AMZ3_hvis_12d_U1_0.40_U2_0.30"]  # mode 1+2
+
+          ylim = [0 7]
+
+fig = Figure(size=(750,500))
+ax = Axis(fig[1, 1],title = "undecomposed D2 tidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+
+ax2 = Axis(fig[2, 1],title = "undecomposed supertidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ylims!(ax2, ylim[1], ylim[2])
+
+xc=0;  Fxl=0;  Fxh=0; Fxnl=0;  Fxnh=0;  
+Fxls=0;  Fxhs=0; 
+for i in 1:3
+    path_fname = string(dirout,"fluxes_",fnamal[i],".jld2")
+
+    @load path_fname xc Fxl Fxh  
+
+    Fxls = Fxls .+ Fxl;
+    Fxhs = Fxhs .+ Fxh;
+
+    if i==2 
+        lines!(ax, xc/1e3, Fxls[:,1]/1e3, label = "sim. mode 1 + sim. mode 1", color = :red, linewidth = 3)
+        lines!(ax2, xc/1e3, Fxhs[:,1]/1e3, label = "sim. mode 1 + sim. mode 1", color = :red, linewidth = 3)
+    elseif i==3
+        lines!(ax, xc/1e3, Fxl[:,1]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :dash)
+        lines!(ax2, xc/1e3, Fxh[:,1]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :dash)
+    end
+end
+axislegend(ax, position = :rt)
+xlims!(ax, 0, 500)
+xlims!(ax2, 0, 500)
+fig
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"flux_undecomp_hi_lo.png"), fig)
+end
+
 #=
 ylim = [0 3000]
 fig = Figure()
@@ -354,10 +470,34 @@ lines!(ax, xc/1e3, Fxn[:,3], color = :green, linewidth = 2)
 fig
 =#
 
+
+# for WTD seminar ---------------------------------
+ylim = [0 7]
+
+fig = Figure(size=(1000,250))
+ax = Axis(fig[1, 1],title = titlenm, xlabel = "x [km]", ylabel = "flux [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+#lines!(ax, xc/1e3, Fxnl[:,1]/1e3, label = "D2 mode 1", color = :black, linewidth = 2)
+#lines!(ax, xc/1e3, Fxnh[:,1]/1e3, label = "HH mode 1", color = :red, linewidth = 2)
+lines!(ax, xc/1e3, Fxnl[:,2]/1e3, label = "D2 mode 2", color = :black, linewidth = 2)
+lines!(ax, xc/1e3, Fxnh[:,2]/1e3, label = "HH mode 2", color = :red, linewidth = 2)
+
+lines!(ax, xc/1e3, Fx/1e3, label = "tot undecom.", color = :green, linewidth = 3, linestyle = :dash)
+lines!(ax, xc/1e3, Fxl/1e3, label = "D2 undecom. ", color = :black, linewidth = 2, linestyle = :dash)
+lines!(ax, xc/1e3, Fxh/1e3, label = "HH undecom.", color = :red, linewidth = 2, linestyle = :dash)
+axislegend(ax, position = :rt)
+xlims!(ax, 0, 500)
+fig
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"flux_mode_tot_",fname_short2,".png"), fig)
+end
+
+
 ylim = [0 12000]
 
 fig = Figure(size=(600,800))
-ax = Axis(fig[1, 1],title = fname_short, xlabel = "x [km]", ylabel = "mode 1 Fx [W/m]")
+ax = Axis(fig[1, 1],title = fname_short2, xlabel = "x [km]", ylabel = "mode 1 Fx [W/m]")
 ylims!(ax, ylim[1], ylim[2])
 lines!(ax, xc/1e3, Fxnl[:,1], color = :black, linewidth = 2)
 lines!(ax, xc/1e3, Fxnh[:,1], color = :red, linewidth = 2)
@@ -373,14 +513,10 @@ lines!(ax3, xc/1e3, Fxnl[:,3], color = :black, linewidth = 2)
 lines!(ax3, xc/1e3, Fxnh[:,3], color = :red, linewidth = 2)
 fig
 
-# compare sum of modes with undecomposed fluxes
-Fxnt  = dropdims(sum(Fxn,dims=2),dims=2)
-Fxnht = dropdims(sum(Fxnh,dims=2),dims=2)
-Fxnlt = dropdims(sum(Fxnl,dims=2),dims=2)
-Fxnt2 = Fxnht + Fxnlt   # shpuld be the same as 
+
 
 fig = Figure()
-ax = Axis(fig[1, 1],title = string("total flux",fname_short), xlabel = "x [km]", ylabel = "total Fx [W/m]")
+ax = Axis(fig[1, 1],title = string("total flux",fname_short2), xlabel = "x [km]", ylabel = "total Fx [W/m]")
 ylims!(ax, ylim[1], ylim[2])
 lines!(ax, xc/1e3, Fxnt, label = "tot", color = :yellow, linewidth = 3)
 lines!(ax, xc/1e3, Fxnlt, label = "9-16h", color = :black, linewidth = 3)
@@ -412,7 +548,7 @@ fig
 
 # compute some ffts of surface velocity ======================================================
 
-EXCL = 4;
+EXCL = 0;  # can be zero for fft
 t1,t2 = 4, tday[end]-EXCL*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
@@ -435,16 +571,20 @@ KEom = poweru .+ powerv;    # mode 1+2
 ylim = [0 11];
 clims = (-0.05,0.05)
 
-tistr = " mode 1 + mode 2"
+#tistr = " mode 1 + 2"
+tistr = " mode 1"
 
 fig1 = Figure()
-axa = Axis(fig1[1, 1],yticks = (0:2:10),title=string("log10 KE [m^2/s^2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
+axa = Axis(fig1[1, 1],yticks = (0:2:10),title=string("log10 KE [m2/s2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
 ylims!(axa, ylim[1], ylim[2])
 hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)),colormap = Reverse(:Spectral)); 
 Colorbar(fig1[1,2], hm); 
 hm.colorrange = (-6, 0)
 fig1   
 
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
+end
 
 
 return
@@ -520,7 +660,7 @@ end
 
 fig = Figure(size = (600, 800))
 for Im=1:3
-    if Im==1; titstr = string(fname_short,"; mode ",Im)
+    if Im==1; titstr = string(fname_short2,"; mode ",Im)
     else;     titstr = string("mode ",Im)
     end
     ax = Axis(fig[Im, 1], title = titstr, xlabel = "x [km]", ylabel = "P [m2/s2]", yscale = log10)

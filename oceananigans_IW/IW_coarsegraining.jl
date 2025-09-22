@@ -311,12 +311,12 @@ end
 
 #title=latexstring("sim. ",titlenm,"; \$\\Pi\$ [W/kg] ")
 
-# only plot the sum of all coarse graining terms :balance
+# only plot the sum of all coarse graining terms :balance :RdBu_5
 clims = (-1e-6,1e-6)
 fig1 = Figure(size = (1000, 250))
 axa = Axis(fig1[1, 1], title=string("sim. ",titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
 #hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:Spectral), colorrange = clims); 
-hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = :balance, colorrange = clims); 
+hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:RdBu_5), colorrange = clims); 
 ylims!(axa, ylim, 0)
 Colorbar(fig1[1,2], hm); 
 fig1    
@@ -364,12 +364,12 @@ fnameout = string("Etran_",fname_short2,".jld2")
 
 jldsave(string(dirout,fnameout); xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
+
 # =#
 
 
 ##=
 # load and compare the CG transects =======================================
-dirin = copy(dirout)
 
 #=
 fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
@@ -390,7 +390,7 @@ fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
 Πsum = 0;
 xc=0;  Πnhxa=0;  Πzxa=0;  Πxxa=0;
 for i in 1:2
-    path_fname = string(dirin,"Etran_",fnamal[i],".jld2")
+    path_fname = string(dirout,"Etran_",fnamal[i],".jld2")
 
     @load path_fname xc  Πnhxa  Πzxa  Πxxa    
     Πsum = Πsum .+ Πnhxa .+ Πzxa .+ Πxxa
@@ -398,7 +398,7 @@ end
 
 
 # Open the JLD2 file
-path_fname = string(dirin,"Etran_",fnamal[3],".jld2");
+path_fname = string(dirout,"Etran_",fnamal[3],".jld2");
 
 fff = jldopen(path_fname, "r")
 println(keys(fff))  # List the keys (variables) in the file
@@ -410,8 +410,8 @@ close(fff)
 
 fig = Figure(); 
 ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]")
-lines!(ax,xc/1e3,Πsum,color=:red, label="Π1 + Π2")
-lines!(ax,xc/1e3,Πsum2,color=:green, label="Π1+2")
+lines!(ax,xc/1e3,Πsum,color=:red, linewidth = 2, label="sim. mode 1 + sim. mode 2")
+lines!(ax,xc/1e3,Πsum2,color=:green, linewidth = 2, label="sim. mode 1+2")
 axislegend(position = :rb)
 fig
 
@@ -421,10 +421,12 @@ fig
 Πcumsum2 = cumtrapz(xc,Πsum2);
 
 fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "ΣΠ [W/kg*m^2]", title = "cumulative Π")
-lines!(ax,xc/1e3,Πcumsum,color=:red, label="Π1 + Π2")
-lines!(ax,xc/1e3,Πcumsum2,color=:green, label="Π1+2")
-axislegend(position = :rt)
+ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Σ Π [W/kg*m2]", 
+title = "cumulative tidal to supertidal energy transfer")
+lines!(ax,xc/1e3,Πcumsum,color=:red, linewidth = 3, label="sim. mode 1 + sim. mode 2")
+lines!(ax,xc/1e3,Πcumsum2,color=:green, linewidth = 3, label="sim. mode 1+2", linestyle = :dash)
+axislegend(position = :rb)
+xlims!(ax, 0, 500)
 fig
 
 if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)

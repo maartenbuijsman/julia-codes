@@ -13,8 +13,20 @@ using Statistics
 using Printf
 using ColorSchemes
 
-pathname = "/home/mbui/Documents/julia-codes/functions/"
+WIN = 1;
+
+if WIN==1
+    pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
+    dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
+    dirmovie = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\movies\\";  
+else
+    pathname = "/home/mbui/Documents/julia-codes/functions/"
+    dirsim  = "/data3/mbui/ModelOutput/IW/"
+    dirmovie = "/data3/mbui/ModelOutput/movies/"
+end
+
 include(string(pathname,"include_functions.jl"))
+
 
 # load and store files ===========================================
 # file names
@@ -29,17 +41,14 @@ include(string(pathname,"include_functions.jl"))
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
+fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 1
-fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; movienm = "mode 2"  # mode 2
+#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; movienm = "mode 2"  # mode 2
 
 clims  = (-0.3,0.3)
 
-pathin  = "/data3/mbui/ModelOutput/IW/"
-pathout = "/data3/mbui/ModelOutput/movies/"
-
 movienm2 = fnames[1:29]
-filename = string(pathin,fnames)
+filename = string(dirsim,fnames)
 
 # open nc file =============================================
 
@@ -85,6 +94,27 @@ hm = heatmap!(axa, xc/1e3, zc, uc[:,:,end], colormap = Reverse(:Spectral),
 fig1  
 =#
 
+# interpolate in between frames
+# aa  |    |  bb
+fadd = 3
+ucnew = zeros(Nx,Nz,(Nt-1)*(fadd+1)+1)
+k=0
+for i in 1:Nt-1
+#for i in 1:3
+    k=k+1
+    aa = copy(uc[:,:,i])
+    bb = copy(uc[:,:,i+1])   
+    ucnew[:,:,k] = copy(aa)
+            println(k,"i= ",i)
+
+    for j in 1:fadd
+        k=k+1
+        println(k," ",j)
+        ucnew[:,:,k] = aa + (bb-aa)/(fadd+1)
+    end
+end
+k=k+1
+ucnew[:,:,k] = copy(uc[:,:,end]);
 
 # 1. Initialize Figure and Axis
 fig = Figure(size = (1000,250))
@@ -92,7 +122,7 @@ ax = Axis(fig[1, 1], xlabel="x [km]", ylabel="z [m]")
 
 # 2. Create an Observable for your heatmap data
 # This allows you to efficiently update the plot without redrawing everything
-initial_data = uc[:,:,1] # Example initial data
+initial_data = ucnew[:,:,1] # Example initial data
 heatmap_data = Observable(initial_data)
 
 # 3. Plot the heatmap using the Observable data :balance :RdBu_11
@@ -101,17 +131,17 @@ hm=heatmap!(ax, xc/1e3, zc, heatmap_data, colormap = Reverse(:RdBu_11), colorran
 Colorbar(fig[1, 2], hm)
 
 # 4. Define the animation parameters
-frames = 2:(size(uc)[3]) # Number of frames in the animation
-framerate = 20 # Frames per second
+frames = 2:(size(ucnew)[3]) # Number of frames in the animation
+framerate = 60 # Frames per second
 
 # 5. Record the animation
-record(fig, string(pathout,movienm2,".mp4"), frames; 
+record(fig, string(dirmovie,movienm2,".mp4"), frames; 
 framerate = framerate) do frame_num
     # Update the data for each frame
-    heatmap_data[] = uc[:,:,frame_num]
+    heatmap_data[] = ucnew[:,:,frame_num]
 
     # You can also change other plot attributes here, like the title
-    str = @sprintf("%5.2f days",frame_num*30/60/24);
+    str = @sprintf("%5.2f days",frame_num*dt/(fadd+1));
     ax.title[] = string("sim. ",movienm,"; u velocity [m/s]; ",str)
     println("frame ",frame_num)
 end
