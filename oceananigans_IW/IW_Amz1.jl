@@ -74,19 +74,24 @@ Usur1, Usur2 = 0.25, 0.2
 #numM = [1 2];    
 #Usur1, Usur2 = 0.4, 0.3
 
-#numM = [1];    
-#Usur1, Usur2 = 0.4, 0.0
+numM = [1];    
+Usur1, Usur2 = 0.4, 0.0
 
-numM = [2];    
-Usur1, Usur2 = 0.0, 0.3
+#numM = [2];    
+#Usur1, Usur2 = 0.0, 0.3
 
-# dx grid size
+# dx grid size ----------------------
 DX = 4000;
 #DX = 200;
 
+# select latitude ------------------------
+lat = 2.5
+
 # simulation time stepping
 #Δt = 30seconds
-Δt = 1minutes
+max_Δt = 5minutes
+Δt     = 1minutes
+
 start_time = 0days
 #stop_time  = 8days
 stop_time  = 12days
@@ -104,7 +109,8 @@ stop_time  = 12days
 # mode 1 + 2 is quite noisy;
 # I likely need to increase my horiz and bert viscosities 
 #               closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-fid = @sprintf("AMZ3_hvis_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+#fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
 println("running ",fid)
 
@@ -150,7 +156,7 @@ const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
 # grid parameters
-pm = (lat=0, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM);
+pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM);
 
 # surface velocities; T:tidal period
 pm = merge(pm,(Usur=[Usur1, Usur2], T=TM2));
@@ -262,6 +268,20 @@ function fwn(x,z,t,p)
     return w
 end
 
+# v velocity field at the west boundary (x=-Dx/2)
+function fvn(x,z,t,p)
+    v = 0.0
+    # loop over n modes
+    for i in p.numM   
+        phi = [0 π] # mode 1 and mode 2 are out of phase
+        Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
+        intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
+        Ueigi = intzc.(z);
+        v = v .+ p.f/p.ω .* Ueigi * cos(p.kn[i]*x - p.ω*t - phi[i])
+    end
+    return v
+end
+
 #=
 fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
 fun(Ln[1]*3/4,zcw[end],0*2π/pm.ω,1,pm)
@@ -354,13 +374,14 @@ b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
 
 # boundary forcing
 
-# rampup function to start u and w from zero
+# ramp-up function to start u, v, and w from zero
 const Tr = pm.T/2
 framp(t,Tr) = 1-exp(-1/Tr*t)
 
-# u at face, w at center offset by -Δx/2
+# u at face; v and w at center offset by -Δx/2
 Dx = -0.5*xspacings(grid, Center())[1]
 @inline umod(z,t,p) = fun(0,z,t,p)  * framp(t,Tr)
+@inline vmod(z,t,p) = fvn(Dx,z,t,p) * framp(t,Tr)
 @inline wmod(z,t,p) = fwn(Dx,z,t,p) * framp(t,Tr)
 
 #@inline umod(z,t,p) = 0.0 * framp(t,Tr)
@@ -369,8 +390,8 @@ Dx = -0.5*xspacings(grid, Center())[1]
 #@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
 
 u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
+v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
 w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
-#v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod))
 
 #= WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
@@ -393,13 +414,14 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
                 forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
-                boundary_conditions=(u=u_bcs, w=w_bcs))                 
+                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
 
 
-#model.forcing.u
-#methods(force_u)
+# simulation time stepping
+simulation = Simulation(model; Δt, stop_time)
 
-# generate screen output
+
+#= generate screen output
 wall_clock = Ref(time_ns())
 function progress(sim)
     elapsed = 1e-9 * (time_ns() - wall_clock[])
@@ -411,10 +433,15 @@ function progress(sim)
     return nothing
 end
 
-# simulation time stepping
-simulation = Simulation(model; Δt, stop_time)
-
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
+=#
+
+progress(sim) = @printf("Iter: % 6d, sim time: % 1.3f, wall time: % 10s, Δt: % 1.4f, advective CFL: %.2e, diffusive CFL: %.2e\n",
+                        iteration(sim), time(sim), prettytime(sim.run_wall_time),
+                        sim.Δt, AdvectiveCFL(sim.Δt)(sim.model), DiffusiveCFL(sim.Δt)(sim.model))
+
+simulation.callbacks[:progress] = Callback(progress, IterationInterval(50))
+
 
 # write output
 fields = Dict("u" => model.velocities.u, 
@@ -429,7 +456,7 @@ simulation.output_writers[:field_writer] =
     schedule=TimeInterval(30minutes),
     overwrite_existing = true)
 
-#conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=1minutes)
+conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=max_Δt)
 
 # integrate the mofo
 model.clock.iteration = 0
