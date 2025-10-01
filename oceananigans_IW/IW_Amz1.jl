@@ -85,11 +85,12 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-lat = 2.5
+#lat = 2.5
+lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
-max_Δt = 5minutes
+max_Δt = 10minutes
 Δt     = 1minutes
 
 start_time = 0days
@@ -191,24 +192,25 @@ grid = RectilinearGrid(size=(pm.Nx, pm.Nz),
 fcor = FPlane(latitude = pm.lat);    # Coriolis
 pm = merge(pm,(f=fcor.f, ω=ω))
 
-# eigen value problem 
-#= store once and load everytime
+# eigen value problem - that depends on Coriolis!!
+# store everytime
 nonhyd = 1;
 kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = 
     sturm_liouville_noneqDZ_norm(zfw, N2w, pm.f, pm.ω, nonhyd);
 
-fnameEIG = "EIG_amz1.jld2";
-f=fcor.f;
-om2 = ω;
+fnameEIG = @sprintf("EIG_amz_%04.1f.jld2",lat) 
+
+f   = copy(fcor.f);
+om2 = copy(ω);
 jldsave(string(dirin,fnameEIG); f, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2);
 println(string(fnameEIG)," Ueig data saved ........ ")
-=#
 
+#=
 fnameEIG = "EIG_amz1.jld2";
 path_fname2 = string(dirin,fnameEIG);
 @load path_fname2 kn Ueig Weig
 
-#= Open the JLD2 file
+# Open the JLD2 file
 gridfile = jldopen(path_fname, "r")
 println(keys(gridfile))  # List the keys (variables) in the file
 close(gridfile)
@@ -436,8 +438,8 @@ end
 add_callback!(simulation, progress, name=:progress, IterationInterval(400))
 =#
 
-progress(sim) = @printf("Iter: % 6d, sim time: % 1.3f, wall time: % 10s, Δt: % 1.4f, advective CFL: %.2e, diffusive CFL: %.2e\n",
-                        iteration(sim), time(sim), prettytime(sim.run_wall_time),
+progress(sim) = @printf("Iter: % 6d, sim time: % s , wall time: % 10s, Δt: % 1.4f, advective CFL: %.2e, diffusive CFL: %.2e\n",
+                        iteration(sim), prettytime(sim), prettytime(sim.run_wall_time),
                         sim.Δt, AdvectiveCFL(sim.Δt)(sim.model), DiffusiveCFL(sim.Δt)(sim.model))
 
 simulation.callbacks[:progress] = Callback(progress, IterationInterval(50))
