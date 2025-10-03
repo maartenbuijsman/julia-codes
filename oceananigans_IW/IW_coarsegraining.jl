@@ -14,7 +14,7 @@ using JLD2
 using LaTeXStrings
 
 
-WIN = 0;
+WIN = 1;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -59,7 +59,8 @@ figflag = 1
 # function of latitude
 lat = 40
 
-fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+#fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 
 fname_short2 = fnames[1:33]
 filename = string(dirsim,fnames)
@@ -394,11 +395,10 @@ fnameout = string("Etran_",fname_short2,".jld2")
 jldsave(string(dirout,fnameout); xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
 
-# =#
 
 
-##=
-# load and compare the CG transects =======================================
+
+## load and compare the CG transects =======================================
 
 #=
 fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
@@ -487,3 +487,34 @@ lines!(ax,xc/1e3,Πcumsum2,color=:green, linewidth = 3, label="sim. mode 1+2", l
 axislegend(position = :rb)
 xlims!(ax, 0, 500)
 fig
+
+
+## load all latitudes and plot the cumsum ======================================
+Sp_Region_right = 20000
+
+lats = [0, 2.5, 5, 10, 20, 30, 40]
+
+# get xc
+path_fname = string(dirout,"Etran_AMZ3_",@sprintf("%04.1f",lats[1]),"_hvis_12d_U1_0.40_U2_0.0.jld2")
+@load path_fname xc
+
+DX = xc[2] - xc[1]
+
+# locate all cells west of sponge
+Ix = findall(item -> item<=xc[end]+DX/2-Sp_Region_right, xc)
+
+Πtran = zeros(length(lats),length(xc));
+Πsum = zeros(length(lats));
+for i in 1:length(lats)
+    path_fname = string(dirout,"Etran_AMZ3_",@sprintf("%04.1f",lats[i]),"_hvis_12d_U1_0.40_U2_0.0.jld2")
+
+    @load path_fname Πnhxa Πzxa Πxxa    
+    Πtran[i,:] = Πnhxa .+ Πzxa .+ Πxxa
+
+    Πsum[i] = sum(Πtran[i,Ix]*DX)
+end
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1])
+scatterlines!(axa,Πsum,lats)
+fig1
