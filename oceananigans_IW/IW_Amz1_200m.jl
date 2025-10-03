@@ -98,7 +98,7 @@ lat = 0.0
 #Δt = 30seconds
 max_Δt = 10minutes
 #Δt     = 1minutes
-Δt     = 15seconds  #weno 200 m
+Δt     = 15seconds  # 200 m
 
 start_time = 0days
 #stop_time  = 8days
@@ -120,8 +120,8 @@ stop_time  = 12days
 #fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 #fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
-# weno 200 m
-fid = @sprintf("AMZw_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+# weno w: 200 m 4: use visc
+fid = @sprintf("AMZ4_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
 
 println("running ",fid)
@@ -404,7 +404,7 @@ u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = 
 #v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
 w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 
-# WENO works very well; smooth field, but run is twice as long
+#= WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
                 advection = WENO(),
                 tracers = :b,
@@ -412,9 +412,9 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 background_fields = (; b=B),
                 forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
                 boundary_conditions=(u=u_bcs, w=w_bcs)) 
-#
+=#
 
-#= this model does not cause diffusion near the botom amd surface boundaries
+# this model does not cause diffusion near the botom amd surface boundaries
 # order?
 #                closure = ScalarDiffusivity(ν=1e-6, κ=1e-6),
 #                closure = ScalarDiffusivity(ν=1e-4, κ=1e-4),
@@ -427,7 +427,7 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
                 boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
-=#
+#
 
 # simulation time stepping
 simulation = Simulation(model; Δt, stop_time)
