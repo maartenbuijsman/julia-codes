@@ -1,9 +1,10 @@
-#= IW_Amz1.jl
-Maarten Buijsman, USM DMS, 2025-8-28
+#= IW_Amz1_200m.jl
+Maarten Buijsman, USM DMS, 2025-10-3
 use realistic N(z) and eigenfunctions generated in testing_sturmL.jl
 use open boundary forcing w and u
 also include a sponge layer on the right boundary
 based on IW_test3.jl
+has settings for 200 m sim
 
 todo: 1) include parameters in functions, 
       2) add a mode 2
@@ -81,24 +82,23 @@ Usur1, Usur2 = 0.4, 0.0
 #Usur1, Usur2 = 0.0, 0.3
 
 # dx grid size ----------------------
-DX = 4000;
-#DX = 200;
+#DX = 4000;
+DX = 200;
 
 # select latitude ------------------------
-#lat = 0.0
+lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
 #lat = 20
-lat = 25
 #lat = 30
 #lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
 max_Δt = 10minutes
-Δt     = 1minutes
-#Δt     = 15seconds  #weno 200 m
+#Δt     = 1minutes
+Δt     = 15seconds  #weno 200 m
 
 start_time = 0days
 #stop_time  = 8days
@@ -117,15 +117,11 @@ stop_time  = 12days
 # mode 1 + 2 is quite noisy;
 # I likely need to increase my horiz and bert viscosities 
 #               closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-
-# no v forcing
-fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
-
-# v forcing; but not sure if it works - need to be tested
+#fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 #fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
 # weno 200 m
-#fid = @sprintf("AMZw_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+fid = @sprintf("AMZw_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
 
 println("running ",fid)
@@ -408,17 +404,17 @@ u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = 
 #v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
 w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 
-#= WENO works very well; smooth field, but run is twice as long
+# WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
                 advection = WENO(),
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
+                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
                 boundary_conditions=(u=u_bcs, w=w_bcs)) 
-=#
+#
 
-# this model does not cause diffusion near the botom amd surface boundaries
+#= this model does not cause diffusion near the botom amd surface boundaries
 # order?
 #                closure = ScalarDiffusivity(ν=1e-6, κ=1e-6),
 #                closure = ScalarDiffusivity(ν=1e-4, κ=1e-4),
@@ -428,10 +424,10 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
+                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
                 boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
-
+=#
 
 # simulation time stepping
 simulation = Simulation(model; Δt, stop_time)
