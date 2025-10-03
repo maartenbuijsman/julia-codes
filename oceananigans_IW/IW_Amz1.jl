@@ -85,8 +85,12 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-#lat = 2.5
-lat = 40
+lat = 2.5
+#lat = 5
+#lat = 10
+#lat = 20
+#lat = 30
+#lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
@@ -110,8 +114,8 @@ stop_time  = 12days
 # mode 1 + 2 is quite noisy;
 # I likely need to increase my horiz and bert viscosities 
 #               closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-#fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
-fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+#fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
 
 println("running ",fid)
 
@@ -383,16 +387,14 @@ framp(t,Tr) = 1-exp(-1/Tr*t)
 # u at face; v and w at center offset by -Δx/2
 Dx = -0.5*xspacings(grid, Center())[1]
 @inline umod(z,t,p) = fun(0,z,t,p)  * framp(t,Tr)
-@inline vmod(z,t,p) = fvn(Dx,z,t,p) * framp(t,Tr)
+#@inline vmod(z,t,p) = fvn(Dx,z,t,p) * framp(t,Tr)
 @inline wmod(z,t,p) = fwn(Dx,z,t,p) * framp(t,Tr)
 
 #@inline umod(z,t,p) = 0.0 * framp(t,Tr)
 #@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
 
-#@inline vmod(z,t) = f/ω*an*n*π/(kn*H)*ueig(z)*cos(-kn*Dx/2-ω*t)
-
 u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
-v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
+#v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
 w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 
 #= WENO works very well; smooth field, but run is twice as long
@@ -416,7 +418,8 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
                 forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
-                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
+                boundary_conditions=(u=u_bcs, w=w_bcs))                 
+#                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
 
 
 # simulation time stepping

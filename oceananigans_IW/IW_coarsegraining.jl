@@ -14,7 +14,7 @@ using JLD2
 using LaTeXStrings
 
 
-WIN = 1;
+WIN = 0;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -50,12 +50,18 @@ figflag = 1
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
-fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; titlenm = "mode 1"  # mode 1
 #fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; titlenm = "mode 2"  # mode 2
 
-fname_short2 = fnames[1:29]
+#fname_short2 = fnames[1:29]
 
+# function of latitude
+lat = 40
+
+fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+
+fname_short2 = fnames[1:33]
 filename = string(dirsim,fnames)
 
 const T2 = 12+25.2/60
@@ -134,8 +140,31 @@ if figflag==1; save(string(dirfig,"hovmuller_",fname_short2,".png"), fig1)
 end
 
 # filter all velocities ======================================
+
+dth=dt*24; N = 8;   # all in hours
+
+#=
+fig = Figure()
+ax = Axis(fig[1, 1]) 
+ix = 50
+lines!(ax,tday,uc[:,ix,15],color = :red)
+
+# highpass - remove mean flows
+Tcuth=18;  # all in hours
+fstring = "high"
+uf = lowhighpass_butter(uf,Tcuth,dth,N,fstring);
+vf = lowhighpass_butter(vf,Tcuth,dth,N,fstring);
+wf = lowhighpass_butter(wf,Tcuth,dth,N,fstring);
+
+uc = lowhighpass_butter(uc,Tcuth,dth,N,fstring);
+wc = lowhighpass_butter(wc,Tcuth,dth,N,fstring);
+
+lines!(ax,tday,uc[:,ix,15],color = :green, linestyle = :dash)
+fig
+=#
+
 # low-pass
-Tcut=9; dth=dt*24; N = 8;   # all in hours
+Tcut=9;  # all in hours
 fstring = "low"
 
 #= test
@@ -433,3 +462,28 @@ if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
 end
 
 ##=#
+
+
+
+# test
+
+Πsum2 = Πnhxa .+ Πzxa .+ Πxxa
+
+
+fig = Figure(); 
+ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]")
+lines!(ax,xc/1e3,Πsum2,color=:green, linewidth = 2, label="sim. mode 1")
+axislegend(position = :rb)
+fig
+
+
+# cumulative sum
+Πcumsum2 = cumtrapz(xc,Πsum2);
+
+fig = Figure(); 
+ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Σ Π [W/kg*m2]", 
+title = "cumulative tidal to supertidal energy transfer")
+lines!(ax,xc/1e3,Πcumsum2,color=:green, linewidth = 3, label="sim. mode 1+2", linestyle = :dash)
+axislegend(position = :rb)
+xlims!(ax, 0, 500)
+fig

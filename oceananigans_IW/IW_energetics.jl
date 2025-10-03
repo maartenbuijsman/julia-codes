@@ -14,7 +14,7 @@ using Statistics
 using JLD2
 
 figflag = 1
-WIN = 1;
+WIN = 0;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -54,13 +54,18 @@ include(string(pathname,"include_functions.jl"))
 #fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
-fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; titlenm = "mode 1"  # mode 1
 #fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; titlenm = "mode 2"  # mode 2
 
-fname_short2 = fnames[1:29]
+#fname_short2 = fnames[1:29]
 
-#filename = string("C:\\Users\\w944461\\Documents\\work\\data\\julia\\",fnames)
+# function of latitude
+lat = 40
+
+fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+fname_short2 = fnames[1:33]
+
 filename = string(dirsim,fnames)
 
 const T2 = 12+25.2/60
@@ -151,7 +156,7 @@ Figure(); lines(tday, pcp[:,50,end])
 
 # load eigen functions
 # ["f", "om2", "zfw", "N2w", "nonhyd", "kn", "Ln", "Cn", "Cgn", "Cen", "Weig", "Ueig", "Ueig2"]
-fnameEIG = "EIG_amz1.jld2";
+fnameEIG = @sprintf("EIG_amz_%04.1f.jld2",lat) 
 path_fname2 = string(dirEIG,fnameEIG);
 
 #=
@@ -384,6 +389,8 @@ println(string(fnameout)," data saved ........ ")
 fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
           "AMZ3_hvis_12d_U1_0.40_U2_0.30"]  # mode 1+2
 
+fnamal = ["AMZ3_40.0_hvis_12d_U1_0.40_U2_0.0"]  # mode 1
+
 # load and plot simulations
 
 ylim = [0 7]
@@ -396,7 +403,7 @@ ax2 = Axis(fig[2, 1],title = "mode 1 supertidal flux", xlabel = "x [km]", ylabel
 ylims!(ax2, ylim[1], ylim[2])
 
 xc=0;  Fxl=0;  Fxh=0; Fxnl=0;  Fxnh=0;  
-for i in 1:2
+for i in 1:1
     path_fname = string(dirout,"fluxes_",fnamal[i],".jld2")
 
     @load path_fname xc Fxl Fxh Fxnl  Fxnh  

@@ -13,7 +13,7 @@ using Statistics
 using Printf
 using ColorSchemes
 
-WIN = 1;
+WIN = 0;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -41,13 +41,16 @@ include(string(pathname,"include_functions.jl"))
 #fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
 
-fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
+#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
 #fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 1
 #fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; movienm = "mode 2"  # mode 2
-
+# movienm2 = fnames[1:29]
 clims  = (-0.3,0.3)
 
-movienm2 = fnames[1:29]
+# function of latitude
+fnames = "AMZ3_40.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
+movienm2 = fnames[1:33]
+
 filename = string(dirsim,fnames)
 
 # open nc file =============================================
