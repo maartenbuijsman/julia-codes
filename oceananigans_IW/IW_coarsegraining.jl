@@ -57,7 +57,7 @@ figflag = 1
 #fname_short2 = fnames[1:29]
 
 # function of latitude
-lat = 40
+lat = 25
 
 #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
@@ -492,7 +492,7 @@ fig
 ## load all latitudes and plot the cumsum ======================================
 Sp_Region_right = 20000
 
-lats = [0, 2.5, 5, 10, 20, 30, 40]
+lats = [0, 2.5, 5, 10, 20, 25, 30, 40]
 
 # get xc
 path_fname = string(dirout,"Etran_AMZ3_",@sprintf("%04.1f",lats[1]),"_hvis_12d_U1_0.40_U2_0.0.jld2")

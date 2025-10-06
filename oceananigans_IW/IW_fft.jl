@@ -35,14 +35,18 @@ include(string(pathname,"include_functions.jl"))
 # load simulations ===========================================
 
 # function of latitude
-lats = [0, 2.5, 5, 10, 20, 30, 40];
+lats = [0, 2.5, 5, 10, 20, 25, 30, 40];
 
 KEom = zeros(1000,length(lats));
+KEuom = zeros(1000,length(lats));
+
 #ii=1
+lep=0; period=0; freqs=[];
 for ii in 1:length(lats)
 
     lat = lats[ii]
     fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); 
+    println("loading ",fnames)
     fname_short2 = fnames[1:33]
 
     filename = string(dirsim,fnames)
@@ -77,7 +81,7 @@ for ii in 1:length(lats)
     wf = zeros(Nt,Nx,Nz+1);
 
     for i in 1:Nt
-        println(i)
+        #println(i)
         uf[i,:,:] = ds["u"][:, :, i];
         vf[i,:,:] = ds["v"][:, :, i];
         wf[i,:,:] = ds["w"][:, :, i];
@@ -103,7 +107,7 @@ for ii in 1:length(lats)
     t2 = t1+numcycles*(T2/24)
     Iday = findall(item -> item >= t1 && item<= t2, tday)
 
-    tukeycf=0.2; numwin=2; linfit=true; prewhit=false;
+    tukeycf=0.2; numwin=1; linfit=true; prewhit=false;
 
     i=1;
     period, freq, pp = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
@@ -111,17 +115,69 @@ for ii in 1:length(lats)
     poweru = zeros(lep,Nx);
     powerv = zeros(lep,Nx);
     for i in 1:Nx
-        period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);
-        period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
+        period, freqs, poweru[:,i] = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);
+        period, freqs, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
     end
 
-    # sum along x
-    KEom[1:lep,ii] = sum(poweru[:,Ix] .+ powerv[:,Ix],dims=2);   
+    # average along x
+    KEom[1:lep,ii] = mean(poweru[:,Ix] .+ powerv[:,Ix],dims=2);
+    KEuom[1:lep,ii] = mean(poweru[:,Ix],dims=2);   
+   
 end
 
+KEom  = copy(KEom[1:lep,:]);
+KEuom = copy(KEuom[1:lep,:]);
 
 
-# heatmap of spectral power
+# isolate D2 and HH frequencies and compute KE
+Id2 = findall(item -> item>=10/24 && item<=14/24, period)
+Ihh = findall(item -> item<=9/24, period)
+
+# do the sum (need to multiply x df)
+df = freqs[2]-freqs[1]
+
+KEd2 = sum(KEom[Id2,:],dims=1)
+KEhh = sum(KEom[Ihh,:],dims=1)
+
+KEud2 = sum(KEuom[Id2,:],dims=1)
+KEuhh = sum(KEuom[Ihh,:],dims=1)
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1], title="a) latitude vs KE",
+xlabel="KE [m2/s2]",ylabel="latitude [degrees]");  
+scatterlines!(axa,vec(KEd2),lats,label="D2",color=:blue,linestyle=:solid,linewidth=2)
+scatterlines!(axa,vec(KEhh),lats,label="HH",color=:red,linestyle=:solid,linewidth=2)
+scatterlines!(axa,vec(KEud2),lats,label="D2 u",marker=:cross,color=:dodgerblue,linestyle=:dash,linewidth=2)
+scatterlines!(axa,vec(KEuhh),lats,label="HH u",marker=:cross,color=:orangered,linestyle=:dash,linewidth=2)
+axislegend(axa, position = :rb)
+
+axb = Axis(fig1[1, 2], title="b) latitude vs KE D2/HH ratio",
+xlabel=string("KE ratio HH/D2"))
+scatterlines!(axb,vec(KEhh)./vec(KEd2),lats,label="HH/D2",color=:red,linestyle=:solid,linewidth=2)
+scatterlines!(axb,vec(KEuhh)./vec(KEud2),lats,label="HH/D2 u",marker=:cross,color=:orangered,linestyle=:dash,linewidth=2)
+axislegend(axb, position = :lb)
+fig1
+
+#save(string(dirfig,"KE_ratio_usur.png"), fig1)
+
+# spectra
+xlim = [0 11];
+ylim = [1e-8 1e0];
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1],#yticks = (0:2:10),
+title=string("log10 KE [m2/s2] ",tistr),
+ylabel="Power [m2/s2]",xlabel="frequency [cpd]",yscale = log10);  
+
+for i in 1:length(lats)
+    lines!(axa,freqs,(KEom[:,i]),label=@sprintf("%04.1f",lats[i]))
+end
+axislegend(axa, position = :lb)
+xlims!(axa, xlim[1], xlim[2])
+ylims!(axa, ylim[1], ylim[2])
+fig1
+
+#= heatmap of spectral power
 ylim = [0 11];
 clims = (-0.05,0.05)
 
@@ -139,3 +195,5 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
+=#
+
