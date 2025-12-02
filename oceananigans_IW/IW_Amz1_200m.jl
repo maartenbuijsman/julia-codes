@@ -96,7 +96,7 @@ lat = 0.0
 
 # simulation time stepping
 #Δt = 30seconds
-max_Δt = 10minutes
+max_Δt = 1minutes
 #Δt     = 1minutes
 Δt     = 15seconds  # 200 m
 
@@ -468,7 +468,7 @@ simulation.output_writers[:field_writer] =
     schedule=TimeInterval(30minutes),
     overwrite_existing = true)
 
-conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=max_Δt)
+conjure_time_step_wizard!(simulation, cfl=0.8, max_Δt=max_Δt)
 
 # integrate the mofo
 model.clock.iteration = 0
