@@ -13,8 +13,8 @@ using CairoMakie
 using Statistics
 using JLD2
 
-figflag = 1
-WIN = 1;
+figflag = 0
+WIN = 0;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -177,7 +177,7 @@ xlims!(axa, xlim[1], xlim[2])
 ylims!(axa, ylim[1], ylim[2])
 fig1
 
-#= heatmap of spectral power
+# heatmap of spectral power
 ylim = [0 11];
 clims = (-0.05,0.05)
 
@@ -195,5 +195,5 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
-=#
+##=#
 
