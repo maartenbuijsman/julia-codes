@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 3
+runnm  = 4
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -109,8 +109,13 @@ const Sp_Region_right = 20000                              # size of sponge regi
 const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
+# fir Gaussian body force
+const gausW_width = 500/3
+const gausW_center = 250_000  # x position of Gaussian of forced wave
+
 # grid parameters
-pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM);
+pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center, 
+      gausW_width=gausW_width);
 
 # surface velocities; T:tidal period
 pm = merge(pm,(Usur=[Usur1, Usur2], T=TM2));
@@ -195,21 +200,23 @@ fig
 
 using Interpolations
 
-# u velocity field at the west boundary (x=0)
-function fun(x,z,t,p)
-    u = 0.0
+# dudt field centered at gausW_center
+function fdun(x,z,t,p)
+    du = 0.0
     # loop over n modes
     for i in p.numM
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
-        u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
+        #u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
+        # kept the sin wave for the derivative so that 
+        du = du .+Ueigi * p.ω * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
     end
-    return u
+    return du
 end
 
-# w velocity field at the west boundary (x=-Dx/2)
+#= w velocity field at the west boundary (x=-Dx/2)
 function fwn(x,z,t,p)
     w = 0.0
     # loop over n modes
@@ -236,6 +243,7 @@ function fvn(x,z,t,p)
     end
     return v
 end
+=#
 
 #=
 fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
@@ -256,9 +264,6 @@ lines!(ax1,fwn(0,zcw,0*2π/pm.ω,1,pm),zcw)
 fig
 =#
 
-
-# maybe include strain of U due to W
-
 ###########------ FORCING ------#############
 
 # background 
@@ -271,18 +276,13 @@ function B_func(x,z,t,p)
     return bbi
 end
 
-#B_func(x, z, t, p) = p.N^2 * z
-#B_func(x, z, t, p) = 0.001 * z
-
 B = BackgroundField(B_func, parameters=pm);
 
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,B_func(0, zfw, 0, pm),zfw)
+#fig = Figure()
+#ax1 = Axis(fig[1,1])
+#lines!(ax1,B_func(0, zfw, 0, pm),zfw)
 #lines!(ax1,bb*-1000/10,zfw)
-fig
-
-#B_func(0, -1000, 0, pm)
+#fig
 
 # sponge regions
 @inline heaviside(X)    = ifelse(X <0, 0.0, 1.0)
@@ -316,8 +316,13 @@ fig
 @inline b_sponge(x, z, t, b, p) = - 0.001 * (left_mask(x,p) + right_mask(x, p)) * b 
 #@inline b_sponge(x, z, t, b) =   0.001 * right_mask(x) * (N^2 * z - b) + 0.001 * left_mask(x) * (N^2 * z - b)
 
-# additional body forcing can be added
-@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) 
+# body forcing internal waves 
+# ramp-up function to start du/dt, etc from zero
+@inline framp(t, p) = 1 - exp(-1/(p.T/2)*t)
+@inline gaus(x, p) = exp( -(x - p.gausW_center)^2 / (2 * p.gausW_width^2))
+@inline Fu_wave(x, z, t, p) = fdun(x, z, t, p) * framp(t, p) * gaus(x, p)
+
+@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
 @inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) 
 @inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) 
 @inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
@@ -326,26 +331,6 @@ u_forcing = Forcing(force_u, field_dependencies = :u, parameters = pm)
 v_forcing = Forcing(force_v, field_dependencies = :v, parameters = pm)
 w_forcing = Forcing(force_w, field_dependencies = :w, parameters = pm)
 b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
-
-# boundary forcing
-
-# ramp-up function to start u, v, and w from zero
-const Tr = pm.T/2
-framp(t,Tr) = 1-exp(-1/Tr*t)
-
-# u at face; v and w at center offset by -Δx/2
-Dx = -0.5*xspacings(grid, Center())[1]
-@inline umod(z,t,p) = fun(0,z,t,p)  * framp(t,Tr)
-#@inline vmod(z,t,p) = fvn(Dx,z,t,p) * framp(t,Tr)
-@inline wmod(z,t,p) = fwn(Dx,z,t,p) * framp(t,Tr)
-
-#@inline umod(z,t,p) = 0.0 * framp(t,Tr)
-#@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
-
-# with sponge on L and R side, only use body forcing
-#u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
-#v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
-#w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 
 #= WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
