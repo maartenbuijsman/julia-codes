@@ -65,8 +65,8 @@ max_Δt = 10minutes
 #Δt     = 15seconds  #weno 200 m
 
 start_time = 0days
-stop_time  = 2days
-#stop_time  = 12days
+#stop_time  = 2days
+stop_time  = 12days
 
 println("stop_time: ",stop_time,"; lat: ",lat,"; select mode: ",numM)
 
