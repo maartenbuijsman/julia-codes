@@ -62,8 +62,8 @@ include(string(pathname,"include_functions.jl"))
 # function of latitude
 lat = 0
 
-#fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+#fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 fname_short2 = fnames[1:33]
 
 filename = string(dirsim,fnames)
@@ -141,14 +141,14 @@ end
 KEom = poweru .+ powerv;    # mode 1+2
 
 # heatmap of spectral power
-ylim = [0 48];
+ylim = [0 24];
 clims = (-0.05,0.05)
 
 #tistr = " mode 1 + 2"
 tistr = " mode 1"
 
 fig1 = Figure()
-axa = Axis(fig1[1, 1],yticks = (0:2:10),title=string("log10 KE [m2/s2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
+axa = Axis(fig1[1, 1],yticks = (0:2:24),title=string("log10 KE [m2/s2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
 ylims!(axa, ylim[1], ylim[2])
 hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)),colormap = Reverse(:Spectral)); 
 Colorbar(fig1[1,2], hm); 
@@ -160,3 +160,21 @@ if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
 
 
+# spectra
+xlim = [0 24];
+ylim = [1e-8 1e0];
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1],xticks = (0:2:24),
+title=string("log10 KE [m2/s2] ",tistr),
+ylabel="Power [m2/s2]",xlabel="frequency [cpd]",yscale = log10);  
+
+#for i in 250:1000:2250
+for i in 12:50:112
+    println(xc[i])
+    lines!(axa,freq,(KEom[:,i]),label=@sprintf("%04.1f km",xc[i]/1e3))
+end
+axislegend(axa, position = :lb)
+xlims!(axa, xlim[1], xlim[2])
+ylims!(axa, ylim[1], ylim[2])
+fig1
