@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 1
+runnm  = 3
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -342,9 +342,10 @@ Dx = -0.5*xspacings(grid, Center())[1]
 #@inline umod(z,t,p) = 0.0 * framp(t,Tr)
 #@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
 
-u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
+# with sponge on L and R side, only use body forcing
+#u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
 #v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
-w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
+#w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
 
 #= WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
@@ -366,8 +367,8 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
-                boundary_conditions=(u=u_bcs, w=w_bcs))                 
+                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing))
+#                boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
 
 
