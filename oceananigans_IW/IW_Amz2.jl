@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 4
+runnm  = 11
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,14 +49,14 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-lat = 0.0
+#lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
 #lat = 20
 #lat = 25
 #lat = 30
-#lat = 40
+lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
@@ -103,15 +103,16 @@ L  = 500_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
 TM2 = (12+25.2/60)*3600 # M2 tidal period
+dx  = L/Nx
 
 # sponge parameters
 const Sp_Region_right = 20000                              # size of sponge region on RHS
 const Sp_Region_left = 20000
 const Sp_extra = 0                                         # not really needed
 
-# fir Gaussian body force
-const gausW_width = 500/3
-const gausW_center = 250_000  # x position of Gaussian of forced wave
+# for Gaussian body force
+const gausW_width = 16_000  # 3*4000 m
+const gausW_center = 25_000  # x position of Gaussian of forced wave
 
 # grid parameters
 pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center, 
@@ -210,40 +211,44 @@ function fdun(x,z,t,p)
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
         #u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
-        # kept the sin wave for the derivative so that 
-        du = du .+Ueigi * p.ω * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
+        # derivative; d/dx sin x = cos x 
+        du = du .+Ueigi * p.ω * cos(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
     end
     return du
 end
 
-#= w velocity field at the west boundary (x=-Dx/2)
-function fwn(x,z,t,p)
-    w = 0.0
+# dwdt field centered at gausW_center
+function fdwn(x,z,t,p)
+    dw = 0.0
     # loop over n modes
     for i in p.numM   
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Weig = p.Weig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zfw, Weig, extrapolation_bc=Line());
         Weigi = intzc.(z);
-        w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t - phi[i])  
+        #w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t - phi[i])  
+        # derivative; d/dx cos x = - sin x
+        dw = dw .+ Weigi * p.ω * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])  
     end
-    return w
+    return dw
 end
 
 # v velocity field at the west boundary (x=-Dx/2)
-function fvn(x,z,t,p)
-    v = 0.0
+function fdvn(x,z,t,p)
+    dv = 0.0
     # loop over n modes
     for i in p.numM   
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
-        v = v .+ p.f/p.ω .* Ueigi * cos(p.kn[i]*x - p.ω*t - phi[i])
+        #v = v .+ p.f/p.ω .* Ueigi * cos(p.kn[i]*x - p.ω*t - phi[i])
+        # derivative; d/dx cos x = - sin x
+        dv = dv .+ p.f .* Ueigi * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
     end
-    return v
+    return dv
 end
-=#
+
 
 #=
 fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
@@ -321,10 +326,12 @@ fig
 @inline framp(t, p) = 1 - exp(-1/(p.T/2)*t)
 @inline gaus(x, p) = exp( -(x - p.gausW_center)^2 / (2 * p.gausW_width^2))
 @inline Fu_wave(x, z, t, p) = fdun(x, z, t, p) * framp(t, p) * gaus(x, p)
+@inline Fv_wave(x, z, t, p) = fdvn(x, z, t, p) * framp(t, p) * gaus(x, p)
+@inline Fw_wave(x, z, t, p) = fdwn(x, z, t, p) * framp(t, p) * gaus(x, p)
 
 @inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
-@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) 
-@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) 
+@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) + Fv_wave(x, z, t, p) 
+@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) + Fw_wave(x, z, t, p)
 @inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
 
 u_forcing = Forcing(force_u, field_dependencies = :u, parameters = pm)
