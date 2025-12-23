@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 11
+runnm  = 12
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -272,7 +272,9 @@ fig
 ###########------ FORCING ------#############
 
 # background 
-# buoyancy = -g/rho0*rho_pert
+# buoyancy b = -g/rho0*rho_pert
+# b = N2*z   = -g/rho0 * drho
+# N2         = -g/rho0 * drho/dz
 function B_func(x,z,t,p)
     # computes buoyancy field and interpolates values at z
     bb = cumtrapz(p.zfw, p.N2w);
@@ -331,7 +333,7 @@ fig
 
 @inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
 @inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) + Fv_wave(x, z, t, p) 
-@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) + Fw_wave(x, z, t, p)
+@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) #+ Fw_wave(x, z, t, p)
 @inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
 
 u_forcing = Forcing(force_u, field_dependencies = :u, parameters = pm)

@@ -14,7 +14,7 @@ using JLD2
 using LaTeXStrings
 
 
-WIN = 1;
+WIN = 0;
 
 if WIN==1
     pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
@@ -32,40 +32,33 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
+titlenm = "mode 1"
+const T2 = 12+25.2/60
 
-# load simulations ===========================================
-
-#fnames = "IW_fields_U0n0.1_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
-#fnames = "IW_fields_U0n0.2_lat0_bndfrc_advc4_spng_8d_dt2m_2mds_rampup.nc"
-
-#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"  # mode 1
-#fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"  # mode 2
-#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"  # mode 1+2
-
-#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
-#fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
-#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-
-#fnames = "AMZ3_weno_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-#fnames = "AMZ3_visc_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-#fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; titlenm = "mode 1 + 2"  # mode 1+2
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; titlenm = "mode 1"  # mode 1
-#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; titlenm = "mode 2"  # mode 2
-
-#fname_short2 = fnames[1:29]
+# file name ===========================================
 
 # function of latitude
-lat = 25
+lat = 40
 
+#=
 #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 
 fname_short2 = fnames[1:33]
 filename = string(dirsim,fnames)
+=#
 
-const T2 = 12+25.2/60
+# file ID
+mainnm = 1
+runnm  = 10
+
+fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+
+fname_short2 = fnames
+filename = string(dirsim,fnames,".nc")
+
+
+# load simulations ===========================================
 
 ds = NCDataset(filename,"r");
 
@@ -488,6 +481,7 @@ axislegend(position = :rb)
 xlims!(ax, 0, 500)
 fig
 
+throw(error("stop here"))
 
 ## load all latitudes and plot the cumsum ======================================
 Sp_Region_right = 20000
