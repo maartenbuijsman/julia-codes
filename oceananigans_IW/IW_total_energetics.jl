@@ -33,29 +33,30 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
 # file name ===========================================
 
-# function of latitude
-lat = 40
+if oldnm==1
+    # function of latitude
+    lat = 40
 
-#=
-#fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+    fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 
-fname_short2 = fnames[1:33]
-filename = string(dirsim,fnames)
-=#
+    fname_short2 = fnames[1:33]
+    filename = string(dirsim,fnames)
+else
+    # file ID
+    mainnm = 1
+    runnm  = 14
 
-# file ID
-mainnm = 1
-runnm  = 10
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
-fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
-
-fname_short2 = fnames
-filename = string(dirsim,fnames,".nc")
+    fname_short2 = fnames
+    filename = string(dirsim,fnames,".nc")
+end
 
 # load simulations ===========================================
 
@@ -256,7 +257,7 @@ KEu  = fact*dropdims(mean(sum(uc2[Iday,:,:].^2 .*dzz,dims=3),dims=1), dims=(1,3)
 KEuh = fact*dropdims(mean(sum(uh[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
 KEul = fact*dropdims(mean(sum(ul[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
 
-# this is equal to EK?
+# this is equal to KE?
 KE2 = KEh + KEl;
 
 # APE
@@ -285,9 +286,9 @@ Fx2 = Fxh + Fxl
 
 
 # create some figures
-ylimE = [0 50]
-ylimA = [0 50]
-ylimf = [0 10]
+ylimE = [0 75]
+ylimA = [0 75]
+ylimf = [0 15]
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2 ," KE"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
@@ -338,7 +339,7 @@ end
 # save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, EKt, EK, EKh, EKl, EK2, EKut, EKu, EKuh, EKul);
+jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, KE, KEh, KEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
 
 
