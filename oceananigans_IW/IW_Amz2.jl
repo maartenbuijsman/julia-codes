@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 15
+runnm  = 18
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -106,7 +106,8 @@ TM2 = (12+25.2/60)*3600 # M2 tidal period
 dx  = L/Nx
 
 # sponge parameters
-const fnud = 0.001
+const fnud = 0.002 #01.18
+#const fnud = 0.001
 # const fnud = 0.00025
 const Sp_Region_right = 20_000                              # size of sponge region on RHS
 const Sp_Region_left = 20_000
@@ -114,8 +115,31 @@ const Sp_extra = 20_000                                     # not really needed
 
 # for Gaussian body force
 const gausW_width = 16_000  # 3*4000 m
-#const gausW_center = 25_000  # x position of Gaussian of forced wave
-const gausW_center = 25_000+Sp_extra  # x position of Gaussian of forced wave
+#const gausW_center = 25_000  # <=01.12; x position of Gaussian of forced wave
+#const gausW_center = 25_000+Sp_extra  # 01.13 + 01.14
+const gausW_center = 20_000+Sp_extra  # x position of Gaussian of forced wave 01.15
+
+#= plot sponge and forcing 
+heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
+mask2ndf(X)    = heavisidef(X)* X^2
+right_maskf(x) = mask2ndf((x-L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
+left_maskf(x)  = mask2ndf(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
+gaus(x)        = exp( -(x -  gausW_center)^2 / (2 *  gausW_width^2))
+
+xx = xnodes(grid, Center())
+#xx = range(0,L,1000)
+asw1 = right_maskf.(xx)
+asw2 = left_maskf.(xx)
+asw3 = gaus.(xx)
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax,xx/1e3,asw1,color=:red)
+lines!(ax,xx/1e3,asw2,color=:blue)
+lines!(ax,xx/1e3,asw3,color=:green)
+fig
+=#
+
 
 # grid parameters
 pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center, 
@@ -300,24 +324,6 @@ B = BackgroundField(B_func, parameters=pm);
 @inline right_mask(x,p) = mask2nd((x-p.L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
 @inline left_mask(x,p)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
 
-#= plot function 
-heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
-mask2ndf(X)    = heavisidef(X)* X^2
-right_maskf(x) = mask2ndf((x-L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
-left_maskf(x)  = mask2ndf(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
-
-xx = xnodes(grid, Center())
-#xx = range(0,L,1000)
-asw1 = right_maskf.(xx)
-asw2 = left_maskf.(xx)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-scatter!(ax,xx/1e3,asw1,color=:red)
-scatter!(ax,xx/1e3,asw2,color=:blue)
-fig
-=#
-
 # nudging layer ∂x/∂t = F(x) + K(x_target - x) 
 # K has units [1/time]
 @inline u_sponge(x, z, t, u, p) = - fnud * (left_mask(x,p) + right_mask(x, p)) * u 
@@ -335,7 +341,7 @@ fig
 @inline Fw_wave(x, z, t, p) = fdwn(x, z, t, p) * framp(t, p) * gaus(x, p)
 
 @inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
-@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) + Fv_wave(x, z, t, p) 
+@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) #+ Fv_wave(x, z, t, p) 
 @inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) #+ Fw_wave(x, z, t, p)
 @inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
 

@@ -20,6 +20,11 @@ include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testin
 # other
 include(string(pathname,"coriolis.jl"));  # tested in testing_sturmL.jl
 
+# simple functions
+function stop()
+    throw(error("stop here"))
+end
+
 
 # old
 #include(string(pathname,"fft_spectra.jl"));                  # NOT TESTED!! 
