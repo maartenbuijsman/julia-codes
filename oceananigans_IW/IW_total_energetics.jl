@@ -33,7 +33,7 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
 # file name ===========================================
@@ -50,7 +50,7 @@ if oldnm==1
 else
     # file ID
     mainnm = 1
-    runnm  = 17
+    runnm  = 21
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -107,8 +107,9 @@ wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2;
 
 # some more hovmullers
 fig1 = Figure(size=(600,600))
+clims =(0,0.8)
 ax = Axis(fig1[1, 1],title = string(fname_short2 ," KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
-hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
+hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
 #hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
 fig1
 
@@ -116,7 +117,7 @@ fig1
 if figflag==1; save(string(dirfig,"KE_hovmuller_", fname_short2 ,".png"), fig1)
 end
 
-stop()
+#stop()
 
 # load N2 pressure -----------------------------------------------------------
 # load profile created by AMZ_stratification_profile.jl
@@ -355,7 +356,8 @@ println(string(fnameout)," data saved ........ ")
 # fft
 # make wider sponge layers to avoid reflections
 
-stop
+stop()
+
 # ====================================================================
 # ====================================================================
 # ====================================================================

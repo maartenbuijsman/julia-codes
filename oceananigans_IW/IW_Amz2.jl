@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 18
+runnm  = 22
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,14 +49,14 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-#lat = 0.0
+lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
 #lat = 20
 #lat = 25
 #lat = 30
-lat = 40
+#lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
@@ -106,10 +106,11 @@ TM2 = (12+25.2/60)*3600 # M2 tidal period
 dx  = L/Nx
 
 # sponge parameters
-const fnud = 0.002 #01.18
-#const fnud = 0.001
+#const fnud = 0.002 #01.18
+const fnud = 0.001
 # const fnud = 0.00025
-const Sp_Region_right = 20_000                              # size of sponge region on RHS
+#const Sp_Region_right = 20_000                              # size of sponge region on RHS
+const Sp_Region_right = 100_000                              # size of sponge region on RHS
 const Sp_Region_left = 20_000
 const Sp_extra = 20_000                                     # not really needed
 
@@ -140,6 +141,7 @@ lines!(ax,xx/1e3,asw3,color=:green)
 fig
 =#
 
+#stop()
 
 # grid parameters
 pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center, 
@@ -370,7 +372,8 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing))
+                forcing = (; u=u_forcing, v=v_forcing))   #01.21              
+#                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing))  #01.19
 #                boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
 
