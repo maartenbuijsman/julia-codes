@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 23
+runnm  = 24
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -107,7 +107,8 @@ dx  = L/Nx
 
 # sponge parameters
 #const fnud = 0.002 #01.18
-const fnud = 0.001
+const fnudl = 0.001
+const fnudr = 0.0005 # 01.24
 # const fnud = 0.00025
 #const Sp_Region_right = 20_000                              # size of sponge region on RHS
 const Sp_Region_right = 200_000                              # size of sponge region on RHS
@@ -328,10 +329,10 @@ B = BackgroundField(B_func, parameters=pm);
 
 # nudging layer ∂x/∂t = F(x) + K(x_target - x) 
 # K has units [1/time]
-@inline u_sponge(x, z, t, u, p) = - fnud * (left_mask(x,p) + right_mask(x, p)) * u 
-@inline v_sponge(x, z, t, v, p) = - fnud * (left_mask(x,p) + right_mask(x, p)) * v 
-@inline w_sponge(x, z, t, w, p) = - fnud * (left_mask(x,p) + right_mask(x, p)) * w 
-@inline b_sponge(x, z, t, b, p) = - fnud * (left_mask(x,p) + right_mask(x, p)) * b 
+@inline u_sponge(x, z, t, u, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * u 
+@inline v_sponge(x, z, t, v, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * v 
+@inline w_sponge(x, z, t, w, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * w 
+@inline b_sponge(x, z, t, b, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * b 
 #@inline b_sponge(x, z, t, b) =   0.001 * right_mask(x) * (N^2 * z - b) + 0.001 * left_mask(x) * (N^2 * z - b)
 
 # body forcing internal waves 
