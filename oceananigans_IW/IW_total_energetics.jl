@@ -50,7 +50,7 @@ if oldnm==1
 else
     # file ID
     mainnm = 1
-    runnm  = 21
+    runnm  = 22
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 

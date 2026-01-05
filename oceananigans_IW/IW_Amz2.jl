@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 22
+runnm  = 23
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,14 +49,14 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-lat = 0.0
+#lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
 #lat = 20
 #lat = 25
 #lat = 30
-#lat = 40
+lat = 40
 
 # simulation time stepping
 #Δt = 30seconds
@@ -110,7 +110,7 @@ dx  = L/Nx
 const fnud = 0.001
 # const fnud = 0.00025
 #const Sp_Region_right = 20_000                              # size of sponge region on RHS
-const Sp_Region_right = 100_000                              # size of sponge region on RHS
+const Sp_Region_right = 200_000                              # size of sponge region on RHS
 const Sp_Region_left = 20_000
 const Sp_extra = 20_000                                     # not really needed
 
