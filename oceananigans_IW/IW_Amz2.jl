@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 29
+runnm  = 30
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,7 +49,7 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-lat = 0.0
+#lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
@@ -57,13 +57,14 @@ lat = 0.0
 #lat = 25
 #lat = 30
 #lat = 40
-#lat = 50
+lat = 50
 
-# forscaling the Gaussian forcing
+#= for scaling the Gaussian forcing
 lats = [0, 2.5, 5, 10, 20, 25, 30, 40, 50];
 fracs = [0.151, 0.151, 0.150, 0.148, 0.141, 0.135, 0.129, 0.112, 0.091];
-
+fracsdef = fracs[8]
 lines(lats,fracs)
+=#
 
 # simulation time stepping
 #Δt = 30seconds
@@ -204,7 +205,7 @@ Lstr = @sprintf("%5.1f",Ln[1]/1e3)
 println("Mode 1 wavelength is ",Lstr," km")
 println("fraction gauss_width/L1 is ",@sprintf("%5.3f",gausW_width/Ln[1]))
 
-stop()
+#stop()
 
 #=
 fnameEIG = "EIG_amz1.jld2";
@@ -418,10 +419,12 @@ simulation.callbacks[:progress] = Callback(progress, IterationInterval(50))
 
 
 # write output
-fields = Dict("u" => model.velocities.u, 
-              "v" => model.velocities.v, 
-              "w" => model.velocities.w, 
-              "b" => model.tracers.b)
+fields = Dict("u"    => model.velocities.u, 
+              "v"    => model.velocities.v, 
+              "w"    => model.velocities.w, 
+              "b"    => model.tracers.b,
+              "pNHS" => model.pressures.pNHS,
+              "pHY"  => model.pressures.pHY)
 
 filenameout=string(pathout,fid,".nc")
 
