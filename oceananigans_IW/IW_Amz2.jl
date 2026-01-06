@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 24
+runnm  = 29
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,14 +49,21 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-#lat = 0.0
+lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
 #lat = 20
 #lat = 25
 #lat = 30
-lat = 40
+#lat = 40
+#lat = 50
+
+# forscaling the Gaussian forcing
+lats = [0, 2.5, 5, 10, 20, 25, 30, 40, 50];
+fracs = [0.151, 0.151, 0.150, 0.148, 0.141, 0.135, 0.129, 0.112, 0.091];
+
+lines(lats,fracs)
 
 # simulation time stepping
 #Δt = 30seconds
@@ -106,20 +113,20 @@ TM2 = (12+25.2/60)*3600 # M2 tidal period
 dx  = L/Nx
 
 # sponge parameters
-#const fnud = 0.002 #01.18
-const fnudl = 0.001
-const fnudr = 0.0005 # 01.24
+#const fnudl = 0.001  # 01.27
+const fnudl = 0.002  # 01.28 stronger damping on left side
+const fnudr = 0.0001 # 01.25
 # const fnud = 0.00025
 #const Sp_Region_right = 20_000                              # size of sponge region on RHS
 const Sp_Region_right = 200_000                              # size of sponge region on RHS
-const Sp_Region_left = 20_000
-const Sp_extra = 20_000                                     # not really needed
+const Sp_Region_left = 40_000
+const Sp_extra = 0                                     # not really needed
 
 # for Gaussian body force
-const gausW_width = 16_000  # 3*4000 m
-#const gausW_center = 25_000  # <=01.12; x position of Gaussian of forced wave
+const gausW_width = 16_000             # 3*4000 m
+#const gausW_center = 25_000           # <=01.12; x position of Gaussian of forced wave
 #const gausW_center = 25_000+Sp_extra  # 01.13 + 01.14
-const gausW_center = 20_000+Sp_extra  # x position of Gaussian of forced wave 01.15
+const gausW_center = 40_000            # x position of Gaussian of forced wave 01.15
 
 #= plot sponge and forcing 
 heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
@@ -193,6 +200,11 @@ f   = copy(fcor.f);
 om2 = copy(ω);
 jldsave(string(dirin,fnameEIG); f, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2);
 println(string(fnameEIG)," Ueig data saved ........ ")
+Lstr = @sprintf("%5.1f",Ln[1]/1e3)
+println("Mode 1 wavelength is ",Lstr," km")
+println("fraction gauss_width/L1 is ",@sprintf("%5.3f",gausW_width/Ln[1]))
+
+stop()
 
 #=
 fnameEIG = "EIG_amz1.jld2";
@@ -373,8 +385,8 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (; u=u_forcing, v=v_forcing))   #01.21              
-#                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing))  #01.19
+                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing))  #01.26
+#                forcing = (; u=u_forcing, v=v_forcing))   #01.21                              
 #                boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
 
