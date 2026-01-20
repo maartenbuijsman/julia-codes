@@ -72,11 +72,11 @@ Usur1, Usur2 = 0.25, 0.2
 
 # WMTD seminar double the velocity ===========================
 # mode 1+2, stronger velocity
-#numM = [1 2];    
-#Usur1, Usur2 = 0.4, 0.3
+numM = [1 2];    
+Usur1, Usur2 = 0.4, 0.3
 
-numM = [1];    
-Usur1, Usur2 = 0.4, 0.0
+#numM = [1];    
+#Usur1, Usur2 = 0.4, 0.0
 
 #numM = [2];    
 #Usur1, Usur2 = 0.0, 0.3
@@ -456,16 +456,20 @@ simulation.callbacks[:progress] = Callback(progress, IterationInterval(50))
 
 
 # write output
-fields = Dict("u" => model.velocities.u, 
-              "v" => model.velocities.v, 
-              "w" => model.velocities.w, 
-              "b" => model.tracers.b)
+fields = Dict("u"    => model.velocities.u, 
+              "v"    => model.velocities.v, 
+              "w"    => model.velocities.w, 
+              "b"    => model.tracers.b,
+              "pNHS" => model.pressures.pNHS,
+              "pHY"  => model.pressures.pHY′)
 
 filenameout=string(pathout,fid,".nc")
 
+#     schedule=TimeInterval(30minutes),
+
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filenameout, 
-    schedule=TimeInterval(30minutes),
+    schedule=TimeInterval(15minutes),    
     overwrite_existing = true)
 
 conjure_time_step_wizard!(simulation, cfl=0.8, max_Δt=max_Δt)

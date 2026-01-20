@@ -33,24 +33,25 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
 # file name ===========================================
 
 if oldnm==1
     # function of latitude
-    lat = 40
+    lat = 0
 
    #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-    fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+    fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
+    #fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
 
     fname_short2 = fnames[1:33]
     filename = string(dirsim,fnames)
 else
     # file ID
     mainnm = 1
-    runnm  = 29
+    runnm  = 37
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -341,12 +342,57 @@ if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
 end
 
 
+println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")
+println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
+
 
 # save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
 jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, KE, KEh, KEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
+
+
+# compute some ffts of surface velocity ======================================================
+
+EXCL = 0;  # can be zero for fft
+t1,t2 = 4, tday[end]-EXCL*T2/24
+numcycles = floor((t2-t1)/(T2/24))
+t2 = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
+
+tukeycf=0.2; numwin=1; linfit=true; prewhit=false;
+
+i=1;
+period, freq, pp = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
+poweru = zeros(length(period),Nx);
+powerv = zeros(length(period),Nx);
+for i in 1:Nx
+    period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);
+    period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
+end
+
+KEom = poweru .+ powerv;    # mode 1+2
+
+# heatmap of spectral power
+ylim = [0 20];
+clims = (-0.05,0.05)
+
+#tistr = " mode 1 + 2"
+tistr = " mode 1"
+
+fig1 = Figure()
+axa = Axis(fig1[1, 1],yticks = (0:2:20),title=string("log10 KE [m2/s2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
+ylims!(axa, ylim[1], ylim[2])
+hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)),colormap = Reverse(:Spectral)); 
+Colorbar(fig1[1,2], hm); 
+hm.colorrange = (-6, 0)
+fig1   
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
+end
+
 
 
 # nonhyd pressure

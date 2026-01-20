@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 30
+runnm  = 38
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,7 +49,7 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-#lat = 0.0
+lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
@@ -57,7 +57,7 @@ DX = 4000;
 #lat = 25
 #lat = 30
 #lat = 40
-lat = 50
+#lat = 50
 
 #= for scaling the Gaussian forcing
 lats = [0, 2.5, 5, 10, 20, 25, 30, 40, 50];
@@ -65,6 +65,14 @@ fracs = [0.151, 0.151, 0.150, 0.148, 0.141, 0.135, 0.129, 0.112, 0.091];
 fracsdef = fracs[8]
 lines(lats,fracs)
 =#
+
+lats = [0, 5, 10, 20, 30, 40, 50]
+ftot = [5.88, 5.89, 5.95, 6.19, 6.6, 7.19, 7.81]
+fracs2 = [0.151, 0.150, 0.148, 0.141, 0.129, 0.112, 0.091];
+lines(lats,fracs2)
+lines(lats,ftot)
+# relationship is linear; scale the gauss width with
+lines(fracs2,ftot)
 
 # simulation time stepping
 #Δt = 30seconds
@@ -74,7 +82,7 @@ max_Δt = 10minutes
 
 start_time = 0days
 #stop_time  = 2days
-stop_time  = 12days
+stop_time  = 15days
 
 println("stop_time: ",stop_time,"; lat: ",lat,"; select mode: ",numM)
 
@@ -107,7 +115,7 @@ fig
 
 #numM = 1;       
 Nz = length(zfw)-1;
-L  = 500_000;
+L  = 700_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
 TM2 = (12+25.2/60)*3600 # M2 tidal period
@@ -424,13 +432,13 @@ fields = Dict("u"    => model.velocities.u,
               "w"    => model.velocities.w, 
               "b"    => model.tracers.b,
               "pNHS" => model.pressures.pNHS,
-              "pHY"  => model.pressures.pHY)
+              "pHY"  => model.pressures.pHY′)
 
 filenameout=string(pathout,fid,".nc")
 
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filenameout, 
-    schedule=TimeInterval(30minutes),
+    schedule=TimeInterval(15minutes),
     overwrite_existing = true)
 
 conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=max_Δt)

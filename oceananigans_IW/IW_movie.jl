@@ -48,7 +48,10 @@ include(string(pathname,"include_functions.jl"))
 clims  = (-0.3,0.3)
 
 # function of latitude
-fnames = "AMZ3_40.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
+#fnames = "AMZ3_40.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
+
+# nonhydrostatic at 200 m
+fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
 movienm2 = fnames[1:33]
 
 filename = string(dirsim,fnames)
