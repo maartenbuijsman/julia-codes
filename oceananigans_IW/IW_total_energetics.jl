@@ -204,7 +204,7 @@ Figure(); lines(tday, pcp[:,50,end])
 # 
 Nf = 6;
 
-# isolate the D2 motions
+#= isolate the D2 motions
 Tl=(T2+T2/4)/24,Th=(T2-T2/4)/24
 uc2 = bandpass_butter(uc,Tl,Th,dt,Nf)
 
@@ -213,7 +213,7 @@ uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
 vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
 pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
 bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
-
+=#
 
 # remove the low frequency motions - if any?
 Tcut1 = 16/24;
@@ -226,6 +226,7 @@ ull = uc - uc2;
 vll = vc - vc2;
 
 # remove high freq from tidal freq
+# this is D2
 Tcut2 = 9/24;
 uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
 vh = lowhighpass_butter(vc2,Tcut2,dt,Nf,"high");
@@ -285,7 +286,7 @@ Iday = findall(item -> item >= t1 && item<= t2, tday)
 # KEt is total, unfiltered
 # KE  is D2+HH
 # KEh is HH
-# KEl is low-passed subtidal, compare with KEll  
+# KEl is D2
 fact = 1/2*rho0
 KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))

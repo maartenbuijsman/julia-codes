@@ -84,12 +84,9 @@ for ii=1:length(runnms)
     # this is a quick load 
     @load fnamein xc KEt APEt KEh APEh KEl APEl
 
-
-
-    # create:
-    # KED2 = KEt - KEl - KEh
-    KED2  = KEt .- KEl .- KEh
-    APED2 = APEt .- APEl .- APEh
+    # KED2 = KEl
+    KED2  = KEl
+    APED2 = APEl
 
     # average coefficients fall inside 75-500 km range (exc. forcing and sponge))
     xlims = [75,500]*1e3;
@@ -112,16 +109,16 @@ end # runnms
 # ratio KE HH/D2
 fig = Figure()
 ax1 = Axis(fig[1,1])
-lines!(ax1,KEha ./KED2a,LAT, linestyle=:solid, color = :red, linewidth = 3)
-lines!(ax1,APEha ./APED2a,LAT, linestyle=:solid, color = :blue, linewidth = 3)
+lines!(ax1,KED2a/1e3,LAT, linestyle=:solid, color = :red, linewidth = 3)
+lines!(ax1,APED2a/1e3,LAT, linestyle=:solid, color = :blue, linewidth = 3)
+
+lines!(ax1,KEha/1e3,LAT, linestyle=:dash, color = :red, linewidth = 3)
+lines!(ax1,APEha/1e3,LAT, linestyle=:dash, color = :blue, linewidth = 3)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,KEha ./KED2a,LAT, linestyle=:solid, color = :red, linewidth = 3)
+lines!(ax2,APEha ./APED2a,LAT, linestyle=:solid, color = :blue, linewidth = 3)
 #lines!(ax1,(KEha .+ APEha) ./(KED2a .+ APED2a),LAT)
-
-ax1 = Axis(fig[1,2])
-lines!(ax1,KED2a,LAT, linestyle=:solid, color = :red, linewidth = 3)
-lines!(ax1,APED2a,LAT, linestyle=:solid, color = :blue, linewidth = 3)
-
-lines!(ax1,KEha,LAT, linestyle=:dash, color = :red, linewidth = 3)
-lines!(ax1,APEha,LAT, linestyle=:dash, color = :blue, linewidth = 3)
 
 fig
 
