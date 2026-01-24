@@ -96,7 +96,7 @@ lat = 0.0
 
 # simulation time stepping
 #Δt = 30seconds
-max_Δt = 1minutes
+max_Δt = 2minutes
 #Δt     = 1minutes
 Δt     = 15seconds  # 200 m
 

@@ -33,8 +33,17 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
+
+#      38 39 40 41 42 43 44 45 46 47 48    49
+LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35]
+
+#runnms = [38 39 40 41 42 43 44 45 46 47];
+runnms = [49]
+
+for runnm in runnms
+    println("runnm is ",runnm) 
 
 # file name ===========================================
 
@@ -48,15 +57,21 @@ if oldnm==1
 
     fname_short2 = fnames[1:33]
     filename = string(dirsim,fnames)
+
+    LAT = LATS[1];
 else
     # file ID
     mainnm = 1
-    runnm  = 37
+    #runnm  = 47
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
     fname_short2 = fnames
     filename = string(dirsim,fnames,".nc")
+
+    LAT = LATS[runnm-37];
+    #println("lat is ",LAT) 
+
 end
 
 # load simulations ===========================================
@@ -73,6 +88,7 @@ zc   = ds["z_aac"][:];
 
 dx   = ds["Δx_caa"][:];
 dz   = ds["Δz_aac"][:];
+Ldom = sum(dx);
 
 H  = sum(dz);   # depth
 
@@ -109,7 +125,7 @@ wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2;
 # some more hovmullers
 fig1 = Figure(size=(600,600))
 clims =(0,0.8)
-ax = Axis(fig1[1, 1],title = string(fname_short2 ," KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
+ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
 hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
 #hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
 fig1
@@ -158,8 +174,8 @@ fig
 # units b: [m/s2]
 # because of kinematic pressure pk = p/rho0 = kg*m2/s2*1/m3 *m3/kg = m2/s2
 
-const rho0=1020; 
-const grav=9.81; 
+rho0=1020; 
+grav=9.81; 
 
 # hydrostatic pressure
 dzz = reshape(dz,1,1,:);                                    # shape: (1, length(zc), 1)
@@ -183,7 +199,21 @@ sum(pcp[200,50,:].*dz)
 Figure(); lines(tday, pcp[:,50,end])
 
 # filter variables  ======================================================
+# uc2: highpassed D2 + HH
+# uh:  HH
+# 
 Nf = 6;
+
+# isolate the D2 motions
+Tl=(T2+T2/4)/24,Th=(T2-T2/4)/24
+uc2 = bandpass_butter(uc,Tl,Th,dt,Nf)
+
+Tcut1 = 16/24;
+uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
+vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
+pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
+bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
+
 
 # remove the low frequency motions - if any?
 Tcut1 = 16/24;
@@ -252,6 +282,10 @@ t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
 
 # undecomposed time-mean KE energy 
+# KEt is total, unfiltered
+# KE  is D2+HH
+# KEh is HH
+# KEl is low-passed subtidal, compare with KEll  
 fact = 1/2*rho0
 KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
@@ -298,7 +332,7 @@ ylimA = [0 75]
 ylimf = [0 15]
 
 fig = Figure(size=(750,750))
-ax = Axis(fig[1, 1],title = string(fname_short2 ," KE"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
+ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
 lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
 #lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
 lines!(ax, xc/1e3, KE2[:,1]/1e3, label = "D2 + HH", linestyle=:dash, color = :yellow, linewidth = 3)
@@ -310,7 +344,7 @@ lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3
 lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
 lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
 
-xlims!(ax, 0, 500)
+xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
 
 ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
@@ -320,7 +354,7 @@ lines!(ax2, xc/1e3, APE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth =
 lines!(ax2, xc/1e3, APEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax2, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
 
-xlims!(ax2, 0, 500)
+xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
 
 
@@ -331,7 +365,7 @@ lines!(ax3, xc/1e3, Fx[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 
 lines!(ax3, xc/1e3, Fxl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
 
-xlims!(ax3, 0, 500)
+xlims!(ax3, 0, Ldom/1e3)
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
 
@@ -349,7 +383,7 @@ println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 # save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, KE, KEh, KEl, KE2, KEut, KEu, KEuh, KEul);
+jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
 
 
@@ -375,24 +409,40 @@ end
 KEom = poweru .+ powerv;    # mode 1+2
 
 # heatmap of spectral power
-ylim = [0 20];
+flim = [0 20]; fstp=2;
 clims = (-0.05,0.05)
 
-#tistr = " mode 1 + 2"
-tistr = " mode 1"
-
-fig1 = Figure()
-axa = Axis(fig1[1, 1],yticks = (0:2:20),title=string("log10 KE [m2/s2] ",tistr),xlabel="x [km]",ylabel="frequency [cpd]");  
-ylims!(axa, ylim[1], ylim[2])
-hm = heatmap!(axa, xc/1e3, freq, log10.(transpose(KEom)),colormap = Reverse(:Spectral)); 
+fig1 = Figure(size=(750,1000))
+axa = Axis(fig1[1, 1],xticks = (flim[1]:fstp:flim[2]),
+title=string(fname_short2,"; lat=",LAT,"; log10(KE) [m2/s2/cpd] "),xlabel="frequency [cpd]",ylabel="x [km]");  
+xlims!(axa, flim[1], flim[2])
+hm = heatmap!(axa, freq, xc/1e3, log10.(KEom),colormap = Reverse(:Spectral)); 
 Colorbar(fig1[1,2], hm); 
 hm.colorrange = (-6, 0)
 fig1   
+
+# average coefficients fall inside 75-500 km range
+xlims = [75,500]*1e3;
+Plims = [-12 1];
+Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
+KEoma = vec(mean(KEom[:,Ix],dims=2)); 
+
+axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),xlabel="frequency [cpd]",ylabel="log10(KE) [m2/s2/cpd]");  
+xlims!(axb, flim[1], flim[2])
+ylims!(axb, Plims[1], Plims[2])
+lines!(axb, freq, log10.(KEoma), linestyle=:solid, color = :black, linewidth = 3)
+
+# add coriolis rad/s => cpd
+fcpd = coriolis(LAT)/(2*pi)*24*3600
+#lines!(vec([fcpd fcpd]),vec([minimum(log10.(KEoma)) maximum(log10.(KEoma))]), linestyle=:dash, color = :red, linewidth = 2)
+lines!(axb, vec([fcpd fcpd]),vec(Plims), linestyle=:dash, color = :red, linewidth = 2)
+fig1
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
 
+end # runnms
 
 
 # nonhyd pressure
@@ -657,7 +707,7 @@ fnamal = ["AMZ3_40.0_hvis_12d_U1_0.40_U2_0.0"]  # mode 1
 ylim = [0 7]
 
 fig = Figure(size=(750,500))
-ax = Axis(fig[1, 1],title = "mode 1  D2 tidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ax = Axis(fig[1, 1],title = string(" lat=",LAT, " mode 1  D2 tidal flux"), xlabel = "x [km]", ylabel = "flux [W/m]")
 ylims!(ax, ylim[1], ylim[2])
 
 ax2 = Axis(fig[2, 1],title = "mode 1 supertidal flux", xlabel = "x [km]", ylabel = "flux [W/m]")
@@ -677,8 +727,8 @@ for i in 1:1
     end
 end
 axislegend(ax, position = :rt)
-xlims!(ax, 0, 500)
-xlims!(ax2, 0, 500)
+xlims!(ax, 0, Ldom/1e3)
+xlims!(ax2, 0, Ldom/1e3)
 fig
 
 # Save the figure as a PNG file
@@ -719,8 +769,8 @@ for i in 1:3
     end
 end
 axislegend(ax, position = :rt)
-xlims!(ax, 0, 500)
-xlims!(ax2, 0, 500)
+xlims!(ax, 0, Ldom/1e3)
+xlims!(ax2, 0, Ldom/1e3)
 fig
 
 # Save the figure as a PNG file
@@ -754,7 +804,7 @@ lines!(ax, xc/1e3, Fx/1e3, label = "tot undecom.", color = :green, linewidth = 3
 lines!(ax, xc/1e3, Fxl/1e3, label = "D2 undecom. ", color = :black, linewidth = 2, linestyle = :dash)
 lines!(ax, xc/1e3, Fxh/1e3, label = "HH undecom.", color = :red, linewidth = 2, linestyle = :dash)
 axislegend(ax, position = :rt)
-xlims!(ax, 0, 500)
+xlims!(ax, 0, Ldom/1e3)
 fig
 
 # Save the figure as a PNG file

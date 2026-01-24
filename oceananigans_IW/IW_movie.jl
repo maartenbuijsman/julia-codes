@@ -51,7 +51,8 @@ clims  = (-0.3,0.3)
 #fnames = "AMZ3_40.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
 
 # nonhydrostatic at 200 m
-fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
+#fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 1 
+fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.30_v2.nc"; movienm = "mode12"  # mode 1 + 2
 movienm2 = fnames[1:33]
 
 filename = string(dirsim,fnames)
@@ -102,7 +103,8 @@ fig1
 
 # interpolate in between frames
 # aa  |    |  bb
-fadd = 3
+#fadd = 3
+fadd = 0      # no interpolation
 ucnew = zeros(Nx,Nz,(Nt-1)*(fadd+1)+1)
 k=0
 for i in 1:Nt-1
@@ -111,7 +113,7 @@ for i in 1:Nt-1
     aa = copy(uc[:,:,i])
     bb = copy(uc[:,:,i+1])   
     ucnew[:,:,k] = copy(aa)
-            println(k,"i= ",i)
+            println(k," i= ",i)
 
     for j in 1:fadd
         k=k+1

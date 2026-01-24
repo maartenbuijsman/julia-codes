@@ -27,7 +27,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 1
-runnm  = 38
+runnm  = 49
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -49,15 +49,19 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-lat = 0.0
+#lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
+#lat = 15
 #lat = 20
 #lat = 25
+#lat = 28.80126  # perfect PSI resonance; f = M2/2
 #lat = 30
+lat = 35
 #lat = 40
 #lat = 50
+
 
 #= for scaling the Gaussian forcing
 lats = [0, 2.5, 5, 10, 20, 25, 30, 40, 50];

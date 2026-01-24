@@ -2,6 +2,7 @@
     fft_spectra(t, y; tukeycf=0.5, numwin=1, linfit=true, prewhit=false)
 
 Performs simple spectral analysis similar to the MATLAB implementation fft_spectra2.m.
+For default case power has units [y_unit^2/cycle_per_t_unit]
 
 # Arguments
 - `t::Vector{Float64}`: Time vector
@@ -87,6 +88,7 @@ function fft_spectra(t::AbstractVector{<:Real}, y::AbstractVector{<:Real};
         if prewhit
             push!(power_matrix, (P1 .* df) ./ (freq .^ 2))
         else
+            # [y_unit^2/cycle_per_t_unit]
             push!(power_matrix, P1 .* df)
         end
     end
