@@ -1,6 +1,6 @@
 #= IW_plot_KE_APE_ratio.jl
 Maarten Buijsman, USM DMS, 2026-1-23
-load the KE and APE data from IW_total_energetics.jl
+load the KE and APE data from IW_total_energetics.jl [need better bandpass!]
 to plot KE+APE in tidal and supertidal band as a function of latitude
 also look into the ratio KE/APE = (om2+f2)/(om2-f2) for D2 and HH
 =#
@@ -48,6 +48,8 @@ LAT = Float64[];
 KED2a = Float64[]; APED2a = Float64[];
 KEha = Float64[];  APEha = Float64[];
 
+KEOMA = Vector{Vector{Float64}}()
+
 for ii=1:length(runnms)
     runnm = runnms[ii]
     println("runnm is ",runnm,"; lat =",LATS[ii]) 
@@ -67,7 +69,7 @@ for ii=1:length(runnms)
 
     # load simulations ===========================================
 
-    # load xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
+    # load freq, KEoma, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul
     # KEt is total, unfiltered
     # KE  is D2+HH
     # KEh is HH
@@ -81,8 +83,12 @@ for ii=1:length(runnms)
     close(gridfile)
     =#
 
-    # this is a quick load 
-    @load fnamein xc KEt APEt KEh APEh KEl APEl
+    # quickly load some variables
+    @load fnamein xc KEt APEt KEh APEh KEl APEl freq KEoma
+
+    # push outside matrix
+    global freqs = freq
+    global xc = xc    
 
     # KED2 = KEl
     KED2  = KEl
@@ -103,44 +109,79 @@ for ii=1:length(runnms)
     KEha  = push!(KEha,val1[1]); 
     APEha = push!(APEha,val2[1]); 
 
+    # push fft power to array
+    # well this is an array of vectors haha
+    KEOMA = push!(KEOMA,KEoma)
 
 end # runnms
 
+# map power to array f(reqs,lats)
+KEOMA2 = reduce(hcat,KEOMA) 
+nfreq = size(KEOMA2,1)
+
+# normalize by M2
+Im2 = 21
+KEOMAr = repeat(KEOMA2[21,:]',nfreq,1)
+KEOMA3 = KEOMA2./KEOMAr
+
+# heat map, x,y, heatmap(var(x,y))
+clims2 = (-10,0)
+fig1 = Figure()
+ax1 = Axis(fig1[1,1],xticks=0:2:24,yticks=0:5:50, title=L"$\log_{10}$(KE/KE0); KE0 is M2 forcing energy",xlabel=L"$\omega$ [cpd]",ylabel=L"latitude [$^\circ$N]");  
+#hm1 = heatmap!(ax1, vec(freqs), vec(LATS), log10.(KEOMA3), colormap = Reverse(:Spectral), colorrange = clims2)
+hm1 = heatmap!(ax1, vec(freqs), vec(LATS), log10.(KEOMA3), colormap = :darktest, colorrange = clims2)
+Colorbar(fig1[1, 2], hm1, ticks = -10:2:0)
+xlims!(ax1, 0, 24)
+fig1
+
+#save(string(dirfig,"fft_KE_lat_.png"), fig1)
+
+stop()
+
+# energy spectra as a function of latitude
+fig = Figure()
+ax1 = Axis(fig[1,1], title="a) KE and APE [kJ/m2]",xlabel="frequency [cpd]",ylabel="power m2/s2/cpd");  
+ii=1; lines!(ax1,freqs,log10.(KEOMA2[:,ii]./KEOMA2[21,ii]), color=:black, linestyle=:solid, linewidth=5,label=string(LATS[ii]))
+for ii=2:length(LATS)
+    lines!(ax1,freqs,log10.(KEOMA2[:,ii]./KEOMA2[21,ii]), linestyle=:solid, linewidth=2,label=string(LATS[ii]))
+end
+xlims!(ax1, 0, 24)
+fig
+
 # ratio KE HH/D2
 fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,KED2a/1e3,LAT, linestyle=:solid, color = :red, linewidth = 3)
-lines!(ax1,APED2a/1e3,LAT, linestyle=:solid, color = :blue, linewidth = 3)
+ax1 = Axis(fig[1,1], title="a) KE and APE [kJ/m2]",xlabel="[kJ/m2]",ylabel="latitude [degrees]");  
+scatterlines!(ax1,KED2a/1e3,LAT,marker=:circle, linestyle=:solid, color = :red, linewidth=3,label="KE D2")
+scatterlines!(ax1,APED2a/1e3,LAT,marker=:circle, linestyle=:solid, color = :blue, linewidth=3,label="APE D2")
 
-lines!(ax1,KEha/1e3,LAT, linestyle=:dash, color = :red, linewidth = 3)
-lines!(ax1,APEha/1e3,LAT, linestyle=:dash, color = :blue, linewidth = 3)
+lines!(ax1,KEha/1e3,LAT, linestyle=:dash, color = :red, linewidth=3,label="KE HH")
+lines!(ax1,APEha/1e3,LAT, linestyle=:dash, color = :blue, linewidth=3,label="APE HH")
+axislegend(ax1, position = :rb)
 
-ax2 = Axis(fig[1,2])
-lines!(ax2,KEha ./KED2a,LAT, linestyle=:solid, color = :red, linewidth = 3)
-lines!(ax2,APEha ./APED2a,LAT, linestyle=:solid, color = :blue, linewidth = 3)
+ax2 = Axis(fig[1,2], title="b) HH/D2");  
+scatterlines!(ax2,KEha ./KED2a,LAT, marker=:circle, linestyle=:solid, color = :red, linewidth = 3, label="KE")
+scatterlines!(ax2,APEha ./APED2a,LAT, marker=:circle, linestyle=:solid, color = :blue, linewidth = 3, label="APE")
 #lines!(ax1,(KEha .+ APEha) ./(KED2a .+ APED2a),LAT)
-
+axislegend(ax2, position = :rt)
 fig
+
+if figflag==1; save(string(dirfig,"ratio_HHD2_KE_APE_AMZexpt.png"), fig)
+end
 
 # APE calculation is trick because the ratio's are
 # not right ....
 fcor = coriolis.(LAT)
 
+fig2 = Figure()
+ax1 = Axis(fig2[1,1], title="KE/APE vs theory",xlabel="",ylabel="latitude [degrees]");  
+lines!(ax1,(om2^2 .+ fcor.^2)./(om2^2 .- fcor.^2),LAT, linestyle=:dash, color = :black, linewidth=5, label="(om2+f2)/(om2-f2)")
+scatterlines!(ax1,KED2a ./APED2a,LAT,marker=:circle, linestyle=:solid, color = :red, linewidth=3, label="KE/APE D2")
+scatterlines!(ax1,KEha ./APEha,LAT,marker=:circle, linestyle=:dashdot, color = :blue, linewidth=3, label="KE/APE HH")
+axislegend(ax1, position = :rb)
+fig2
 
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,KED2a ./APED2a,LAT)
-lines!(ax1,(om2^2 .+ fcor.^2)./(om2^2 .- fcor.^2),LAT)
-fig
-
-# not a constant value ......
-#(KED2a./(APED2a)) ./ ((om2^2 .+ fcor.^2)./(om2^2 .- fcor.^2)) 
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,(om2^2 .+ fcor.^2)./(om2^2 .- fcor.^2),KED2a./APED2a)
-lines!(ax1,KED2a./APED2a,KED2a./APED2a)
-fig
+if figflag==1; save(string(dirfig,"ratio_KE_APE_AMZexpt.png"), fig2)
+end
 
 
 stop()
@@ -271,7 +312,6 @@ end
 
 KEom  = copy(KEom[1:lep,:]);
 KEuom = copy(KEuom[1:lep,:]);
-
 
 # isolate D2 and HH frequencies and compute KE
 Id2 = findall(item -> item>=10/24 && item<=14/24, period)

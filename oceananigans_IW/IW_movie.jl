@@ -29,25 +29,9 @@ include(string(pathname,"include_functions.jl"))
 
 
 # load and store files ===========================================
-# file names
-#fnames = "AMZ1_lat0_2d_mode1_U10.05.nc"
-#fnames = "AMZ1_lat0_8d_mode1_2_U10.05.nc"
-#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.00.nc"; clims  = (-0.25,0.25)
-#fnames = "AMZ1_lat0_8d_U1_0.00_U2_0.20.nc"; clims  = (-0.25,0.25)
-#fnames = "AMZ1_lat0_8d_U1_0.25_U2_0.20.nc"; clims  = (-0.5,0.5)
-
-#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.00.nc"  # mode 1
-#fnames = "AMZ2_lat0_12d_U1_0.00_U2_0.40.nc"  # mode 2
-#fnames = "AMZ2_lat0_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-#fnames = "AMZ3_hvis_12d_U1_0.50_U2_0.40.nc"  # mode 1+2
-
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1 + 2"  # mode 1+2
-#fnames = "AMZ3_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 1
-#fnames = "AMZ3_hvis_12d_U1_0.00_U2_0.30.nc"; movienm = "mode 2"  # mode 2
-# movienm2 = fnames[1:29]
 clims  = (-0.3,0.3)
 
-# function of latitude
+#= function of latitude
 #fnames = "AMZ3_40.0_hvis_12d_U1_0.40_U2_0.00.nc"; movienm = "mode 1"  # mode 2
 
 # nonhydrostatic at 200 m
@@ -56,6 +40,47 @@ fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.30_v2.nc"; movienm = "mode12"  # mode 
 movienm2 = fnames[1:33]
 
 filename = string(dirsim,fnames)
+=#
+
+oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+
+#      38 39 40 41 42 43 44 45 46 47 48    49
+LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35]
+
+
+# file name ===========================================
+
+if oldnm==1
+    # function of latitude
+    lat = 0
+
+   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); movienm = "mode 1"
+   #fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); movienm = "mode 1"  # hydro
+   #fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); movienm = "mode 1"     # nonhydro
+
+   fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.30_v3.nc"; movienm = "mode 1+2"  # nonhydro and compare with
+   # fnames = "AMZ4km_00.0_hvis_12d_U1_0.40_U2_0.30.nc"; movienm = "mode 1+2"  # hydro
+
+    fname_short2 = fnames[1:33]
+    filename = string(dirsim,fnames)
+
+    LAT = LATS[1];
+else
+    # file ID
+    mainnm = 1
+    runnm  = 46
+
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+
+    fname_short2 = fnames
+    filename = string(dirsim,fnames,".nc")
+    movienm = "mode 1";
+
+    LAT = LATS[runnm-37];
+    #println("lat is ",LAT) 
+
+end
+
 
 # open nc file =============================================
 
@@ -143,7 +168,7 @@ frames = 2:(size(ucnew)[3]) # Number of frames in the animation
 framerate = 60 # Frames per second
 
 # 5. Record the animation
-record(fig, string(dirmovie,movienm2,".mp4"), frames; 
+record(fig, string(dirmovie,fname_short2,".mp4"), frames; 
 framerate = framerate) do frame_num
     # Update the data for each frame
     heatmap_data[] = ucnew[:,:,frame_num]

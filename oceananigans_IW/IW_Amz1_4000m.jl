@@ -1,9 +1,14 @@
-#= IW_Amz2.jl
-Maarten Buijsman, USM DMS, 2025-12-16
+#= IW_Amz1_200m.jl
+Maarten Buijsman, USM DMS, 2025-10-3
 use realistic N(z) and eigenfunctions generated in testing_sturmL.jl
-adopt closed L and R BCOs with sponge layers 
-IW forcing is with body Gaussian force
+use open boundary forcing w and u
+also include a sponge layer on the right boundary
 based on IW_test3.jl
+has settings for 200 m sim
+
+todo: 1) include parameters in functions, 
+      2) add a mode 2
+      3) realistic N, 
 =#
 
 using Pkg
@@ -26,20 +31,52 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 ###########------ OUTPUT FILE NAME ------#############
 
 # file ID
-mainnm = 1
-runnm  = 49
 
-fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+#fid      = "AMZ1_lat0_2d_mode1_U1" 
 
-println("running ",fid)
+#= mode 1 + 2 weak velocity
+numM = [1 2];    
+Usur1, Usur2 = 0.05, 0.025
+fid      = "AMZ1_lat0_8d_mode1_2_U1" 
+=#
+
+#= mode 1 only, strong velocity
+numM = [1];    
+Usur1, Usur2 = 0.25, 0.0
+=#
+
+#= mode 2 only, strong velocity
+numM = [2];    
+Usur1, Usur2 = 0.0, 0.2
+=#
+
+#= mode 1+2, strong velocity
+numM = [1 2];    
+Usur1, Usur2 = 0.25, 0.2
+=#
+
+#fid = @sprintf("AMZ1_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+#fid = @sprintf("AMZ1_test_dx200m_lat0_1d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) # DX = 200;
+
+
+# double the velocity ===========================
+# mode 1+2, stronger velocity
+#numM = [1 2];    
+#Usur1, Usur2 = 0.5, 0.4
+
+#numM = [1];    
+#Usur1, Usur2 = 0.5, 0.0
+
+#numM = [2];    
+#Usur1, Usur2 = 0.0, 0.4
 
 # WMTD seminar double the velocity ===========================
 # mode 1+2, stronger velocity
-#numM = [1 2];    
-#Usur1, Usur2 = 0.4, 0.3
+numM = [1 2];    
+Usur1, Usur2 = 0.4, 0.3
 
 #numM = [1];    
-Usur1, Usur2 = 0.4, 0.0
+#Usur1, Usur2 = 0.4, 0.0
 
 #numM = [2];    
 #Usur1, Usur2 = 0.0, 0.3
@@ -49,46 +86,49 @@ DX = 4000;
 #DX = 200;
 
 # select latitude ------------------------
-#lat = 0.0
+lat = 0.0
 #lat = 2.5
 #lat = 5
 #lat = 10
-#lat = 15
 #lat = 20
-#lat = 25
-#lat = 28.80126  # perfect PSI resonance; f = M2/2
 #lat = 30
-lat = 35
 #lat = 40
-#lat = 50
-
-
-#= for scaling the Gaussian forcing
-lats = [0, 2.5, 5, 10, 20, 25, 30, 40, 50];
-fracs = [0.151, 0.151, 0.150, 0.148, 0.141, 0.135, 0.129, 0.112, 0.091];
-fracsdef = fracs[8]
-lines(lats,fracs)
-=#
-
-lats = [0, 5, 10, 20, 30, 40, 50]
-ftot = [5.88, 5.89, 5.95, 6.19, 6.6, 7.19, 7.81]
-fracs2 = [0.151, 0.150, 0.148, 0.141, 0.129, 0.112, 0.091];
-lines(lats,fracs2)
-lines(lats,ftot)
-# relationship is linear; scale the gauss width with
-lines(fracs2,ftot)
 
 # simulation time stepping
 #Δt = 30seconds
 max_Δt = 10minutes
-Δt     = 1minutes
-#Δt     = 15seconds  #weno 200 m
+Δt     = 1minutes  # 4 km
+# max_Δt = 2minutes    #200 m
+# Δt     = 15seconds  # 200 m
 
 start_time = 0days
-#stop_time  = 2days
-stop_time  = 15days
+#stop_time  = 8days
+stop_time  = 12days
 
-println("stop_time: ",stop_time,"; lat: ",lat,"; select mode: ",numM)
+#fid = @sprintf("AMZ2_lat0_8d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+#fid = @sprintf("AMZ2_lat0_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy; try WENO?
+#fid = @sprintf("AMZ3_weno_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy;
+# I likely need to increase my viscosities
+#fid = @sprintf("AMZ3_visc_12d_U1_%4.2f_U2_%4.2f",Usur1,Usur2) 
+
+# mode 1 + 2 is quite noisy;
+# I likely need to increase my horiz and bert viscosities 
+#               closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+#fid = @sprintf("AMZ3_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+#fid = @sprintf("AMZv_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+
+# weno w: 200 m 4: use visc
+#fid = @sprintf("AMZ4_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+
+# 4-km version to be compared with AMZ4_
+fid = @sprintf("AMZ4km_%04.1f_hvis_12d_U1_%4.2f_U2_%4.2f",lat,Usur1,Usur2) 
+
+
+println("running ",fid)
 
 ###########------ LOAD N and grid params ------#############
 
@@ -119,54 +159,20 @@ fig
 
 #numM = 1;       
 Nz = length(zfw)-1;
-L  = 700_000;
+L  = 500_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
 TM2 = (12+25.2/60)*3600 # M2 tidal period
-dx  = L/Nx
 
 # sponge parameters
-#const fnudl = 0.001  # 01.27
-const fnudl = 0.002  # 01.28 stronger damping on left side
-const fnudr = 0.0001 # 01.25
-# const fnud = 0.00025
-#const Sp_Region_right = 20_000                              # size of sponge region on RHS
-const Sp_Region_right = 200_000                              # size of sponge region on RHS
-const Sp_Region_left = 40_000
-const Sp_extra = 0                                     # not really needed
-
-# for Gaussian body force
-const gausW_width = 16_000             # 3*4000 m
-#const gausW_center = 25_000           # <=01.12; x position of Gaussian of forced wave
-#const gausW_center = 25_000+Sp_extra  # 01.13 + 01.14
-const gausW_center = 40_000            # x position of Gaussian of forced wave 01.15
-
-#= plot sponge and forcing 
-heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
-mask2ndf(X)    = heavisidef(X)* X^2
-right_maskf(x) = mask2ndf((x-L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
-left_maskf(x)  = mask2ndf(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
-gaus(x)        = exp( -(x -  gausW_center)^2 / (2 *  gausW_width^2))
-
-xx = xnodes(grid, Center())
-#xx = range(0,L,1000)
-asw1 = right_maskf.(xx)
-asw2 = left_maskf.(xx)
-asw3 = gaus.(xx)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax,xx/1e3,asw1,color=:red)
-lines!(ax,xx/1e3,asw2,color=:blue)
-lines!(ax,xx/1e3,asw3,color=:green)
-fig
-=#
-
-#stop()
+#const Sp_Region_right = 500                               # size of sponge region on RHS
+#const Sp_Region_left = 500
+const Sp_Region_right = 20000                              # size of sponge region on RHS
+const Sp_Region_left = 20000
+const Sp_extra = 0                                         # not really needed
 
 # grid parameters
-pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center, 
-      gausW_width=gausW_width);
+pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM);
 
 # surface velocities; T:tidal period
 pm = merge(pm,(Usur=[Usur1, Usur2], T=TM2));
@@ -213,11 +219,6 @@ f   = copy(fcor.f);
 om2 = copy(ω);
 jldsave(string(dirin,fnameEIG); f, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2);
 println(string(fnameEIG)," Ueig data saved ........ ")
-Lstr = @sprintf("%5.1f",Ln[1]/1e3)
-println("Mode 1 wavelength is ",Lstr," km")
-println("fraction gauss_width/L1 is ",@sprintf("%5.3f",gausW_width/Ln[1]))
-
-#stop()
 
 #=
 fnameEIG = "EIG_amz1.jld2";
@@ -256,54 +257,47 @@ fig
 
 using Interpolations
 
-# dudt field centered at gausW_center
-function fdun(x,z,t,p)
-    du = 0.0
+# u velocity field at the west boundary (x=0)
+function fun(x,z,t,p)
+    u = 0.0
     # loop over n modes
     for i in p.numM
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
-        #u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
-        # derivative; d/dx sin x = cos x 
-        du = du .+Ueigi * p.ω * cos(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
+        u = u .-Ueigi * sin(p.kn[i]*x - p.ω*t - phi[i])
     end
-    return du
+    return u
 end
 
-# dwdt field centered at gausW_center
-function fdwn(x,z,t,p)
-    dw = 0.0
+# w velocity field at the west boundary (x=-Dx/2)
+function fwn(x,z,t,p)
+    w = 0.0
     # loop over n modes
     for i in p.numM   
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Weig = p.Weig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zfw, Weig, extrapolation_bc=Line());
         Weigi = intzc.(z);
-        #w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t - phi[i])  
-        # derivative; d/dx cos x = - sin x
-        dw = dw .+ Weigi * p.ω * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])  
+        w = w .+ Weigi * cos(p.kn[i]*x - p.ω*t - phi[i])  
     end
-    return dw
+    return w
 end
 
 # v velocity field at the west boundary (x=-Dx/2)
-function fdvn(x,z,t,p)
-    dv = 0.0
+function fvn(x,z,t,p)
+    v = 0.0
     # loop over n modes
     for i in p.numM   
         phi = [0 π] # mode 1 and mode 2 are out of phase
         Ueig = p.Ueig[:,i] * p.Usur[i]/p.Ueig[end,i]   # scale to match Usurface velocity
         intzc = linear_interpolation(p.zcw, Ueig, extrapolation_bc=Line());
         Ueigi = intzc.(z);
-        #v = v .+ p.f/p.ω .* Ueigi * cos(p.kn[i]*x - p.ω*t - phi[i])
-        # derivative; d/dx cos x = - sin x
-        dv = dv .+ p.f .* Ueigi * sin(p.kn[i]*(x-p.gausW_center) - p.ω*t - phi[i])
+        v = v .+ p.f/p.ω .* Ueigi * cos(p.kn[i]*x - p.ω*t - phi[i])
     end
-    return dv
+    return v
 end
-
 
 #=
 fun(0,zfw[end],3/4*2π/pm.ω,1,pm)
@@ -324,12 +318,13 @@ lines!(ax1,fwn(0,zcw,0*2π/pm.ω,1,pm),zcw)
 fig
 =#
 
+
+# maybe include strain of U due to W
+
 ###########------ FORCING ------#############
 
 # background 
-# buoyancy b = -g/rho0*rho_pert
-# b = N2*z   = -g/rho0 * drho
-# N2         = -g/rho0 * drho/dz
+# buoyancy = -g/rho0*rho_pert
 function B_func(x,z,t,p)
     # computes buoyancy field and interpolates values at z
     bb = cumtrapz(p.zfw, p.N2w);
@@ -338,13 +333,18 @@ function B_func(x,z,t,p)
     return bbi
 end
 
+#B_func(x, z, t, p) = p.N^2 * z
+#B_func(x, z, t, p) = 0.001 * z
+
 B = BackgroundField(B_func, parameters=pm);
 
-#fig = Figure()
-#ax1 = Axis(fig[1,1])
-#lines!(ax1,B_func(0, zfw, 0, pm),zfw)
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,B_func(0, zfw, 0, pm),zfw)
 #lines!(ax1,bb*-1000/10,zfw)
-#fig
+fig
+
+#B_func(0, -1000, 0, pm)
 
 # sponge regions
 @inline heaviside(X)    = ifelse(X <0, 0.0, 1.0)
@@ -352,25 +352,36 @@ B = BackgroundField(B_func, parameters=pm);
 @inline right_mask(x,p) = mask2nd((x-p.L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
 @inline left_mask(x,p)  = mask2nd(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
 
+#= plot function 
+heavisidef(X)  = ifelse(X <0, 0.0, 1.0)
+mask2ndf(X)    = heavisidef(X)* X^2
+right_maskf(x) = mask2ndf((x-L+Sp_Region_right+Sp_extra)/(Sp_Region_right+Sp_extra))
+left_maskf(x)  = mask2ndf(((Sp_Region_left+Sp_extra)-x)/(Sp_Region_left+Sp_extra))
+
+xx = xnodes(grid, Center())
+#xx = range(0,L,1000)
+asw1 = right_maskf.(xx)
+asw2 = left_maskf.(xx)
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+scatter!(ax,xx/1e3,asw1,color=:red)
+scatter!(ax,xx/1e3,asw2,color=:blue)
+fig
+=#
+
 # nudging layer ∂x/∂t = F(x) + K(x_target - x) 
 # K has units [1/time]
-@inline u_sponge(x, z, t, u, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * u 
-@inline v_sponge(x, z, t, v, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * v 
-@inline w_sponge(x, z, t, w, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * w 
-@inline b_sponge(x, z, t, b, p) = - (fnudl * left_mask(x,p) + fnudr * right_mask(x, p)) * b 
+@inline u_sponge(x, z, t, u, p) = - 0.001 * right_mask(x, p) * u 
+@inline v_sponge(x, z, t, v, p) = - 0.001 * right_mask(x, p) * v 
+@inline w_sponge(x, z, t, w, p) = - 0.001 * right_mask(x, p) * w 
+@inline b_sponge(x, z, t, b, p) = - 0.001 * right_mask(x, p) * b 
 #@inline b_sponge(x, z, t, b) =   0.001 * right_mask(x) * (N^2 * z - b) + 0.001 * left_mask(x) * (N^2 * z - b)
 
-# body forcing internal waves 
-# ramp-up function to start du/dt, etc from zero
-@inline framp(t, p) = 1 - exp(-1/(p.T/2)*t)
-@inline gaus(x, p) = exp( -(x - p.gausW_center)^2 / (2 * p.gausW_width^2))
-@inline Fu_wave(x, z, t, p) = fdun(x, z, t, p) * framp(t, p) * gaus(x, p)
-@inline Fv_wave(x, z, t, p) = fdvn(x, z, t, p) * framp(t, p) * gaus(x, p)
-@inline Fw_wave(x, z, t, p) = fdwn(x, z, t, p) * framp(t, p) * gaus(x, p)
-
-@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
-@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) #+ Fv_wave(x, z, t, p) 
-@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) #+ Fw_wave(x, z, t, p)
+# additional body forcing can be added
+@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) 
+@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p) 
+@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p) 
 @inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p) 
 
 u_forcing = Forcing(force_u, field_dependencies = :u, parameters = pm)
@@ -378,13 +389,32 @@ v_forcing = Forcing(force_v, field_dependencies = :v, parameters = pm)
 w_forcing = Forcing(force_w, field_dependencies = :w, parameters = pm)
 b_forcing = Forcing(force_b, field_dependencies = :b, parameters = pm)
 
+# boundary forcing
+
+# ramp-up function to start u, v, and w from zero
+const Tr = pm.T/2
+framp(t,Tr) = 1-exp(-1/Tr*t)
+
+# u at face; v and w at center offset by -Δx/2
+Dx = -0.5*xspacings(grid, Center())[1]
+@inline umod(z,t,p) = fun(0,z,t,p)  * framp(t,Tr)
+#@inline vmod(z,t,p) = fvn(Dx,z,t,p) * framp(t,Tr)
+@inline wmod(z,t,p) = fwn(Dx,z,t,p) * framp(t,Tr)
+
+#@inline umod(z,t,p) = 0.0 * framp(t,Tr)
+#@inline wmod(z,t,p) = 0.0 * framp(t,Tr)
+
+u_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(umod, parameters = pm))
+#v_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(vmod, parameters = pm))
+w_bcs = FieldBoundaryConditions(west = OpenBoundaryCondition(wmod, parameters = pm))
+
 #= WENO works very well; smooth field, but run is twice as long
 model = NonhydrostaticModel(; grid, coriolis=fcor,
                 advection = WENO(),
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing,v=v_forcing, w=w_forcing, b=b_forcing),
+                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
                 boundary_conditions=(u=u_bcs, w=w_bcs)) 
 =#
 
@@ -398,11 +428,10 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
                 tracers = :b,
                 buoyancy = BuoyancyTracer(),
                 background_fields = (; b=B),
-                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing))  #01.26
-#                forcing = (; u=u_forcing, v=v_forcing))   #01.21                              
-#                boundary_conditions=(u=u_bcs, w=w_bcs))                 
+                forcing = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing),
+                boundary_conditions=(u=u_bcs, w=w_bcs))                 
 #                boundary_conditions=(u=u_bcs, v=v_bcs, w=w_bcs))                 
-
+#
 
 # simulation time stepping
 simulation = Simulation(model; Δt, stop_time)
@@ -440,12 +469,14 @@ fields = Dict("u"    => model.velocities.u,
 
 filenameout=string(pathout,fid,".nc")
 
+#     schedule=TimeInterval(30minutes),
+
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filenameout, 
-    schedule=TimeInterval(15minutes),
+    schedule=TimeInterval(15minutes),    
     overwrite_existing = true)
 
-conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=max_Δt)
+conjure_time_step_wizard!(simulation, cfl=0.8, max_Δt=max_Δt)
 
 # integrate the mofo
 model.clock.iteration = 0

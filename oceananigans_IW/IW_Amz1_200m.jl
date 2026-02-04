@@ -82,8 +82,8 @@ Usur1, Usur2 = 0.4, 0.3
 #Usur1, Usur2 = 0.0, 0.3
 
 # dx grid size ----------------------
-#DX = 4000;
-DX = 200;
+DX = 4000;
+#DX = 200;
 
 # select latitude ------------------------
 lat = 0.0
@@ -96,9 +96,10 @@ lat = 0.0
 
 # simulation time stepping
 #Δt = 30seconds
-max_Δt = 2minutes
-#Δt     = 1minutes
-Δt     = 15seconds  # 200 m
+max_Δt = 10minutes
+Δt     = 1minutes  # 4 km
+# max_Δt = 2minutes    #200 m
+# Δt     = 15seconds  # 200 m
 
 start_time = 0days
 #stop_time  = 8days

@@ -32,17 +32,16 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-titlenm = "mode 1"
+
 const T2 = 12+25.2/60
 
 # file name ===========================================
 
-# function of latitude
-lat = 40
-
+#=
 #=
 #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
 
 fname_short2 = fnames[1:33]
 filename = string(dirsim,fnames)
@@ -56,6 +55,44 @@ fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm)
 
 fname_short2 = fnames
 filename = string(dirsim,fnames,".nc")
+=#
+
+#      38 39 40 41 42 43 44 45 46 47 48    49
+LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
+
+runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
+runnms = [1]
+
+oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+
+# file name ===========================================
+
+if oldnm==1
+    # function of latitude
+    lat = 0
+
+   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
+   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
+    fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
+
+    fname_short2 = fnames[1:33]
+    filename = string(dirsim,fnames)
+
+    LAT = LATS[1];
+else
+    # file ID
+    mainnm = 1
+    #runnm  = 47
+
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+
+    fname_short2 = fnames
+    filename = string(dirsim,fnames,".nc")
+
+    LAT = LATS[runnm-37];
+    println("lat is ",LAT,"------------------------------------") 
+
+end
 
 
 # load simulations ===========================================
@@ -481,7 +518,8 @@ axislegend(position = :rb)
 xlims!(ax, 0, 500)
 fig
 
-throw(error("stop here"))
+
+stop()
 
 ## load all latitudes and plot the cumsum ======================================
 Sp_Region_right = 20000

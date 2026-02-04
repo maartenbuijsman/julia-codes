@@ -33,14 +33,14 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
 #      38 39 40 41 42 43 44 45 46 47 48    49
-LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35]
+LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
 
-#runnms = [38 39 40 41 42 43 44 45 46 47];
-runnms = [49]
+runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
+runnms = [1]
 
 for runnm in runnms
     println("runnm is ",runnm) 
@@ -52,8 +52,9 @@ if oldnm==1
     lat = 0
 
    #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-    fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
-    #fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
+   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
+   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
+   fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.30_v3.nc"; titlenm = "mode 1+2"  # nonhydro and compare with
 
     fname_short2 = fnames[1:33]
     filename = string(dirsim,fnames)
@@ -70,7 +71,7 @@ else
     filename = string(dirsim,fnames,".nc")
 
     LAT = LATS[runnm-37];
-    #println("lat is ",LAT) 
+    println("lat is ",LAT,"------------------------------------") 
 
 end
 
@@ -381,12 +382,6 @@ println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m"
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 
 
-# save the energy terms =========================================
-fnameout = string("energetics_",fname_short2,".jld2")
-
-jldsave(string(dirout,fnameout); xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
-println(string(fnameout)," data saved ........ ")
-
 
 # compute some ffts of surface velocity ======================================================
 
@@ -407,6 +402,8 @@ for i in 1:Nx
     period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
 end
 
+println("max freq: ",freq[end]," cpd")
+
 KEom = poweru .+ powerv;    # mode 1+2
 
 # heatmap of spectral power
@@ -423,15 +420,22 @@ hm.colorrange = (-6, 0)
 fig1   
 
 # average coefficients fall inside 75-500 km range
-xlims = [75,500]*1e3;
+#xlims = [75,500]*1e3; Im2 = 21;  # excl. generation on left and relaxation on right
+xlims = [0,480]*1e3; Im2 = 15;    # AMZ1 set up with specified boundaries excl. 20 km relaxation on right
 Plims = [-12 1];
 Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 KEoma = vec(mean(KEom[:,Ix],dims=2)); 
 
-axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),xlabel="frequency [cpd]",ylabel="log10(KE) [m2/s2/cpd]");  
+# store the max M2 amplitude at the forcing boundary
+# use for normalization
+KEommax = KEom[Im2,Ix[1]]
+println("KEomax=",log10(KEommax))
+println("omM2=",freq[Im2])
+
+axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),title="normalized power",xlabel="frequency [cpd]",ylabel="log10(KE) [m2/s2/cpd]");  
 xlims!(axb, flim[1], flim[2])
 ylims!(axb, Plims[1], Plims[2])
-lines!(axb, freq, log10.(KEoma), linestyle=:solid, color = :black, linewidth = 3)
+lines!(axb, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3)
 
 # add coriolis rad/s => cpd
 fcpd = coriolis(LAT)/(2*pi)*24*3600
@@ -442,6 +446,13 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
+
+
+# save the energy terms =========================================
+fnameout = string("energetics_",fname_short2,".jld2")
+
+#jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
+println(string(fnameout)," data saved ........ ")
 
 end # runnms
 
@@ -455,13 +466,41 @@ end # runnms
 
 stop()
 
+
 # ====================================================================
 # ====================================================================
 # ====================================================================
 
+# load some data and plot spectra
+flim = [0 24]; fstp=2;
+Plims = [-8 0];
 
+# hydrostatic
+fnamein = string(dirout,"energetics_AMZ3_00.0_hvis_12d_U1_0.40_U2_0.0.jld2")
 
+#    gridfile = jldopen(fnamein, "r")
+#    println(keys(gridfile))  # List the keys (variables) in the file
+#    close(gridfile)
 
+@load fnamein freq  KEoma  KEommax
+
+fig1 = Figure()
+ax1 = Axis(fig1[1, 1],xticks = (flim[1]:fstp:flim[2]),
+title=L"power normalized by M$_2$ forcing energy KE0",xlabel=L"$\omega$ [cpd]",ylabel=L"$\log_{10}$(KE/KE0)");  
+xlims!(ax1, flim[1], flim[2])
+ylims!(ax1, Plims[1], Plims[2])
+lines!(ax1, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3,label="4 km")
+
+# nonhydrostatic
+fnamein = string(dirout,"energetics_AMZ4_00.0_hvis_12d_U1_0.40_U2_0.0.jld2")
+@load fnamein freq  KEoma  KEommax
+lines!(ax1, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :red, linewidth = 3,label="200 m")
+axislegend(ax1, position = :lb)
+fig1
+
+# Save the figure as a PNG file
+if figflag==1; save(string(dirfig,"fft_KE_hyd_nonhyd.png"), fig1)
+end
 
 
 # project velocities/pressures on modes and then compute energetics per mode ------------------------------
