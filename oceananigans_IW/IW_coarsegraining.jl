@@ -37,35 +37,21 @@ const T2 = 12+25.2/60
 
 # file name ===========================================
 
-#=
-#=
-#fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-
-fname_short2 = fnames[1:33]
-filename = string(dirsim,fnames)
-=#
-
-# file ID
-mainnm = 1
-runnm  = 10
-
-fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
-
-fname_short2 = fnames
-filename = string(dirsim,fnames,".nc")
-=#
-
 #      38 39 40 41 42 43 44 45 46 47 48    49
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
 
 runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
-runnms = [1]
+#runnms = [1]
 
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 # file name ===========================================
+#runnm  = 38
+
+for runnm in runnms
+    #LAT = LATS[runnm-37];
+    #println("lat is ",LAT,"------------------------------------") 
+    #end
 
 if oldnm==1
     # function of latitude
@@ -82,7 +68,6 @@ if oldnm==1
 else
     # file ID
     mainnm = 1
-    #runnm  = 47
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -92,6 +77,8 @@ else
     LAT = LATS[runnm-37];
     println("lat is ",LAT,"------------------------------------") 
 
+    titlenm = string(LAT,"°N; mode 1")    
+    titlenm2 = string(LAT,"°N")        
 end
 
 
@@ -139,14 +126,6 @@ end
 # close the nc file
 close(ds)
 
-#= work with permuted matrices: time, x, z
-@time begin
-    pp = permutedims(uf, (3, 1, 2)); uf = pp;
-    pp = permutedims(vf, (3, 1, 2)); vf = pp;
-    pp = permutedims(wf, (3, 1, 2)); wf = pp;
-    println("finished permutation in ")
-end
-=#
 
 # compute at cell centers
 # v is already at x,W centers
@@ -158,7 +137,7 @@ lines!(ax,tday,uf[:,1,1],color=:red)
 fig =#
 
 
-# some more hovmullers
+#= some more hovmullers
 clims = (-0.5,0.5)
 fig1 = Figure()
 ax1 = Axis(fig1[1, 1], xlabel = "x [km]", ylabel = "time [days]", title=string("u surf [m/s] ",fname_short2)) 
@@ -169,30 +148,13 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"hovmuller_",fname_short2,".png"), fig1)
 end
+=#
 
 # filter all velocities ======================================
 
+# todo: change N, apply a tukey 10%?
+
 dth=dt*24; N = 8;   # all in hours
-
-#=
-fig = Figure()
-ax = Axis(fig[1, 1]) 
-ix = 50
-lines!(ax,tday,uc[:,ix,15],color = :red)
-
-# highpass - remove mean flows
-Tcuth=18;  # all in hours
-fstring = "high"
-uf = lowhighpass_butter(uf,Tcuth,dth,N,fstring);
-vf = lowhighpass_butter(vf,Tcuth,dth,N,fstring);
-wf = lowhighpass_butter(wf,Tcuth,dth,N,fstring);
-
-uc = lowhighpass_butter(uc,Tcuth,dth,N,fstring);
-wc = lowhighpass_butter(wc,Tcuth,dth,N,fstring);
-
-lines!(ax,tday,uc[:,ix,15],color = :green, linestyle = :dash)
-fig
-=#
 
 # low-pass
 Tcut=9;  # all in hours
@@ -319,6 +281,7 @@ w*w - w*w * dwdz
 Πnh = (ucl.*wcl .- uwcl).*dwdx +   
       (wcl.*wcl .- wwcl).*dwdz; 
 
+#= snapshot
 ylim = -500;
 clims = (-maximum(Πx[:]),maximum(Πx[:]))
 
@@ -334,6 +297,7 @@ Colorbar(fig1[1,2], hma); ylims!(axa, ylim, 0)
 Colorbar(fig1[2,2], hmb); ylims!(axb, ylim, 0)
 Colorbar(fig1[3,2], hmc); ylims!(axc, ylim, 0)
 fig1  
+=#
 
 
 # time average
@@ -355,7 +319,7 @@ Iday = findall(item -> item >= t1 && item<= t2, tday)
 Πnha = dropdims(mean(Πnh[Iday,:,:],dims=1),dims=1);
 
 fig1 = Figure(size = (600, 800))
-axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short2));  ylims!(axa, ylim, 0)
+axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short2,"; ",titlenm2));  ylims!(axa, ylim, 0)
 axb = Axis(fig1[2, 1],title=string("Piz [W/kg] "));  ylims!(axb, ylim, 0)
 axc = Axis(fig1[3, 1],title=string("Pinh [W/kg] "));  ylims!(axc, ylim, 0)
 axd = Axis(fig1[4, 1],title=string("Pisum [W/kg] "));  ylims!(axd, ylim, 0)
@@ -374,7 +338,7 @@ end
 # only plot the sum of all coarse graining terms :balance :RdBu_5
 clims = (-1e-6,1e-6)
 fig1 = Figure(size = (1000, 250))
-axa = Axis(fig1[1, 1], title=string("sim. ",titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
+axa = Axis(fig1[1, 1], title=string(titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
 #hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:Spectral), colorrange = clims); 
 hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:RdBu_5), colorrange = clims); 
 ylims!(axa, ylim, 0)
@@ -384,7 +348,6 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"PIsumxz_",fname_short2,".png"), fig1)
 end
-
 
 # f(z)
 Πxza = dropdims(mean(Πxa,dims=1),dims=1);
@@ -397,7 +360,7 @@ lines!(ax,Πxza,zc,color=:red, label="Πx")
 lines!(ax,Πzza,zc,color=:green, label="Πz")
 lines!(ax,Πnhza,zc,color=:black, label="Πnh")
 lines!(ax,Πnhza+Πzza+Πxza,zc,color=:orange, label="sum")
-axislegend(position = :lb)
+axislegend(ax,position = :rb; framevisible = false )
 fig
 
 # f(x)
@@ -407,12 +370,12 @@ dzz = reshape(dz,1,:)
 Πnhxa = dropdims(sum(Πnha.*dzz,dims=2),dims=2);
 
 #fig = Figure(); 
-ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=fname_short2)
+ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
 lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
 lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
 lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum")
-axislegend(position = :lb)
+axislegend(ax2,position = :rt; framevisible = false )
 fig
 
 # Save the figure as a PNG file
@@ -422,8 +385,12 @@ end
 # save f(x) profiles
 fnameout = string("Etran_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
+jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
+
+end # runnums
+
+stop()
 
 
 
@@ -491,10 +458,7 @@ fig
 if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
 end
 
-##=#
-
-
-
+#=
 # test
 
 Πsum2 = Πnhxa .+ Πzxa .+ Πxxa
@@ -518,35 +482,50 @@ axislegend(position = :rb)
 xlims!(ax, 0, 500)
 fig
 
-
 stop()
+=#
 
 ## load all latitudes and plot the cumsum ======================================
-Sp_Region_right = 20000
-
-lats = [0, 2.5, 5, 10, 20, 25, 30, 40]
+#runnms = [38 39 40 41 42 43 44 45 46 47 48    49];
+#LATS =   [0 2.5 5  10 15 20 25 30 40 50 28.80 35];
+runsel = [38 39 40 41 42 43 44 48 45 49 46 47];
 
 # get xc
-path_fname = string(dirout,"Etran_AMZ3_",@sprintf("%04.1f",lats[1]),"_hvis_12d_U1_0.40_U2_0.0.jld2")
+mainnm = 1
+fnames = @sprintf("Etran_AMZexpt%02i.%02i.jld2",mainnm,runsel[1]) 
+path_fname = string(dirout,fnames)
+
 @load path_fname xc
 
 DX = xc[2] - xc[1]
 
-# locate all cells west of sponge
-Ix = findall(item -> item<=xc[end]+DX/2-Sp_Region_right, xc)
+# use data away from forcing and sponges
+#xlims = [75,500]*1e3;
+xlims = [0,700]*1e3;
+Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 
-Πtran = zeros(length(lats),length(xc));
-Πsum = zeros(length(lats));
-for i in 1:length(lats)
-    path_fname = string(dirout,"Etran_AMZ3_",@sprintf("%04.1f",lats[i]),"_hvis_12d_U1_0.40_U2_0.0.jld2")
+Πtran = zeros(length(runsel),length(xc));
+Πmin  = zeros(length(runsel));
+Πmax  = zeros(length(runsel));
+Πsum  = zeros(length(runsel));
+LATSS = zeros(length(runsel));
+for i in 1:length(runsel)
 
-    @load path_fname Πnhxa Πzxa Πxxa    
+    fnames = @sprintf("Etran_AMZexpt%02i.%02i.jld2",mainnm,runsel[i]) 
+    path_fname = string(dirout,fnames)
+
+    @load path_fname Πnhxa Πzxa Πxxa LAT
+    LATSS[i] = LAT
     Πtran[i,:] = Πnhxa .+ Πzxa .+ Πxxa
 
-    Πsum[i] = sum(Πtran[i,Ix]*DX)
+    Πsum[i] = sum(Πtran[i,Ix]*DX)/sum(length(Ix)*DX)
+    Πmin[i],Πmax[i] = extrema(Πtran[i,Ix])
+    #Πmax[i] = max(Πtran[i,Ix])
 end
 
 fig1 = Figure()
 axa = Axis(fig1[1, 1])
-scatterlines!(axa,Πsum,lats)
+scatterlines!(axa,Πsum,LATSS)
+scatterlines!(axa,Πmax,LATSS)
+scatterlines!(axa,Πmin,LATSS)
 fig1
