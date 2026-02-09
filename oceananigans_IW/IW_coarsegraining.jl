@@ -500,8 +500,8 @@ path_fname = string(dirout,fnames)
 DX = xc[2] - xc[1]
 
 # use data away from forcing and sponges
-#xlims = [75,500]*1e3;
-xlims = [0,700]*1e3;
+xlims = [75,500]*1e3;
+#xlims = [0,700]*1e3;
 Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 
 Πtran = zeros(length(runsel),length(xc));
@@ -524,8 +524,13 @@ for i in 1:length(runsel)
 end
 
 fig1 = Figure()
-axa = Axis(fig1[1, 1])
-scatterlines!(axa,Πsum,LATSS)
-scatterlines!(axa,Πmax,LATSS)
-scatterlines!(axa,Πmin,LATSS)
+axa = Axis(fig1[1,1], title="Π for τ=9 hr",xlabel="Π [W/kg]",ylabel="latitude [°N]");  
+scatterlines!(axa,Πsum,LATSS, linestyle=:solid, color = :black, linewidth=3,label="mean")
+scatterlines!(axa,Πmax,LATSS, linestyle=:dash, color = :red, linewidth=3,label="max")
+scatterlines!(axa,Πmin,LATSS, linestyle=:dash, color = :deepskyblue, linewidth=3,label="min")
+axislegend(axa, position = :rt)
 fig1
+
+
+if figflag==1; save(string(dirfig,"max_min_ave_PI_lat.png"), fig1)
+end
