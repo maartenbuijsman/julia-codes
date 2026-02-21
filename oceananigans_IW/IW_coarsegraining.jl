@@ -41,30 +41,31 @@ const T2 = 12+25.2/60
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
 
 runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
-#runnms = [1]
 
-oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+runnms = [1] # select if oldnm=1
 
 # file name ===========================================
-#runnm  = 38
-
-for runnm in runnms
+#####for runnm in runnms
     #LAT = LATS[runnm-37];
     #println("lat is ",LAT,"------------------------------------") 
     #end
 
 if oldnm==1
     # function of latitude
-    lat = 0
+    LAT = LATS[1];
 
-   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
-    fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
+   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"
+   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"  # hydro
+     fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.30.nc",LAT); titlenm = "mode 1+2"  # hydro   
+   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"     # nonhydro
+   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.30.nc",LAT); titlenm = "mode 1+2"    # nonhydro
 
     fname_short2 = fnames[1:33]
     filename = string(dirsim,fnames)
 
-    LAT = LATS[1];
+    titlenm = string(LAT,"°N; ",titlenm)    
+    titlenm2 = string(LAT,"°N")            
 else
     # file ID
     mainnm = 1
@@ -318,6 +319,8 @@ Iday = findall(item -> item >= t1 && item<= t2, tday)
 Πza = dropdims(mean(Πz[Iday,:,:],dims=1),dims=1);
 Πnha = dropdims(mean(Πnh[Iday,:,:],dims=1),dims=1);
 
+ylim = -500;
+
 fig1 = Figure(size = (600, 800))
 axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short2,"; ",titlenm2));  ylims!(axa, ylim, 0)
 axb = Axis(fig1[2, 1],title=string("Piz [W/kg] "));  ylims!(axb, ylim, 0)
@@ -369,7 +372,7 @@ dzz = reshape(dz,1,:)
 Πzxa  = dropdims(sum(Πza.*dzz,dims=2),dims=2);
 Πnhxa = dropdims(sum(Πnha.*dzz,dims=2),dims=2);
 
-#fig = Figure(); 
+#
 ax2 = Axis(fig[1, 2], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
 lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
@@ -377,10 +380,50 @@ lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
 lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum")
 axislegend(ax2,position = :rt; framevisible = false )
 fig
+#
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"PIz_PIx_",fname_short2,".png"), fig)
 end
+
+# smooth some data ????
+using Smoothers
+NP = 200 # number of points to average over dx=200 m
+NP = 10 #200*200/4000 for 4 km
+Πxxa2 = convert(Vector{Float64}, coalesce.(sma(Πxxa, NP, true), 0.0))
+Πzxa2 = convert(Vector{Float64}, coalesce.(sma(Πzxa, NP, true), 0.0))
+Πnhxa2 = convert(Vector{Float64}, coalesce.(sma(Πnhxa, NP, true), 0.0))
+
+#fig = Figure(); 
+fig = Figure(size = (600, 250));
+ ax2 = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
+lines!(ax2,xc/1e3,Πxxa2,color=:red, label="Πx")
+lines!(ax2,xc/1e3,Πzxa2,color=:green, label="Πz")
+lines!(ax2,xc/1e3,Πnhxa2,color=:black, label="Πnh")
+lines!(ax2,xc/1e3,Πnhxa2+Πzxa2+Πxxa2,color=:orange, label="sum", linewidth = 3)
+axislegend(ax2,position = :rt; framevisible = false )
+xlims!(ax2, 0, 500)
+ylims!(ax2, -0.6e-4, 2.2e-4)
+fig
+#
+
+#= save only the pi(x) UNSMOOTHED
+fig = Figure(size = (300, 450));
+ ax2 = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
+lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
+lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
+lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
+lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum", linewidth = 3)
+axislegend(ax2,position = :rt; framevisible = false )
+xlims!(ax2, 0, 700)
+ylims!(ax2, -1e-4, 1e-4)
+fig
+=#
+
+if figflag==1; save(string(dirfig,"PIx_",fname_short2,".png"), fig)
+end
+
+stop()
 
 # save f(x) profiles
 fnameout = string("Etran_",fname_short2,".jld2")
@@ -388,12 +431,32 @@ fnameout = string("Etran_",fname_short2,".jld2")
 jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
 
-end # runnums
+#####end # runnums
 
 stop()
 
+#= test
+using Smoothers
+
+# Generate some noisy data
+x = 1:100
+y = sin.(x .* 0.1) .+ randn(100) .* 0.5
+
+# Apply LOESS smoothing
+# The 'span' parameter (0.2 in this case) controls the degree of smoothing
+#smoothed_y = loess(y, span=0.2)
+ysmooth = sma(y, 10, true)
+#Igood = findall(!ismissing, smoothed_y)
+ysmooth2 = convert(Vector{Float64}, coalesce.(ysmooth, 0.0))
 
 
+# Plot the original and smoothed data
+fig = Figure(); 
+ax = Axis(fig[1, 1])
+lines!(ax,x, y)
+lines!(ax,x, ysmooth2)
+fig
+=#
 
 ## load and compare the CG transects =======================================
 
@@ -422,7 +485,7 @@ for i in 1:2
     Πsum = Πsum .+ Πnhxa .+ Πzxa .+ Πxxa
 end
 
-
+# old stuff? new stuff is below
 # Open the JLD2 file
 path_fname = string(dirout,"Etran_",fnamal[3],".jld2");
 
@@ -500,8 +563,8 @@ path_fname = string(dirout,fnames)
 DX = xc[2] - xc[1]
 
 # use data away from forcing and sponges
-xlims = [75,500]*1e3;
-#xlims = [0,700]*1e3;
+#xlims = [75,500]*1e3;
+xlims = [0,700]*1e3;
 Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 
 Πtran = zeros(length(runsel),length(xc));

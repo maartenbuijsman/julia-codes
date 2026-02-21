@@ -1,0 +1,23 @@
+AMZexpt01.31; max total flux is  5.88 kW/m
+AMZexpt01.31; max D2+HH flux is  5.38 kW/m
+
+AMZexpt01.32; max total flux is  5.89 kW/m
+AMZexpt01.32; max D2+HH flux is  5.40 kW/m
+
+AMZexpt01.33; max total flux is  5.95 kW/m
+AMZexpt01.33; max D2+HH flux is  5.45 kW/m
+
+AMZexpt01.34; max total flux is  6.19 kW/m
+AMZexpt01.34; max D2+HH flux is  5.67 kW/m
+
+AMZexpt01.35; max total flux is  6.60 kW/m
+AMZexpt01.35; max D2+HH flux is  6.03 kW/m
+
+AMZexpt01.36; max total flux is  7.19 kW/m
+AMZexpt01.36; max D2+HH flux is  6.56 kW/m
+
+AMZexpt01.37; max total flux is  7.81 kW/m
+AMZexpt01.37; max D2+HH flux is  7.12 kW/m
+
+lats = [0 5 10 20 30 40 50]
+ftot = [5.88 5.89 5.95 6.19 6.6 7.19 7.81]
