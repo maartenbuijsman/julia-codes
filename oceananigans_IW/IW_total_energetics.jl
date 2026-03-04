@@ -33,13 +33,19 @@ include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
+#=
 #      38 39 40 41 42 43 44 45 46 47 48    49
+mainnm = 1
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
-
 runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
+#runnms = [1]
+=#
+
+mainnm = 3
+LATS = [0];
 runnms = [1]
 
 for runnm in runnms
@@ -62,7 +68,6 @@ if oldnm==1
     LAT = LATS[1];
 else
     # file ID
-    mainnm = 1
     #runnm  = 47
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
@@ -70,7 +75,7 @@ else
     fname_short2 = fnames
     filename = string(dirsim,fnames,".nc")
 
-    LAT = LATS[runnm-37];
+    LAT = LATS[runnm-minimum(runnms)+1];
     println("lat is ",LAT,"------------------------------------") 
 
 end

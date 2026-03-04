@@ -37,13 +37,19 @@ const T2 = 12+25.2/60
 
 # file name ===========================================
 
+# 01 expts
+mainnm = 1
+
 #      38 39 40 41 42 43 44 45 46 47 48    49
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
-
 runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
-runnms = [1] # select if oldnm=1
+# 03 expts
+oldnm  = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+
+mainnm = 3    
+runnm  = 1 
+LAT    = 0
 
 # file name ===========================================
 #####for runnm in runnms
@@ -68,14 +74,11 @@ if oldnm==1
     titlenm2 = string(LAT,"°N")            
 else
     # file ID
-    mainnm = 1
-
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
     fname_short2 = fnames
     filename = string(dirsim,fnames,".nc")
 
-    LAT = LATS[runnm-37];
     println("lat is ",LAT,"------------------------------------") 
 
     titlenm = string(LAT,"°N; mode 1")    
@@ -386,13 +389,15 @@ fig
 if figflag==1; save(string(dirfig,"PIz_PIx_",fname_short2,".png"), fig)
 end
 
-# smooth some data ????
+#= smooth some data ????
 using Smoothers
 NP = 200 # number of points to average over dx=200 m
 NP = 10 #200*200/4000 for 4 km
 Πxxa2 = convert(Vector{Float64}, coalesce.(sma(Πxxa, NP, true), 0.0))
 Πzxa2 = convert(Vector{Float64}, coalesce.(sma(Πzxa, NP, true), 0.0))
 Πnhxa2 = convert(Vector{Float64}, coalesce.(sma(Πnhxa, NP, true), 0.0))
+
+xlim = 500
 
 #fig = Figure(); 
 fig = Figure(size = (600, 250));
@@ -402,12 +407,14 @@ lines!(ax2,xc/1e3,Πzxa2,color=:green, label="Πz")
 lines!(ax2,xc/1e3,Πnhxa2,color=:black, label="Πnh")
 lines!(ax2,xc/1e3,Πnhxa2+Πzxa2+Πxxa2,color=:orange, label="sum", linewidth = 3)
 axislegend(ax2,position = :rt; framevisible = false )
-xlims!(ax2, 0, 500)
+xlims!(ax2, 0, xlim)
 ylims!(ax2, -0.6e-4, 2.2e-4)
 fig
-#
+=#
 
-#= save only the pi(x) UNSMOOTHED
+# save only the pi(x) UNSMOOTHED
+xlim = 1400
+#xlim = 700
 fig = Figure(size = (300, 450));
  ax2 = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
@@ -415,10 +422,10 @@ lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
 lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
 lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum", linewidth = 3)
 axislegend(ax2,position = :rt; framevisible = false )
-xlims!(ax2, 0, 700)
+xlims!(ax2, 0, xlim)
 ylims!(ax2, -1e-4, 1e-4)
 fig
-=#
+#
 
 if figflag==1; save(string(dirfig,"PIx_",fname_short2,".png"), fig)
 end
