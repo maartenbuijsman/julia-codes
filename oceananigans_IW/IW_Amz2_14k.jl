@@ -28,7 +28,7 @@ pathout  = "/data3/mbui/ModelOutput/IW/"
 
 # file ID
 mainnm = 3
-runnm  = 1
+runnm  = 2
 
 fid = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -87,7 +87,8 @@ max_Δt = 10minutes
 
 start_time = 0days
 #stop_time  = 2days
-stop_time  = 15days
+#stop_time  = 15days
+stop_time  = 20days
 
 println("stop_time: ",stop_time,"; lat: ",lat,"; select mode: ",numM)
 
@@ -121,7 +122,8 @@ fig
 #numM = 1;       
 Nz = length(zfw)-1;
 #L  = 700_000;
-L  = 1400_000;
+#L  = 1400_000;
+L  = 2000_000;
 Nx = Integer(L/DX);
 H  = abs(round(minimum(zfw)));
 TM2 = (12+25.2/60)*3600 # M2 tidal period
