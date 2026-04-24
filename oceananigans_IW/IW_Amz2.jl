@@ -21,7 +21,8 @@ println("number of threads is ",Threads.nthreads())
 pathname = "/home/mbui/Documents/julia-codes/functions/";
 include(string(pathname,"include_functions.jl"));
 
-pathout  = "/data3/mbui/ModelOutput/IW/"
+#pathout  = "/data3/mbui/ModelOutput/IW/"
+pathout  = "/home/mbui/ModelOutput/IW/"
 
 ###########------ OUTPUT FILE NAME ------#############
 
@@ -38,7 +39,7 @@ println("running ",fid)
 #numM = [1 2];    
 #Usur1, Usur2 = 0.4, 0.3
 
-#numM = [1];    
+numM = [1];    
 Usur1, Usur2 = 0.4, 0.0
 
 #numM = [2];    
@@ -93,7 +94,7 @@ println("stop_time: ",stop_time,"; lat: ",lat,"; select mode: ",numM)
 ###########------ LOAD N and grid params ------#############
 
 # load profile created by AMZ_stratification_profile.jl
-dirin     = "/data3/mbui/ModelOutput/IW/forcingfiles/";
+dirin     = string(pathout,"forcingfiles/");
 fnamegrid = "N2_amz1.jld2";
 path_fname = string(dirin,fnamegrid);
 
@@ -392,7 +393,7 @@ model = NonhydrostaticModel(; grid, coriolis=fcor,
 # order?
 #                closure = ScalarDiffusivity(ν=1e-6, κ=1e-6),
 #                closure = ScalarDiffusivity(ν=1e-4, κ=1e-4),
-model = NonhydrostaticModel(; grid, coriolis=fcor,
+model = NonhydrostaticModel(grid; coriolis=fcor,
                 advection = Centered(order=4),
                 closure = ScalarDiffusivity(ν=1e-2, κ=1e-2),
                 tracers = :b,
