@@ -35,26 +35,27 @@ pathout = "/home/mbui/ModelOutput/IW/"
 
 ###########------ OUTPUT FILE NAME ------#############
 
-mainnm = 1
-runnm  = 49
+mainnm = 4
+runnm  = 3
 fid    = @sprintf("AMZexpt%02i.%02i", mainnm, runnm)
 println("running ", fid)
 
-numM   = [1];
+numM = [1];
 Usur1, Usur2 = 0.4, 0.0
 
-DX  = 4000;
-lat = 35
+#DX  = 4000;
+#lat = 35
 
-lats   = [0, 5, 10, 20, 30, 40, 50]
-ftot   = [5.88, 5.89, 5.95, 6.19, 6.6, 7.19, 7.81]
-fracs2 = [0.151, 0.150, 0.148, 0.141, 0.129, 0.112, 0.091];
-lines(lats, fracs2)
-lines(lats, ftot)
-lines(fracs2, ftot)
+DX  = 100;
+lat = 0
 
-max_Δt     = 10minutes
-Δt         = 1minutes
+# 4-km
+#max_Δt     = 10minutes
+#Δt         = 1minutes
+
+# 200 m
+max_Δt = 2minutes  
+Δt     = 15seconds   # nonhyd
 start_time = 0days
 stop_time  = 15days
 
@@ -321,8 +322,10 @@ b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 
 model = NonhydrostaticModel(grid;
     coriolis          = fcor,
-    advection         = Centered(order=4),
-    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+#    advection         = Centered(order=4),
+#    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+    advection         = WENO(),
+    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
     tracers           = :b,
     buoyancy          = BuoyancyTracer(),
     background_fields = (; b=B),
@@ -337,7 +340,7 @@ progress(sim) = @printf(
     iteration(sim), prettytime(sim), prettytime(sim.run_wall_time),
     sim.Δt, AdvectiveCFL(sim.Δt)(sim.model), DiffusiveCFL(sim.Δt)(sim.model))
 
-simulation.callbacks[:progress] = Callback(progress, IterationInterval(50))
+simulation.callbacks[:progress] = Callback(progress, IterationInterval(100))
 
 fields = Dict("u"   => model.velocities.u,
               "v"   => model.velocities.v,
@@ -352,7 +355,7 @@ simulation.output_writers[:field_writer] =
                  schedule=TimeInterval(15minutes),
                  overwrite_existing=true)
 
-conjure_time_step_wizard!(simulation, cfl=1.0, max_Δt=max_Δt)
+conjure_time_step_wizard!(simulation, cfl=0.8, max_Δt=max_Δt)
 
 model.clock.iteration = 0
 model.clock.time      = 0

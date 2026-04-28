@@ -20,13 +20,14 @@ if WIN==1
     dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
     dirfig = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\figs\\";  
     dirout = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\diagout\\";  
-    dirEIG = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
+    dirforce = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
 else
     pathname = "/home/mbui/Documents/julia-codes/functions/"
-    dirsim = "/data3/mbui/ModelOutput/IW/";
-    dirfig = "/data3/mbui/ModelOutput/figs/";
-    dirout = "/data3/mbui/ModelOutput/diagout/";
-    dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
+    pth0 = "/home/mbui/ModelOutput/"
+    dirsim = string(pth0,"IW/");
+    dirfig = string(pth0,"figs/");
+    dirout = string(pth0,"diagout/");
+    dirforce = string(pth0,"IW/forcingfiles/");
 end
 
 include(string(pathname,"include_functions.jl"))
@@ -44,9 +45,10 @@ runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 #runnms = [1]
 =#
 
-mainnm = 3
+mainnm = 4
+runnms = [2,3]
 LATS = [0];
-runnms = [1]
+
 
 for runnm in runnms
     println("runnm is ",runnm) 
@@ -144,9 +146,8 @@ end
 
 # load N2 pressure -----------------------------------------------------------
 # load profile created by AMZ_stratification_profile.jl
-dirin     = "/data3/mbui/ModelOutput/IW/forcingfiles/";
 fnamegrid = "N2_amz1.jld2";
-path_fname = string(dirin,fnamegrid);
+path_fname = string(dirforce,fnamegrid);
 
 # variables loaded
 # "N2w", "zfw", "lonsel", "latsel"
@@ -513,7 +514,7 @@ end
 # load eigen functions
 # ["f", "om2", "zfw", "N2w", "nonhyd", "kn", "Ln", "Cn", "Cgn", "Cen", "Weig", "Ueig", "Ueig2"]
 fnameEIG = @sprintf("EIG_amz_%04.1f.jld2",lat) 
-path_fname2 = string(dirEIG,fnameEIG);
+path_fname2 = string(dirforce,fnameEIG);
 
 #=
 datafile = jldopen(path_fname2, "r")
