@@ -35,27 +35,36 @@ pathout = "/home/mbui/ModelOutput/IW/"
 
 ###########------ OUTPUT FILE NAME ------#############
 
+#lat = 35
+lat = 0
+
 mainnm = 4
 runnm  = 3
 fid    = @sprintf("AMZexpt%02i.%02i", mainnm, runnm)
 println("running ", fid)
 
+###########------ INPUT PARAMETERS ------#############
+
+L   = 700_000;                  # domain length
+TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
+
+# mode 1 and 2 surface velocities
 numM = [1];
-Usur1, Usur2 = 0.4, 0.0
+Usur1, Usur2 = 0.4, 0.0  
 
-#DX  = 4000;
-#lat = 35
+#= #low resolution: 4-km
+DX  = 4000;
+max_Δt     = 10minutes
+Δt         = 1minutes
+=#
 
+# high resolution: 100/200 m
 DX  = 100;
-lat = 0
-
-# 4-km
-#max_Δt     = 10minutes
-#Δt         = 1minutes
-
-# 200 m
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
+
+# run duration and output frequency
+dtoutput = 15minutes 
 start_time = 0days
 stop_time  = 15days
 
@@ -73,22 +82,21 @@ close(gridfile)
 
 @load path_fname N2w zfw
 
+#= plot N2
 fig = Figure()
 ax1 = Axis(fig[1, 1])
 lines!(ax1, N2w, zfw)
 ylims!(ax1, -500, 0)
 fig
+=#
 
 ###########------ SIMULATION PARAMETERS ------#############
-
 Nz = length(zfw) - 1;
-L  = 700_000;
 Nx = Integer(L / DX);
 H  = abs(round(minimum(zfw)));
-
-TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 dx  = L / Nx
 
+# constants for nudging/relaxation layers
 const fnudl          = 0.002
 const fnudr          = 0.0001
 const Sp_Region_right = 200_000
@@ -102,12 +110,15 @@ pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center,
 
 pm = merge(pm, (Usur=[Usur1, Usur2], T=TM2));
 
+#= play with KE strength
 rhos     = 1034
 KEs1     = 15.0
 KEs2     = 10.0
 Usur1tst = sqrt(4 * KEs1 / rhos);
 Usur2tst = sqrt(4 * KEs2 / rhos);
 @printf("Based on KE, U1 = %.2f, U2 = %.2f\n", Usur1tst, Usur2tst)
+=#
+
 println("Δx = ", pm.L / pm.Nx / 1e3, " km")
 println("Δz = ", pm.H / pm.Nz, " m on average")
 
@@ -138,6 +149,7 @@ println("fraction gauss_width/L1 is ", @sprintf("%5.3f", gausW_width / Ln[1]))
 
 zcw = zfw[1:end-1] / 2 + zfw[2:end] / 2;
 
+#= plot Ueig
 fig = Figure()
 ax1 = Axis(fig[1, 1])
 lines!(ax1, Weig[:, 1], zfw)
@@ -146,6 +158,7 @@ ax2 = Axis(fig[1, 2])
 lines!(ax2, Ueig[:, 1], zcw)
 lines!(ax2, Ueig[:, 2], zcw)
 fig
+=#
 
 ###########------ PRE-COMPUTE INTERPOLATED PROFILES ON CPU ------#############
 #=
@@ -347,12 +360,12 @@ fields = Dict("u"   => model.velocities.u,
               "w"   => model.velocities.w,
               "b"   => model.tracers.b,
               "pNHS" => model.pressures.pNHS,
-              "pHY"  => model.pressures.pHY)
+              "pHY"  => model.pressures.pHY′) #′ is not an error!
 
 filenameout = string(pathout, fid, ".nc")
 simulation.output_writers[:field_writer] =
     NetCDFWriter(model, fields, filename=filenameout,
-                 schedule=TimeInterval(15minutes),
+                 schedule=TimeInterval(dtoutput),
                  overwrite_existing=true)
 
 conjure_time_step_wizard!(simulation, cfl=0.8, max_Δt=max_Δt)
