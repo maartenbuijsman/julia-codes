@@ -46,12 +46,13 @@ runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 =#
 
 mainnm = 4
-runnms = [2,3]
+runnms = 1
 LATS = [0];
 
 
-for runnm in runnms
-    println("runnm is ",runnm) 
+#for runnm in runnms
+    runnm = runnms
+        println("runnm is ",runnm) 
 
 # file name ===========================================
 
@@ -85,6 +86,8 @@ end
 # load simulations ===========================================
 
 ds = NCDataset(filename,"r");
+#println(ds)
+println(keys(ds))
 
 tsec = ds["time"][:];
 tday = tsec/24/3600;
@@ -109,18 +112,33 @@ Nt = length(tday);
 
 # a loop is faster than permuting?
 uf = zeros(Nt,Nx+1,Nz);
-vf = zeros(Nt,Nx,Nz);
+vc = zeros(Nt,Nx,Nz);
 wf = zeros(Nt,Nx,Nz+1);
 bc = zeros(Nt,Nx,Nz);
+pHY = zeros(Nt,Nx,Nz);
+pNH = zeros(Nt,Nx,Nz);
 
 for i in 1:Nt
-    println(i)
+    if rem(i,100)==0; println(i); end
     uf[i,:,:] = ds["u"][:, :, i];
-    vf[i,:,:] = ds["v"][:, :, i];
+    vc[i,:,:] = ds["v"][:, :, i];
     wf[i,:,:] = ds["w"][:, :, i];
     bc[i,:,:] = ds["b"][:, :, i];
+    pHY[i,:,:] = ds["pHY"][:, :, i];    
+    pNH[i,:,:] = ds["pNHS"][:, :, i];        
 end
-vc = vf; # all values at centers along x
+
+rho0=1020; 
+grav=9.81; 
+
+# total pressure in N/m2
+#ptot = (pHY.+pNH)*rho0/grav;
+#ptot = (pHY)*rho0/grav;
+ptot = (pNH)*rho0/grav;    # NH pressure only
+
+# clear variables from memory
+pHY= nothing; pNH = nothing; 
+GC.gc()
 
 # close the nc file
 close(ds)
@@ -129,6 +147,19 @@ close(ds)
 # v is already at x,W centers
 uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2; 
 wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
+
+# clear variables from memory
+uf= nothing; wf = nothing; 
+GC.gc()
+
+# plot surface velocity to check effect of resolution
+idx, d = nearest_index(xc, 369e3)
+fig1 = Figure(size=(600,600))
+ax = Axis(fig1[1, 1],limits = (200, 500, nothing, nothing),title = string(fname_short2,"; lat=",LAT,"; u [m/s]"), xlabel = "x [km]", ylabel = "u [m/s]")
+lines!(ax,xc/1e3,uc[end,:,1])
+scatter!(ax, [xc[idx]/1e3], [uc[end, idx, 1]], color = :red, markersize = 12)
+fig1
+
 
 # some more hovmullers
 fig1 = Figure(size=(600,600))
@@ -144,7 +175,7 @@ end
 
 #stop()
 
-# load N2 pressure -----------------------------------------------------------
+# load N2 profile -----------------------------------------------------------
 # load profile created by AMZ_stratification_profile.jl
 fnamegrid = "N2_amz1.jld2";
 path_fname = string(dirforce,fnamegrid);
@@ -181,12 +212,28 @@ fig
 # units b: [m/s2]
 # because of kinematic pressure pk = p/rho0 = kg*m2/s2*1/m3 *m3/kg = m2/s2
 
-rho0=1020; 
-grav=9.81; 
+# hydrostatic p from b compares well with pHY*rho0/grav
+# ptot = (pHY+pNH)*rho0/grav
+# remove time-mean and then depth-mean
 
-# hydrostatic pressure
+# remove time-mean
+ptota = mean(ptot,dims=1);
+ptotp = ptot .- ptota;
+
+# remove depth-mean
 dzz = reshape(dz,1,1,:);                                    # shape: (1, length(zc), 1)
+ptotpa  = sum(ptotp.*dzz,dims=3)/H; # depth-mean pressure
+pcp = ptotp .- ptotpa;              # the perturbation pressure!
+
+#check integral of perturbation pressure should be zero 
+sum(pcp[200,50,:].*dz)   
+Figure(); lines(tday, pcp[:,50,end])
+
 N2cc = reshape(N2c,1,1,:);
+
+#=
+# indirect method, which compares well with pHY
+# hydrostatic pressure
 pfi = cumsum(bc[:,:,end:-1:1].*dzz[:,:,end:-1:1], dims=3);  # reverse, z surface down, at faces
 pfi = pfi * -1 * rho0 / grav;                               # convert to pert pressure
 
@@ -204,6 +251,73 @@ pcp = pc .- pa;             # the perturbation pressure!
 #check integral of perturbation pressure should be zero 
 sum(pcp[200,50,:].*dz)   
 Figure(); lines(tday, pcp[:,50,end])
+
+
+# compare diagnosed hydrostatic pressure, with b based pressure
+# pHY needs to  be multiplied with rho0 / grav
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+#limits!(ax1, nothing, nothing, -200, 0)
+lines!(ax1,pHY[end,idx,:]*rho0/grav, zc, color = :black)
+lines!(ax1,pNH[end,idx,:]*rho0/grav, zc, color = :blue)
+lines!(ax1,(pHY[end,idx,:].+pNH[end,idx,:])*rho0/grav, zc, color = :magenta)
+lines!(ax1,pc[end,idx,:], zc, color = :red)
+lines!(ax1,(pHY[end,idx,:]*rho0/grav .- pc[end,idx,:])./pc[end,idx,:]*100, zc, color = :green)
+fig
+
+# plot NH pressure
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+#limits!(ax1, nothing, nothing, -200, 0)
+lines!(ax1,xc/1e3,pNH[end,:,1]*rho0/grav, color = :blue)
+lines!(ax1,xc/1e3,pHY[end,:,1]*rho0/grav, color = :red)
+lines!(ax1,xc/1e3,(pHY[end,:,1].+pNH[end,:,1])*rho0/grav, color = :magenta)
+
+#lines!(ax1,xc/1e3,pNH[end,:,end]*rho0/grav, color = :red)
+
+ax2 = Axis(fig[2,1])
+lines!(ax2,xc/1e3,pNH[end,:,end]*rho0/grav, color = :blue)
+lines!(ax2,xc/1e3,pHY[end,:,end]*rho0/grav, color = :red)
+lines!(ax2,xc/1e3,(pHY[end,:,end].+pNH[end,:,end])*rho0/grav, color = :magenta)
+fig
+
+# check integral of pHY and pNH
+# depth-integral has horizontal structure ...
+ptot = pHY.+pNH;
+
+# remove time-mean
+ptota = mean(ptot,dims=1);
+ptotp = ptot .- ptota;
+
+# check time-mean profile
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+#limits!(ax1, nothing, nothing, -200, 0)
+lines!(ax1,dropdims(ptota[:,idx,:],dims=1)*rho0/grav, zc, color = :black)
+fig
+#pHNH = pHY;
+
+# check x-integral
+ptotix = dropdims(sum(ptotp,dims=2),dims=2);
+
+# remove depth-integral (not really needed)
+ptotpp = ptotp .- sum(ptotp,dims=2)
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+lines!(ax1,ptotix[end,:]*rho0/grav, zc, color = :black)
+fig
+
+# check depth-integral
+sss = dropdims(sum(ptotpp.*dzz, dims=3), dims=3)
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+lines!(ax1,xc/1e3,sss[end,:], color = :magenta)
+fig
+=#
+
+#stop()
 
 # filter variables  ======================================================
 # uc2: highpassed D2 + HH
@@ -337,7 +451,6 @@ Fx2 = Fxh + Fxl
 # create some figures
 ylimE = [0 75]
 ylimA = [0 75]
-ylimf = [0 15]
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
@@ -374,15 +487,20 @@ lines!(ax3, xc/1e3, Fxl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
 
 xlims!(ax3, 0, Ldom/1e3)
+#ylimf = [0 15]
+ylimf = [-2 15]
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
 
 fig
 
 # Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
+if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
+#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_HYONLY_v3.png"), fig)
+#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
 end
 
+stop()
 
 println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
@@ -460,7 +578,7 @@ fnameout = string("energetics_",fname_short2,".jld2")
 #jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
 
-end # runnms
+#end # runnms
 
 
 # nonhyd pressure

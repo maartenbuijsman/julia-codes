@@ -25,6 +25,12 @@ function stop()
     throw(error("stop here"))
 end
 
+# minimum distance
+function nearest_index(x, x0)
+    dist = abs.(x .- x0)
+    idx  = argmin(dist)
+    return idx, dist[idx]
+end
 
 # old
 #include(string(pathname,"fft_spectra.jl"));                  # NOT TESTED!! 

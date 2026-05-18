@@ -347,7 +347,7 @@ fields = Dict("u"   => model.velocities.u,
               "w"   => model.velocities.w,
               "b"   => model.tracers.b,
               "pNHS" => model.pressures.pNHS,
-              "pHY"  => model.pressures.pHY′)
+              "pHY"  => model.pressures.pHY)
 
 filenameout = string(pathout, fid, ".nc")
 simulation.output_writers[:field_writer] =
