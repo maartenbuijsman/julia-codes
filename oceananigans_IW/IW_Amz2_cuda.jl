@@ -208,7 +208,7 @@ numM_cu = CuArray(Int32.(numM))      # GPU-friendly integer array
 # --- pack all scalar + CuArray params into a single NamedTuple --------------
 #     Every field must be isbits (scalars) or a CuArray (GPU pointer = isbits).
 pm_gpu = (
-    lat          = Int32(lat),
+    lat          = Float64(lat),
     Nz           = Int32(Nz),
     Nx           = Int32(Nx),
     H            = Float64(H),
