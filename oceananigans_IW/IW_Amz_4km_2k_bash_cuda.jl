@@ -1,5 +1,9 @@
-#= IW_Amz_bash_cuda.jl
-Maarten Buijsman, USM DMS, 2026-5-18
+#= IW_Amz_4km_2k_bash_cuda.jl
+Maarten Buijsman, USM DMS, 2026-5-19
+    03. series
+    for mode 1 M2, dx=4km, 2000km, 20days
+    Amz stratification
+
 use realistic N(z) and eigenfunctions generated in testing_sturmL.jl
 adopt closed L and R BCOs with sponge layers
 IW forcing is with body Gaussian force
@@ -63,28 +67,30 @@ println("running ", fid)
 
 ###########------ INPUT PARAMETERS ------#############
 
-L   = 700_000;                   # domain length
 TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 
 # mode 1 and 2 surface velocities
 numM = [1];
 Usur1, Usur2 = 0.4, 0.0  
 
-#= #low resolution: 4-km
+#low resolution: 4-km
+L   = 2000_000;                   # domain length
 DX  = 4000;
 max_Δt     = 10minutes
 Δt         = 1minutes
-=#
 
-# high resolution: 100/200 m
+
+#= #high resolution: 100/200 m
+L   = 700_000;                   # domain length
 DX  = 100;
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
+=#
 
 # run duration and output frequency
 dtoutput   = 15minutes 
 start_time = 0days
-stop_time  = 15days
+stop_time  = 20days
 
 println("stop_time: ", stop_time, "; lat: ", lat, "; select mode: ", numM)
 
@@ -353,10 +359,10 @@ b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 
 model = NonhydrostaticModel(grid;
     coriolis          = fcor,
-#    advection         = Centered(order=4),
-#    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-    advection         = WENO(),
-    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
+    advection         = Centered(order=4),
+    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+#    advection         = WENO(),
+#    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
     tracers           = :b,
     buoyancy          = BuoyancyTracer(),
     background_fields = (; b=B),
