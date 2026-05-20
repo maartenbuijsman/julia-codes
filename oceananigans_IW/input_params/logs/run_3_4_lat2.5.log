@@ -1,0 +1,24 @@
+[ Info: Oceananigans will use 64 threads
+number of threads is 64
+mainnm = 3, runnm = 4, lat = 2.5
+running AMZexpt03.04
+stop_time: 1.728e6; lat: 2.5; select mode: [1]
+["N2w", "zfw", "lonsel", "latsel"]
+Δx = 4.0 km
+Δz = 37.38317757009346 m on average
+EIG_AMZexpt03.04_LAT_02.5.jld2 Ueig data saved ........ 
+ERROR: LoadError: stop here
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:44
+ [2] stop()
+   @ Main ~/Documents/julia-codes/functions/include_functions.jl:25
+ [3] top-level scope
+   @ ~/Documents/julia-codes/oceananigans_IW/IW_Amz_4km_2k_bash_cuda.jl:170
+ [4] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [5] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [6] _start()
+   @ Base ./client.jl:550
+in expression starting at /home/mbui/Documents/julia-codes/oceananigans_IW/IW_Amz_4km_2k_bash_cuda.jl:170

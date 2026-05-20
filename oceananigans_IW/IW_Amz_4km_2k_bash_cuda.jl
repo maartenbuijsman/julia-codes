@@ -161,10 +161,10 @@ nonhyd = 1;
 kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
     sturm_liouville_noneqDZ_norm(zfw, N2w, pm.f, pm.ω, nonhyd);
 
-fnameEIG = @sprintf("EIG_amz_%04.1f.jld2", lat)
+fnameEIG = @sprintf("EIG_AMZexpt%02i.%02i_LAT_%04.1f.jld2", mainnm, runnm, lat)
 f_save   = copy(fcor.f);
 om2      = copy(ω);
-jldsave(string(dirin, fnameEIG); f=f_save, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2);
+jldsave(string(dirin, fnameEIG); f=f_save, om2, zfw, N2w, nonhyd, kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2, lat);
 println(string(fnameEIG), " Ueig data saved ........ ")
 
 Lstr = @sprintf("%5.1f", Ln[1] / 1e3)
