@@ -4,7 +4,7 @@
 #
 # Reads params*.jl, then loops over the (lat, runnm) pairs,
 # launching a fresh Julia process for each one so that the GPU
-# is fully released between runs.
+# is fully released between runs. 
 #
 # Usage:
 #   chmod +x run_batch.sh
