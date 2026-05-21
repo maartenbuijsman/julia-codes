@@ -14,7 +14,7 @@
 #   sbatch run_batch.sh
 # ============================================================
 
-#SBATCH --job-name=IW_Amz2
+#SBATCH --job-name=IW_Amz2 
 #SBATCH --output=logs/IW_Amz2_%j.log
 #SBATCH --error=logs/IW_Amz2_%j.err
 #SBATCH --nodes=1
