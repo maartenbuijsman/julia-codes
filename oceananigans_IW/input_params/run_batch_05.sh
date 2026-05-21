@@ -25,12 +25,14 @@
 #SBATCH --partition=gpu
 
 # ---- configuration ----------------------------------------
-PARAMS_FILE="${1:-params_IW_Amz_4km_2k_bash_cuda.jl}"          # first argument or default
-JL_PTH="/home/mbui/Documents/julia-codes/oceananigans_IW"      # path of .jl file
-JULIA_SCRIPT="${JL_PTH}/IW_Amz_4km_2k_bash_cuda.jl"            # path to simulation script
-JULIA_BIN="${JULIA:-julia}"            # honour $JULIA env var if set
+MAINNM="05"
+JULIA_SCRIPT="IW_K1_4km_2k_bash_cuda.jl"      # JL script name
+JULIA_PTH="/home/mbui/Documents/julia-codes/oceananigans_IW"      # path of .jl file
+JULIA_PTHFNM="${JULIA_PTH}/${JULIA_SCRIPT}"   # path to simulation script
+JULIA_BIN="${JULIA:-julia}"                   # honour $JULIA env var if set
 JULIA_THREADS="${JULIA_THREADS:-$(nproc)}"    # number of Julia threads (auto-detects number of available cores)
-#JULIA_THREADS="${JULIA_THREADS:-4}"    # number of Julia threads
+#JULIA_THREADS="${JULIA_THREADS:-4}"           # number of Julia threads
+PARAMS_FILE="${1:-params_${MAINNM}.jl}"       # first argument or default
 LOG_DIR="logs"
 # -----------------------------------------------------------
 
@@ -39,7 +41,7 @@ mkdir -p "$LOG_DIR"
 echo "=================================================="
 echo "Batch run started: $(date)"
 echo "Parameter file   : $PARAMS_FILE"
-echo "Julia script     : $JULIA_SCRIPT"
+echo "Julia script     : $JULIA_PTHFNM"
 echo "Julia binary     : $JULIA_BIN"
 echo "Julia threads    : $JULIA_THREADS"
 echo "=================================================="
@@ -81,7 +83,7 @@ while IFS=' ' read -r MAINNM RUNNM LAT; do
     $JULIA_BIN \
         --startup-file=no \
         --threads=$JULIA_THREADS \
-        "$JULIA_SCRIPT" \
+        "$JULIA_PTHFNM" \
         "$MAINNM" "$RUNNM" "$LAT" \
         2>&1 | tee "$RUNLOG"
 

@@ -1,0 +1,11 @@
+[ Info: Oceananigans will use 64 threads
+number of threads is 64
+mainnm = 5, runnm = 6, lat = 20.0
+running AMZexpt05.06
+stop_time: 1.728e6; lat: 20.0; select mode: [1]
+["N2w", "zfw", "lonsel", "latsel"]
+Δx = 4.0 km
+Δz = 37.38317757009346 m on average
+EIG_AMZexpt05.06_LAT_20.0.jld2 Ueig data saved ........ 
+Mode 1 wavelength is 281.0 km
+fraction gauss_width/L1 is 0.057
