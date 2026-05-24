@@ -45,13 +45,20 @@ runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 #runnms = [1]
 =#
 
-mainnm = 4
-runnms = 1
-LATS = [0];
+#=
+mainnm = 3
+runnms = [3 4   5 6  7  8  9  10 11];
+LATS   = [0 2.5 5 10 15 20 30 40 50];
+=#
+
+mainnm = 5
+runnms = [1 2   3 4  5  6  7  8 ];
+LATS   = [0 2.5 5 10 15 20 25 30];
 
 
-#for runnm in runnms
-    runnm = runnms
+
+for runnm in runnms
+#    runnm = runnms[1]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -132,9 +139,9 @@ rho0=1020;
 grav=9.81; 
 
 # total pressure in N/m2
-#ptot = (pHY.+pNH)*rho0/grav;
+ptot = (pHY.+pNH)*rho0/grav;
 #ptot = (pHY)*rho0/grav;
-ptot = (pNH)*rho0/grav;    # NH pressure only
+#ptot = (pNH)*rho0/grav;    # NH pressure only
 
 # clear variables from memory
 pHY= nothing; pNH = nothing; 
@@ -337,7 +344,14 @@ bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
 =#
 
 # remove the low frequency motions - if any?
-Tcut1 = 16/24;
+if mainnm == 3     # D2
+    Tcut1 = 16/24  #low
+    Tcut2 = 9/24   #high
+elseif mainnm == 5 # D1
+    Tcut1 = 30/24
+    Tcut2 = 20/24
+end
+
 uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
 vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
 pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
@@ -348,7 +362,6 @@ vll = vc - vc2;
 
 # remove high freq from tidal freq
 # this is D2
-Tcut2 = 9/24;
 uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
 vh = lowhighpass_butter(vc2,Tcut2,dt,Nf,"high");
 ph = lowhighpass_butter(pcp2,Tcut2,dt,Nf,"high");
@@ -495,12 +508,12 @@ axislegend(ax3, position = :rt)
 fig
 
 # Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
+#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
 #if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_HYONLY_v3.png"), fig)
-#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
+if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
 end
 
-stop()
+# stop()
 
 println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
@@ -544,19 +557,22 @@ hm.colorrange = (-6, 0)
 fig1   
 
 # average coefficients fall inside 75-500 km range
-#xlims = [75,500]*1e3; Im2 = 21;  # excl. generation on left and relaxation on right
-xlims = [0,480]*1e3; Im2 = 15;    # AMZ1 set up with specified boundaries excl. 20 km relaxation on right
-Plims = [-12 1];
+xlims = [0,1000]*1e3; # excl. generation on left and relaxation on right
+#xlims = [75,500]*1e3; # excl. generation on left and relaxation on right
+#xlims = [0,480]*1e3; # AMZ1 set up with specified boundaries excl. 20 km relaxation on right
 Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 KEoma = vec(mean(KEom[:,Ix],dims=2)); 
 
 # store the max M2 amplitude at the forcing boundary
 # use for normalization
-KEommax = KEom[Im2,Ix[1]]
+KEommax, maxidx = findmax(KEom)
+#KEommax = KEom[Im2,Ix[1]]
 println("KEomax=",log10(KEommax))
-println("omM2=",freq[Im2])
 
-axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),title="normalized power",xlabel="frequency [cpd]",ylabel="log10(KE) [m2/s2/cpd]");  
+
+Plims = [-12 1];
+axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),
+    title="normalized power",xlabel="frequency [cpd]",ylabel="log10(KE/KEmax)");  
 xlims!(axb, flim[1], flim[2])
 ylims!(axb, Plims[1], Plims[2])
 lines!(axb, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3)
@@ -575,10 +591,11 @@ end
 # save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
-#jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
+jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, 
+       KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
 
-#end # runnms
+end # runnms
 
 
 # nonhyd pressure

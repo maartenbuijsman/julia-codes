@@ -125,10 +125,14 @@ dx = L / Nx
 const fnudl           = 0.002
 const fnudr           = 0.0001
 const Sp_Region_right = 200_000
-const Sp_Region_left  =  40_000
+#const Sp_Region_left  =  40_000 #M2
+const Sp_Region_left  =  60_000 #K1
 const Sp_extra        = 0
-const gausW_width     = 16_000
-const gausW_center    = 40_000
+#const gausW_width     = 16_000   #M2
+#const gausW_center    = 40_000
+const gausW_width     = 32_000    #K1; to increase fluxes 
+const gausW_center    = 60_000
+
 
 pm = (lat=lat, Nz=Nz, Nx=Nx, H=H, L=L, numM=numM, gausW_center=gausW_center,
       gausW_width=gausW_width);
