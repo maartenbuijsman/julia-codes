@@ -21,8 +21,11 @@ if WIN==1
     dirmovie = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\movies\\";  
 else
     pathname = "/home/mbui/Documents/julia-codes/functions/"
-    dirsim  = "/data3/mbui/ModelOutput/IW/"
-    dirmovie = "/data3/mbui/ModelOutput/movies/"
+    pth0 = "/home/mbui/ModelOutput/"
+    dirsim = string(pth0,"IW/");
+    dirfig = string(pth0,"figs/");
+    dirout = string(pth0,"diagout/");
+    dirmovie = string(pth0,"movies/");
 end
 
 include(string(pathname,"include_functions.jl"))
@@ -42,7 +45,7 @@ movienm2 = fnames[1:33]
 filename = string(dirsim,fnames)
 =#
 
-oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 #      38 39 40 41 42 43 44 45 46 47 48    49
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35]
@@ -67,8 +70,7 @@ if oldnm==1
     LAT = LATS[1];
 else
     # file ID
-    mainnm = 1
-    runnm  = 46
+    mainnm = 5; runnm  = 15; LAT    = 15;
 
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
@@ -76,7 +78,7 @@ else
     filename = string(dirsim,fnames,".nc")
     movienm = "mode 1";
 
-    LAT = LATS[runnm-37];
+    #LAT = LATS[runnm-37];
     #println("lat is ",LAT) 
 
 end

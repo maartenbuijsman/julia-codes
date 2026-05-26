@@ -7,18 +7,105 @@ stop_time: 1.728e6; lat: 0.0; select mode: [1]
 Δx = 4.0 km
 Δz = 37.38317757009346 m on average
 EIG_AMZexpt03.03_LAT_00.0.jld2 Ueig data saved ........ 
-ERROR: LoadError: stop here
-Stacktrace:
- [1] error(s::String)
-   @ Base ./error.jl:44
- [2] stop()
-   @ Main ~/Documents/julia-codes/functions/include_functions.jl:25
- [3] top-level scope
-   @ ~/Documents/julia-codes/oceananigans_IW/IW_Amz_4km_2k_bash_cuda.jl:170
- [4] include(mod::Module, _path::String)
-   @ Base ./Base.jl:306
- [5] exec_options(opts::Base.JLOptions)
-   @ Base ./client.jl:317
- [6] _start()
-   @ Base ./client.jl:550
-in expression starting at /home/mbui/Documents/julia-codes/oceananigans_IW/IW_Amz_4km_2k_bash_cuda.jl:170
+Mode 1 wavelength is 106.2 km
+fraction gauss_width/L1 is 0.151
+┌ Warning: Overwriting existing /home/mbui/ModelOutput/IW/AMZexpt03.03.nc.
+└ @ OceananigansNCDatasetsExt ~/.julia/packages/Oceananigans/br1rI/ext/OceananigansNCDatasetsExt/netcdf_writer.jl:191
+[ Info: Initializing simulation...
+Iter:      0, sim time: 0 seconds , wall time:  0 seconds, Δt:  60.0000, advective CFL: 0.00e+00, diffusive CFL: 6.00e-01
+[ Info:     ... simulation initialization complete (14.546 seconds)
+[ Info: Executing initial time step...
+[ Info:     ... initial time step complete (9.984 seconds).
+Iter:    100, sim time: 2.750 hours , wall time: 25.863 seconds, Δt:  155.6245, advective CFL: 1.02e-02, diffusive CFL: 1.56e+00
+Iter:    200, sim time: 9.362 hours , wall time: 26.976 seconds, Δt:  403.6500, advective CFL: 1.02e-01, diffusive CFL: 4.04e+00
+Iter:    300, sim time: 21.417 hours , wall time: 28.407 seconds, Δt:  600.0000, advective CFL: 4.25e-01, diffusive CFL: 6.00e+00
+Iter:    400, sim time: 1.413 days , wall time: 29.872 seconds, Δt:  555.4012, advective CFL: 7.76e-01, diffusive CFL: 5.55e+00
+Iter:    500, sim time: 1.832 days , wall time: 31.128 seconds, Δt:  394.3789, advective CFL: 8.51e-01, diffusive CFL: 3.94e+00
+Iter:    600, sim time: 2.141 days , wall time: 32.192 seconds, Δt:  252.5558, advective CFL: 7.67e-01, diffusive CFL: 2.53e+00
+Iter:    700, sim time: 2.385 days , wall time: 33.154 seconds, Δt:  210.4717, advective CFL: 8.08e-01, diffusive CFL: 2.10e+00
+Iter:    800, sim time: 2.598 days , wall time: 34.088 seconds, Δt:  204.3044, advective CFL: 7.51e-01, diffusive CFL: 2.04e+00
+Iter:    900, sim time: 2.812 days , wall time: 35.183 seconds, Δt:  212.3595, advective CFL: 7.95e-01, diffusive CFL: 2.12e+00
+Iter:   1000, sim time: 3.021 days , wall time: 36.065 seconds, Δt:  190.9178, advective CFL: 7.91e-01, diffusive CFL: 1.91e+00
+Iter:   1100, sim time: 3.234 days , wall time: 36.924 seconds, Δt:  203.0044, advective CFL: 7.38e-01, diffusive CFL: 2.03e+00
+Iter:   1200, sim time: 3.448 days , wall time: 37.801 seconds, Δt:  200.6653, advective CFL: 7.54e-01, diffusive CFL: 2.01e+00
+Iter:   1300, sim time: 3.656 days , wall time: 38.705 seconds, Δt:  197.6564, advective CFL: 7.64e-01, diffusive CFL: 1.98e+00
+Iter:   1400, sim time: 3.865 days , wall time: 39.608 seconds, Δt:  195.8039, advective CFL: 8.08e-01, diffusive CFL: 1.96e+00
+Iter:   1500, sim time: 4.077 days , wall time: 40.490 seconds, Δt:  196.1668, advective CFL: 7.73e-01, diffusive CFL: 1.96e+00
+Iter:   1600, sim time: 4.286 days , wall time: 41.385 seconds, Δt:  189.8220, advective CFL: 7.82e-01, diffusive CFL: 1.90e+00
+Iter:   1700, sim time: 4.494 days , wall time: 42.286 seconds, Δt:  196.5632, advective CFL: 8.15e-01, diffusive CFL: 1.97e+00
+Iter:   1800, sim time: 4.703 days , wall time: 43.187 seconds, Δt:  199.1707, advective CFL: 8.27e-01, diffusive CFL: 1.99e+00
+Iter:   1900, sim time: 4.911 days , wall time: 44.083 seconds, Δt:  211.5029, advective CFL: 8.10e-01, diffusive CFL: 2.12e+00
+Iter:   2000, sim time: 5.120 days , wall time: 44.985 seconds, Δt:  216.0167, advective CFL: 8.17e-01, diffusive CFL: 2.16e+00
+Iter:   2100, sim time: 5.328 days , wall time: 45.859 seconds, Δt:  222.5024, advective CFL: 8.32e-01, diffusive CFL: 2.23e+00
+Iter:   2200, sim time: 5.536 days , wall time: 46.750 seconds, Δt:  194.6411, advective CFL: 7.65e-01, diffusive CFL: 1.95e+00
+Iter:   2300, sim time: 5.744 days , wall time: 47.645 seconds, Δt:  192.4875, advective CFL: 7.81e-01, diffusive CFL: 1.92e+00
+Iter:   2400, sim time: 5.952 days , wall time: 48.555 seconds, Δt:  193.1063, advective CFL: 8.11e-01, diffusive CFL: 1.93e+00
+Iter:   2500, sim time: 6.161 days , wall time: 49.451 seconds, Δt:  201.0348, advective CFL: 8.19e-01, diffusive CFL: 2.01e+00
+Iter:   2600, sim time: 6.369 days , wall time: 50.331 seconds, Δt:  204.1228, advective CFL: 8.25e-01, diffusive CFL: 2.04e+00
+Iter:   2700, sim time: 6.578 days , wall time: 51.227 seconds, Δt:  213.1838, advective CFL: 8.16e-01, diffusive CFL: 2.13e+00
+Iter:   2800, sim time: 6.786 days , wall time: 52.121 seconds, Δt:  209.0762, advective CFL: 8.04e-01, diffusive CFL: 2.09e+00
+Iter:   2900, sim time: 6.994 days , wall time: 53.022 seconds, Δt:  211.8491, advective CFL: 7.80e-01, diffusive CFL: 2.12e+00
+Iter:   3000, sim time: 7.203 days , wall time: 53.891 seconds, Δt:  199.0211, advective CFL: 7.67e-01, diffusive CFL: 1.99e+00
+Iter:   3100, sim time: 7.411 days , wall time: 54.784 seconds, Δt:  193.2024, advective CFL: 7.73e-01, diffusive CFL: 1.93e+00
+Iter:   3200, sim time: 7.619 days , wall time: 55.678 seconds, Δt:  194.8075, advective CFL: 8.09e-01, diffusive CFL: 1.95e+00
+Iter:   3300, sim time: 7.827 days , wall time: 56.571 seconds, Δt:  194.2042, advective CFL: 8.10e-01, diffusive CFL: 1.94e+00
+Iter:   3400, sim time: 8.036 days , wall time: 57.441 seconds, Δt:  202.1955, advective CFL: 7.88e-01, diffusive CFL: 2.02e+00
+Iter:   3500, sim time: 8.244 days , wall time: 58.356 seconds, Δt:  199.8084, advective CFL: 7.57e-01, diffusive CFL: 2.00e+00
+Iter:   3600, sim time: 8.453 days , wall time: 59.249 seconds, Δt:  210.8348, advective CFL: 7.90e-01, diffusive CFL: 2.11e+00
+Iter:   3700, sim time: 8.661 days , wall time: 1.002 minutes, Δt:  198.5944, advective CFL: 7.53e-01, diffusive CFL: 1.99e+00
+Iter:   3800, sim time: 8.869 days , wall time: 1.017 minutes, Δt:  194.1411, advective CFL: 7.71e-01, diffusive CFL: 1.94e+00
+Iter:   3900, sim time: 9.077 days , wall time: 1.032 minutes, Δt:  190.2853, advective CFL: 8.04e-01, diffusive CFL: 1.90e+00
+Iter:   4000, sim time: 9.286 days , wall time: 1.047 minutes, Δt:  195.7050, advective CFL: 8.05e-01, diffusive CFL: 1.96e+00
+Iter:   4100, sim time: 9.494 days , wall time: 1.065 minutes, Δt:  181.7027, advective CFL: 7.99e-01, diffusive CFL: 1.82e+00
+Iter:   4200, sim time: 9.702 days , wall time: 1.078 minutes, Δt:  189.6078, advective CFL: 7.91e-01, diffusive CFL: 1.90e+00
+Iter:   4300, sim time: 9.911 days , wall time: 1.091 minutes, Δt:  210.6014, advective CFL: 8.50e-01, diffusive CFL: 2.11e+00
+Iter:   4400, sim time: 10.120 days , wall time: 1.106 minutes, Δt:  214.8247, advective CFL: 8.42e-01, diffusive CFL: 2.15e+00
+Iter:   4500, sim time: 10.328 days , wall time: 1.121 minutes, Δt:  203.8119, advective CFL: 7.51e-01, diffusive CFL: 2.04e+00
+Iter:   4600, sim time: 10.536 days , wall time: 1.136 minutes, Δt:  184.2048, advective CFL: 7.63e-01, diffusive CFL: 1.84e+00
+Iter:   4700, sim time: 10.744 days , wall time: 1.151 minutes, Δt:  193.6415, advective CFL: 8.04e-01, diffusive CFL: 1.94e+00
+Iter:   4800, sim time: 10.952 days , wall time: 1.165 minutes, Δt:  186.1165, advective CFL: 8.21e-01, diffusive CFL: 1.86e+00
+Iter:   4900, sim time: 11.148 days , wall time: 1.180 minutes, Δt:  182.9556, advective CFL: 7.72e-01, diffusive CFL: 1.83e+00
+Iter:   5000, sim time: 11.356 days , wall time: 1.195 minutes, Δt:  196.5922, advective CFL: 8.20e-01, diffusive CFL: 1.97e+00
+Iter:   5100, sim time: 11.565 days , wall time: 1.210 minutes, Δt:  184.8039, advective CFL: 8.21e-01, diffusive CFL: 1.85e+00
+Iter:   5200, sim time: 11.768 days , wall time: 1.224 minutes, Δt:  208.4629, advective CFL: 7.84e-01, diffusive CFL: 2.08e+00
+Iter:   5300, sim time: 11.975 days , wall time: 1.239 minutes, Δt:  188.5411, advective CFL: 7.67e-01, diffusive CFL: 1.89e+00
+Iter:   5400, sim time: 12.181 days , wall time: 1.254 minutes, Δt:  181.0712, advective CFL: 7.95e-01, diffusive CFL: 1.81e+00
+Iter:   5500, sim time: 12.390 days , wall time: 1.271 minutes, Δt:  198.6231, advective CFL: 8.17e-01, diffusive CFL: 1.99e+00
+Iter:   5600, sim time: 12.598 days , wall time: 1.285 minutes, Δt:  194.0698, advective CFL: 8.32e-01, diffusive CFL: 1.94e+00
+Iter:   5700, sim time: 12.802 days , wall time: 1.300 minutes, Δt:  207.2173, advective CFL: 7.75e-01, diffusive CFL: 2.07e+00
+Iter:   5800, sim time: 13.010 days , wall time: 1.315 minutes, Δt:  187.5109, advective CFL: 7.73e-01, diffusive CFL: 1.88e+00
+Iter:   5900, sim time: 13.215 days , wall time: 1.330 minutes, Δt:  180.9421, advective CFL: 7.93e-01, diffusive CFL: 1.81e+00
+Iter:   6000, sim time: 13.424 days , wall time: 1.345 minutes, Δt:  202.7825, advective CFL: 8.20e-01, diffusive CFL: 2.03e+00
+Iter:   6100, sim time: 13.632 days , wall time: 1.360 minutes, Δt:  204.5639, advective CFL: 8.41e-01, diffusive CFL: 2.05e+00
+Iter:   6200, sim time: 13.841 days , wall time: 1.374 minutes, Δt:  212.2020, advective CFL: 7.95e-01, diffusive CFL: 2.12e+00
+Iter:   6300, sim time: 14.049 days , wall time: 1.389 minutes, Δt:  200.1476, advective CFL: 7.46e-01, diffusive CFL: 2.00e+00
+Iter:   6400, sim time: 14.252 days , wall time: 1.404 minutes, Δt:  181.9916, advective CFL: 7.98e-01, diffusive CFL: 1.82e+00
+Iter:   6500, sim time: 14.461 days , wall time: 1.419 minutes, Δt:  198.3256, advective CFL: 8.15e-01, diffusive CFL: 1.98e+00
+Iter:   6600, sim time: 14.669 days , wall time: 1.434 minutes, Δt:  194.9291, advective CFL: 8.34e-01, diffusive CFL: 1.95e+00
+Iter:   6700, sim time: 14.874 days , wall time: 1.448 minutes, Δt:  212.6656, advective CFL: 8.02e-01, diffusive CFL: 2.13e+00
+Iter:   6800, sim time: 15.082 days , wall time: 1.463 minutes, Δt:  188.9190, advective CFL: 7.66e-01, diffusive CFL: 1.89e+00
+Iter:   6900, sim time: 15.288 days , wall time: 1.478 minutes, Δt:  181.9813, advective CFL: 7.98e-01, diffusive CFL: 1.82e+00
+Iter:   7000, sim time: 15.496 days , wall time: 1.492 minutes, Δt:  196.2469, advective CFL: 8.13e-01, diffusive CFL: 1.96e+00
+Iter:   7100, sim time: 15.705 days , wall time: 1.507 minutes, Δt:  191.2498, advective CFL: 8.28e-01, diffusive CFL: 1.91e+00
+Iter:   7200, sim time: 15.909 days , wall time: 1.522 minutes, Δt:  209.2487, advective CFL: 7.88e-01, diffusive CFL: 2.09e+00
+Iter:   7300, sim time: 16.117 days , wall time: 1.537 minutes, Δt:  189.2096, advective CFL: 7.67e-01, diffusive CFL: 1.89e+00
+Iter:   7400, sim time: 16.321 days , wall time: 1.553 minutes, Δt:  181.7641, advective CFL: 7.96e-01, diffusive CFL: 1.82e+00
+Iter:   7500, sim time: 16.530 days , wall time: 1.567 minutes, Δt:  199.2054, advective CFL: 8.17e-01, diffusive CFL: 1.99e+00
+Iter:   7600, sim time: 16.738 days , wall time: 1.582 minutes, Δt:  198.2855, advective CFL: 8.29e-01, diffusive CFL: 1.98e+00
+Iter:   7700, sim time: 16.947 days , wall time: 1.597 minutes, Δt:  214.2057, advective CFL: 8.13e-01, diffusive CFL: 2.14e+00
+Iter:   7800, sim time: 17.155 days , wall time: 1.612 minutes, Δt:  206.5485, advective CFL: 7.93e-01, diffusive CFL: 2.07e+00
+Iter:   7900, sim time: 17.358 days , wall time: 1.627 minutes, Δt:  180.8141, advective CFL: 7.92e-01, diffusive CFL: 1.81e+00
+Iter:   8000, sim time: 17.567 days , wall time: 1.641 minutes, Δt:  195.3581, advective CFL: 8.16e-01, diffusive CFL: 1.95e+00
+Iter:   8100, sim time: 17.775 days , wall time: 1.656 minutes, Δt:  188.4841, advective CFL: 8.28e-01, diffusive CFL: 1.88e+00
+Iter:   8200, sim time: 17.979 days , wall time: 1.671 minutes, Δt:  212.1569, advective CFL: 7.99e-01, diffusive CFL: 2.12e+00
+Iter:   8300, sim time: 18.188 days , wall time: 1.686 minutes, Δt:  191.6301, advective CFL: 7.61e-01, diffusive CFL: 1.92e+00
+Iter:   8400, sim time: 18.392 days , wall time: 1.701 minutes, Δt:  181.8731, advective CFL: 7.97e-01, diffusive CFL: 1.82e+00
+Iter:   8500, sim time: 18.601 days , wall time: 1.716 minutes, Δt:  197.5878, advective CFL: 8.13e-01, diffusive CFL: 1.98e+00
+Iter:   8600, sim time: 18.809 days , wall time: 1.730 minutes, Δt:  195.2847, advective CFL: 8.28e-01, diffusive CFL: 1.95e+00
+Iter:   8700, sim time: 19.015 days , wall time: 1.745 minutes, Δt:  212.5544, advective CFL: 7.96e-01, diffusive CFL: 2.13e+00
+Iter:   8800, sim time: 19.223 days , wall time: 1.760 minutes, Δt:  195.0339, advective CFL: 7.50e-01, diffusive CFL: 1.95e+00
+Iter:   8900, sim time: 19.427 days , wall time: 1.775 minutes, Δt:  181.7765, advective CFL: 7.97e-01, diffusive CFL: 1.82e+00
+Iter:   9000, sim time: 19.635 days , wall time: 1.790 minutes, Δt:  198.3790, advective CFL: 8.15e-01, diffusive CFL: 1.98e+00
+Iter:   9100, sim time: 19.844 days , wall time: 1.805 minutes, Δt:  198.7043, advective CFL: 8.41e-01, diffusive CFL: 1.99e+00
+[ Info: Simulation is stopping after running for 1.816 minutes.
+[ Info: Simulation time 20 days equals or exceeds stop time 20 days.

@@ -45,16 +45,23 @@ runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 #runnms = [1]
 =#
 
-#=
+# D2
 mainnm = 3
-runnms = [3 4   5 6  7  8  9  10 11];
-LATS   = [0 2.5 5 10 15 20 30 40 50];
+LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 27.5, 30.0, 35.0, 40.0, 50.0];
+runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
+#
+
+#= D1
+mainnm = 5
+LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
+runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 =#
 
+#= run 1
 mainnm = 5
-runnms = [1 2   3 4  5  6  7  8 ];
-LATS   = [0 2.5 5 10 15 20 25 30];
-
+LATS   = [0.0]
+runnms = [9]  # is the same
+=#
 
 
 for runnm in runnms
@@ -352,8 +359,9 @@ elseif mainnm == 5 # D1
     Tcut2 = 20/24
 end
 
-uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
+uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high"); # all tidal+supertidal
 vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
+wc2  = lowhighpass_butter(wc,Tcut1,dt,Nf,"high");
 pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
 bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
 # isolate the subtidal flows
@@ -361,19 +369,24 @@ ull = uc - uc2;
 vll = vc - vc2;
 
 # remove high freq from tidal freq
-# this is D2
+# high
 uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
 vh = lowhighpass_butter(vc2,Tcut2,dt,Nf,"high");
+wh = lowhighpass_butter(wc2,Tcut2,dt,Nf,"high");
 ph = lowhighpass_butter(pcp2,Tcut2,dt,Nf,"high");
 bh = lowhighpass_butter(bc2,Tcut2,dt,Nf,"high");
+
+# l refers to tidal
 ul = uc2 - uh;
 vl = vc2 - vh;
+wl = wc2 - wh;
 pl = pcp2 - ph;
 bl = bc2 - bh;
 
-# do not remove any low-pass motions
+#= do not remove any low-pass motions
 uh2 = lowhighpass_butter(uc,Tcut2,dt,Nf,"high");
 vh2 = lowhighpass_butter(vc,Tcut2,dt,Nf,"high");
+wh2 = lowhighpass_butter(wc,Tcut2,dt,Nf,"high");
 bh2 = lowhighpass_butter(bc,Tcut2,dt,Nf,"high");
 ul2 = uc-uh2;
 vl2 = vc-vh2;
@@ -405,7 +418,7 @@ hm2=heatmap!(ax1b, xc/1e3, tday, transpose(bl[:,:,85]), colormap = Reverse(:Spec
 Colorbar(fig1[1, 2], hm1)
 Colorbar(fig1[2, 2], hm2)
 fig1
-
+=#
 
 # filtered KE, APE, and fluxes =======================================================
 
@@ -418,14 +431,15 @@ Iday = findall(item -> item >= t1 && item<= t2, tday)
 
 # undecomposed time-mean KE energy 
 # KEt is total, unfiltered
-# KE  is D2+HH
+# KE  is D2+HH  filtered at once
+# KE2 = KEh + KEl is the sum
 # KEh is HH
 # KEl is D2
 fact = 1/2*rho0
-KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEl = fact*dropdims(mean(sum((ul[Iday,:,:].^2 .+ vl[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2  .+ vc[Iday,:,:].^2  .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2 .+ wc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2  .+ vh[Iday,:,:].^2  .+ wh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEl = fact*dropdims(mean(sum((ul[Iday,:,:].^2  .+ vl[Iday,:,:].^2  .+ wl[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 KEll = KEt - KE;
 
 KEut = fact*dropdims(mean(sum(uc[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
@@ -462,21 +476,28 @@ Fx2 = Fxh + Fxl
 
 
 # create some figures
+
+# KEt is total, unfiltered
+# KE  is D2+HH
+# KE2 = KEh + KEl;
+# KEh is HH
+# KEl is D2
+
 ylimE = [0 75]
 ylimA = [0 75]
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
 lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-#lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
-lines!(ax, xc/1e3, KE2[:,1]/1e3, label = "D2 + HH", linestyle=:dash, color = :yellow, linewidth = 3)
+lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
+#lines!(ax, xc/1e3, KE2[:,1]/1e3, label = "D2 + HH", linestyle=:dash, color = :yellow, linewidth = 3)
 lines!(ax, xc/1e3, KEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax, xc/1e3, KEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
 
-lines!(ax, xc/1e3, KEut[:,1]/1e3, label = "tot", linestyle=:dash, color = :blue, linewidth = 3)
-lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3)
-lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
-lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
+#lines!(ax, xc/1e3, KEut[:,1]/1e3, label = "tot", linestyle=:dash, color = :blue, linewidth = 3)
+#lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3)
+#lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
+#lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
 
 xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
