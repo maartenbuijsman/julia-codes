@@ -12,6 +12,8 @@ using Printf
 using CairoMakie
 using Statistics
 using JLD2
+using Interpolations
+
 
 WIN = 0;
 
@@ -59,12 +61,12 @@ runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 
 # one run
 mainnm = 3
-LATS   = [28.8]
-runnms = [15] 
+LATS   = [0]
+runnms = [3] 
 #
 
-for runnm in runnms
-#    runnm = runnms[1]
+# for runnm in runnms  # runnms loop ---------------
+    runnm = runnms[1]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -213,6 +215,28 @@ ylims!(ax1, -500, 0)
 #xlims!(ax1, -2000, 10)
 fig
 
+# ref and pert densities ----------------------------------------------------
+# compute reference density profile
+# b = sum N2 * dz = sum -g/rho0*drho/dz * dz
+# b = -g/rho0*rho_pert
+# rho_pert = -b*rho0/g 
+
+# bottom up!
+breff = cumtrapz(zfw, N2w)   # length Nz+1, on zfw grid
+
+# in the mod sims buoyancy is interpolated to cell centers
+intzc = interpolate((zfw,), breff, Gridded(Linear()))
+rhorefc = -intzc.(zc) * rho0/grav
+rhop    = -bc * rho0/grav .+ rhorefc(:,)
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+#limits!(ax1, nothing, nothing, -200, 0)
+lines!(ax1,rhop[end,idx,:], zc, color = :black)
+lines!(ax1,rhorefc, zc, color = :red)
+fig
+
+
 
 # compute pressure -----------------------------------------------------------
 
@@ -243,6 +267,8 @@ sum(pcp[200,50,:].*dz)
 Figure(); lines(tday, pcp[:,50,end])
 
 N2cc = reshape(N2c,1,1,:);
+
+# compute density
 
 #=
 # indirect method, which compares well with pHY
@@ -615,7 +641,7 @@ jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx
        KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
 println(string(fnameout)," data saved ........ ")
 
-end # runnms
+# end # runnms loop ---------------
 
 
 # nonhyd pressure
@@ -1230,8 +1256,9 @@ b = ds["b"];
 
 # create density as a function of time
 const rho0=1020; const grav=9.81; 
-Nb2z = Nb^2 .* reshape(zc, 1, :, 1);   # shape: (1, length(zc), 1)
-rho  = -(Nb2z .+ b) * rho0 / grav;       # broadcast without repeat
+Nb2z = Nb^2 .* reshape(zc, 1, :, 1);    # shape: (1, length(zc), 1)
+rho  = -(Nb2z .+ b) * rho0 / grav;      # broadcast without repeat
+#rhor  = -(Nb2z) * rho0 / grav;          # reference density
 #rho = @. -(Nb2z + b) * rho0 / grav;    # broadcast without repeat
 
 it = 350
@@ -1239,9 +1266,13 @@ fig = Figure(); Axis(fig[1,1],title="b & ρ");
 heatmap!(xc/1e3,zc,b[:,:,it]); 
 contour!(xc/1e3,zc,rho[:,:,it], color = :black); fig
 
-Figure(); lines(rho[10,:,100],zc)
+Figure(); 
+lines(rho[10,:,100],zc)
+#lines(rhor[10,:,100],zc)
+
 Figure(); lines(Nb2z[1,:,1],zc)
 Figure(); lines(-Nb2z[1,:,1]*rho0/grav,zc)
+
 
 #check memory
 
