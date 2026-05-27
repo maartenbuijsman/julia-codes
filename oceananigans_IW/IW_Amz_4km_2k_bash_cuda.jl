@@ -360,6 +360,7 @@ b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 model = NonhydrostaticModel(grid;
     coriolis          = fcor,
     advection         = Centered(order=4),
+#    closure           = ScalarDiffusivity(ν=1e-2),    
     closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
 #    advection         = WENO(),
 #    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),

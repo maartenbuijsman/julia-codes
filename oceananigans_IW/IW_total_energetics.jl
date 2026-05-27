@@ -222,21 +222,70 @@ fig
 # rho_pert = -b*rho0/g 
 
 # bottom up!
-breff = cumtrapz(zfw, N2w)   # length Nz+1, on zfw grid
+breff = cumtrapz(zfw, N2w);   # length Nz+1, on zfw grid
 
 # in the mod sims buoyancy is interpolated to cell centers
-intzc = interpolate((zfw,), breff, Gridded(Linear()))
-rhorefc = -intzc.(zc) * rho0/grav
-rhop    = -bc * rho0/grav .+ rhorefc(:,)
+intzc = interpolate((zfw,), breff, Gridded(Linear()));
+rhorefc = -intzc.(zc) * rho0/grav;
+rr      = reshape(rhorefc, 1, 1, :);
+rhop    = -bc * rho0/grav .+ rr;
+
+idx, d = nearest_index(xc, 1480e3)
+
+# plot buoyancy as a function of time
+# depth-integrate to see if mass changes .....??
+# turn of diffusivity??
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+lines!(ax1,tday, bc[:,idx,end], color = :black)
+lines!(ax1,tday, bc[:,idx,end-10], color = :red)
+lines!(ax1,tday, bc[:,idx,50], color = :green)
+#limits!(ax1, nothing, nothing,-300, 0)
+fig
+
+# find vertical displacement eta
+itp = interpolate((-rhorefc,), zc, Gridded(Linear()));
+intrc = extrapolate(itp, Line())
+
+
+rhops = rhop[700,idx,:]
+etas  = intrc.(.-rhops) 
 
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
-#limits!(ax1, nothing, nothing, -200, 0)
-lines!(ax1,rhop[end,idx,:], zc, color = :black)
-lines!(ax1,rhorefc, zc, color = :red)
+scatter!(1:Nz,rhops, color = :black)
+scatter!(1:Nz,rhorefc, color = :red)
+#lines!(ax1,etas, zc, color = :black)
+#limits!(ax1, nothing, nothing,-300, 0)
+limits!(ax1, 90, Nz+1, nothing, nothing)
 fig
 
 
+idx, d = nearest_index(xc, 1480e3)
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+lines!(ax1,rhop[700,idx,:], zc, color = :black)
+lines!(ax1,rhop[718,idx,:], zc, color = :blue)
+lines!(ax1,rhorefc, zc, color = :red)
+limits!(ax1, nothing, nothing,-300, 0)
+fig
+
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+lines!(ax1,bc[700,idx,:], zc, color = :black)
+lines!(ax1,bc[718,idx,:], zc, color = :blue)
+lines!(ax1,rhorefc*0, zc, color = :red)
+fig
+
+fig = Figure(size = (600, 800))
+ax1 = Axis(fig[1,1])
+#limits!(ax1, 1450, 1500, nothing, nothing)
+lines!(ax1,xc/1e3,bc[700,:,end-10]* rho0/grav)
+lines!(ax1,xc/1e3,bc[718,:,end-10]* rho0/grav)
+lines!(ax1,xc/1e3,bc[736,:,end-10]* rho0/grav)
+fig
 
 # compute pressure -----------------------------------------------------------
 
