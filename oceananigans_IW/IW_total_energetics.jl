@@ -62,7 +62,7 @@ runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 # one run
 mainnm = 3
 LATS   = [0]
-runnms = [3] 
+runnms = [16] 
 #
 
 # for runnm in runnms  # runnms loop ---------------
@@ -238,26 +238,72 @@ idx, d = nearest_index(xc, 1480e3)
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
 lines!(ax1,tday, bc[:,idx,end], color = :black)
-lines!(ax1,tday, bc[:,idx,end-10], color = :red)
-lines!(ax1,tday, bc[:,idx,50], color = :green)
+#lines!(ax1,tday, bc[:,idx,end-10], color = :red)
+#lines!(ax1,tday, bc[:,idx,50], color = :green)
 #limits!(ax1, nothing, nothing,-300, 0)
 fig
 
 # find vertical displacement eta
-itp = interpolate((-rhorefc,), zc, Gridded(Linear()));
-intrc = extrapolate(itp, Line())
-
-
 rhops = rhop[700,idx,:]
-etas  = intrc.(.-rhops) 
+
+# only compute eta when density difference is >1/1000
+rhorefc_s = rhorefc[end:-1:1]
+zc_s      = zc[end:-1:1]
+rhops_s   = rhops[end:-1:1]
+
+# this does not work either .....
+# map values outside the range to max/min rhorefc_s
+#clamp!(rhops_s, rhorefc_s[1], rhorefc_s[end])
+
+# map rhops_s values out of rhorefc_s range to local rhorefc_s
+# this is due to machine errors
+# near surface
+Isel = rhorefc_s[1] .- rhops_s  .> 0 
+rhops_s[Isel] = rhorefc_s[Isel]
+
+# and near bottom
+Isel = rhorefc_s[end] .- rhops_s  .< 0 
+rhops_s[Isel] = rhorefc_s[Isel]
+
+Isel = rhorefc_s .- rhops_s  .> 0
+
+rho_r  = round.(rho_sorted, digits=4)   # collapses differences < 1e-4
+rhops_sr  = round.(rhops_s, digits=4)   # collapses differences < 1e-4
+itp   = interpolate((rho_sorted,), z_sorted, Gridded(Linear()))
+intrc = extrapolate(itp, Line())
+zs   = intrc.(rhops_s) 
+
+
+mask  = [true; diff(rho_r) .> 0]
+itp   = interpolate((rho_sorted[mask],), z_sorted[mask], Gridded(Linear()))
+intrc = extrapolate(itp, Line())
+zs   = intrc.(rhops_s) 
+#intrc = extrapolate(itp, Flat())
+#zs = intrc.(clamp.(rhops, rho_sorted[1], rho_sorted[end]))
+
+rho_r  = round.(rho_sorted, digits=4)   # collapses differences < 1e-4
+mask   = [true; diff(rho_r) .> 0]       # keep only strictly increasing
+itp    = interpolate((rho_r[mask],), z_sorted[mask], Gridded(Linear()))
+intrc  = extrapolate(itp, Flat())
+
+# also round query values so out-of-range noise disappears
+zs     = intrc.(round.(rhops, digits=4))
+
+
+
+
+itp = interpolate((rho_sorted,), z_sorted, Gridded(Linear()));
+intrc = extrapolate(itp, Line())
+zs  = intrc.(rhops[end-1]) 
+etas = zc-zs
 
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
-scatter!(1:Nz,rhops, color = :black)
-scatter!(1:Nz,rhorefc, color = :red)
-#lines!(ax1,etas, zc, color = :black)
+#scatter!(1:Nz,rhops, color = :black)
+#scatter!(1:Nz,rhorefc, color = :red)
+lines!(ax1,etas, zc, color = :black)
 #limits!(ax1, nothing, nothing,-300, 0)
-limits!(ax1, 90, Nz+1, nothing, nothing)
+#limits!(ax1, 90, Nz+1, nothing, nothing)
 fig
 
 
@@ -265,10 +311,11 @@ idx, d = nearest_index(xc, 1480e3)
 
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
-lines!(ax1,rhop[700,idx,:], zc, color = :black)
-lines!(ax1,rhop[718,idx,:], zc, color = :blue)
-lines!(ax1,rhorefc, zc, color = :red)
-limits!(ax1, nothing, nothing,-300, 0)
+scatter!(ax1,rhop[700,idx,:], zc, color = :black)
+#scatter!(ax1,rhop[718,idx,:], zc, color = :blue)
+scatter!(ax1,rhorefc, zc, color = :red)
+#limits!(ax1, nothing, nothing,-50, 0)
+limits!(ax1, -4.761, -4.759,-15, 0)
 fig
 
 
