@@ -251,10 +251,6 @@ rhorefc_s = rhorefc[end:-1:1]
 zc_s      = zc[end:-1:1]
 rhops_s   = rhops[end:-1:1]
 
-# this does not work either .....
-# map values outside the range to max/min rhorefc_s
-#clamp!(rhops_s, rhorefc_s[1], rhorefc_s[end])
-
 # map rhops_s values out of rhorefc_s range to local rhorefc_s
 # this is due to machine errors
 # near surface
@@ -265,43 +261,21 @@ rhops_s[Isel] = rhorefc_s[Isel]
 Isel = rhorefc_s[end] .- rhops_s  .< 0 
 rhops_s[Isel] = rhorefc_s[Isel]
 
-Isel = rhorefc_s .- rhops_s  .> 0
+# exclude small differences to avoid weird extrapolations
+Isel = abs.(rhorefc_s .- rhops_s)  .> 1/1e5 
 
-rho_r  = round.(rho_sorted, digits=4)   # collapses differences < 1e-4
-rhops_sr  = round.(rhops_s, digits=4)   # collapses differences < 1e-4
-itp   = interpolate((rho_sorted,), z_sorted, Gridded(Linear()))
+
+itp   = interpolate((rhorefc_s,), zc_s, Gridded(Linear()))
 intrc = extrapolate(itp, Line())
-zs   = intrc.(rhops_s) 
+zs    = intrc.(rhops_s[Isel]) 
 
-
-mask  = [true; diff(rho_r) .> 0]
-itp   = interpolate((rho_sorted[mask],), z_sorted[mask], Gridded(Linear()))
-intrc = extrapolate(itp, Line())
-zs   = intrc.(rhops_s) 
-#intrc = extrapolate(itp, Flat())
-#zs = intrc.(clamp.(rhops, rho_sorted[1], rho_sorted[end]))
-
-rho_r  = round.(rho_sorted, digits=4)   # collapses differences < 1e-4
-mask   = [true; diff(rho_r) .> 0]       # keep only strictly increasing
-itp    = interpolate((rho_r[mask],), z_sorted[mask], Gridded(Linear()))
-intrc  = extrapolate(itp, Flat())
-
-# also round query values so out-of-range noise disappears
-zs     = intrc.(round.(rhops, digits=4))
-
-
-
-
-itp = interpolate((rho_sorted,), z_sorted, Gridded(Linear()));
-intrc = extrapolate(itp, Line())
-zs  = intrc.(rhops[end-1]) 
-etas = zc-zs
+etas = zc_s[Isel]-zs
 
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
 #scatter!(1:Nz,rhops, color = :black)
 #scatter!(1:Nz,rhorefc, color = :red)
-lines!(ax1,etas, zc, color = :black)
+lines!(ax1,etas, zc_s[Isel], color = :black)
 #limits!(ax1, nothing, nothing,-300, 0)
 #limits!(ax1, 90, Nz+1, nothing, nothing)
 fig
