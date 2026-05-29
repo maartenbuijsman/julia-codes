@@ -265,9 +265,9 @@ breff = cumtrapz(zfw, N2w);   # length Nz+1, on zfw grid
 
 # in the mod sims buoyancy is interpolated to cell centers
 intzc   = interpolate((zfw,), breff, Gridded(Linear()));
-rhorefc = -intzc.(zc) * rho0/grav;
+rhorefc = -intzc.(zc) * rho0/grav;     # rho0 is not added!
 rr      = reshape(rhorefc, 1, 1, :);
-rhop    = -bc * rho0/grav .+ rr;
+rhop    = -bc * rho0/grav .+ rr;  
 
 #=
 idx, d = nearest_index(xc, 1480e3)
@@ -329,7 +329,7 @@ end
 
 # if rhop-rhorefc > thresh, then APE  = 0
 thresh = 1e-5;
-function compute_APE_3D(rhop, rhorefc, zc, grav, thresh)
+function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
     # suggested value thresh = 1e-5;
     Nt, Nx, Nz = size(rhop)
     APE        = zeros(Nt, Nx, Nz)
@@ -373,7 +373,7 @@ function compute_APE_3D(rhop, rhorefc, zc, grav, thresh)
     return APE
 end
 
-# APE_4D = compute_APE_3D(rhop, rhorefc, zc, grav, thresh);
+# APE_4D = APEKFeq2(rhop, rhorefc, zc, grav, thresh);
 
 #= compare the performance of the various APEs
 fig = Figure(size = (600, 800))
@@ -515,174 +515,152 @@ fig
 #stop()
 
 # filter variables  ======================================================
-# uc2: highpassed D2 + HH
-# uh:  HH
-# 
-Nf = 6;
+# t is tidal 
+# l is tidal+sub
+# h is supertidal
+# s is subtidal
+
+# Nf = 6;
 Nf = 8;
-
-#= isolate the D2 motions
-Tl=(T2+T2/4)/24,Th=(T2-T2/4)/24
-uc2 = bandpass_butter(uc,Tl,Th,dt,Nf)
-
-Tcut1 = 16/24;
-uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high");
-vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
-pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
-bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
-=#
 
 # remove the low frequency motions - if any?
 if mainnm == 3     # D2
-    Tcut1 = 16/24  #low
-    Tcut2 = 9/24   #high
+    Tcut1 = 16/24  #D2+HH
+    Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
+    #Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
 elseif mainnm == 5 # D1
     Tcut1 = 30/24
     Tcut2 = 20/24
 end
 
-uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high"); # all tidal+supertidal
-vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
-wc2  = lowhighpass_butter(wc,Tcut1,dt,Nf,"high");
-pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
-bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
-# isolate the subtidal flows
-ull = uc - uc2;
-vll = vc - vc2;
+# only filter high-pass motions
+# then remove hp from total
+# we are ignoring the generation of mean flows
+# for the 4 km cases
+uca = dropdims(mean(uc,dims=1), dims=(1))
 
-# remove high freq from tidal freq
-# high
-uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
-vh = lowhighpass_butter(vc2,Tcut2,dt,Nf,"high");
-wh = lowhighpass_butter(wc2,Tcut2,dt,Nf,"high");
-ph = lowhighpass_butter(pcp2,Tcut2,dt,Nf,"high");
-bh = lowhighpass_butter(bc2,Tcut2,dt,Nf,"high");
+fig1 = Figure(size=(1000,750))
+axa = Axis(fig1[1, 1],title="mean flow [m/s]",xlabel="fx [km]",ylabel="z [m]");  
+hm = heatmap!(axa, xc/1e3, zc, uca,colormap = Reverse(:Spectral)); 
+Colorbar(fig1[1,2], hm); 
+hm.colorrange = (-0.02, 0.02)
+fig1 
 
-# l refers to tidal
-ul = uc2 - uh;
-vl = vc2 - vh;
-wl = wc2 - wh;
-pl = pcp2 - ph;
-bl = bc2 - bh;
+# high-pass the total
+# dt in days
+passflg = "high";
+uh = lowhighpass_butter(uc,Tcut2,dt,Nf,passflg);
+vh = lowhighpass_butter(vc,Tcut2,dt,Nf,passflg);
+wh = lowhighpass_butter(wc,Tcut2,dt,Nf,passflg);
+ph = lowhighpass_butter(pcp,Tcut2,dt,Nf,passflg);
+bh = lowhighpass_butter(bc,Tcut2,dt,Nf,passflg);
+rh = -bh*rho0/grav
 
+# isolate "l" tidal-band frequencies + mean flows (small)
+ul = uc .- uh 
+vl = vc .- vh
+wl = wc .- wh
+pl = pcp .- ph
+bl = bc .- bh
+#rl = -bl*rho0/grav
 
-# filtered KE, APE, and fluxes =======================================================
+# low-pass the total to get subtidal "s"
+passflg = "low";
+us = lowhighpass_butter(uc,Tcut1,dt,Nf,passflg);
+vs = lowhighpass_butter(vc,Tcut1,dt,Nf,passflg);
+ws = lowhighpass_butter(wc,Tcut1,dt,Nf,passflg);
+ps = lowhighpass_butter(pcp,Tcut1,dt,Nf,passflg);
+bs = lowhighpass_butter(bc,Tcut1,dt,Nf,passflg);
+#rs = -bs*rho0/grav
+
+# isolate "t" tidal-band frequencies
+ut = ul .- us
+vt = vl .- vs
+wt = wl .- ws
+pt = pl .- ps
+bt = bl .- bs
+rt = -bt*rho0/grav
+
+#= plot bpassed vels
+idx, d = nearest_index(xc, 1000e3)
+fig = Figure(size=(800,400))
+ax = Axis(fig[1, 1])
+lines!(ax, tday, uc[:,idx,end], label = "uc", linestyle=:solid, color = :black, linewidth = 2)
+lines!(ax, tday, ut[:,idx,end], label = "ut", linestyle=:solid, color = :red, linewidth = 4)
+lines!(ax, tday, ul[:,idx,end], label = "ul", linestyle=:solid, color = :cyan, linewidth = 1)
+lines!(ax, tday, uh[:,idx,end], label = "uh", linestyle=:solid, color = :green, linewidth = 1)
+xlims!(ax,15,20)
+fig
+=#
+
+ul=nothing; vl=nothing; wl=nothing; wl=nothing; pl=nothing; bl=nothing;
+GC.gc()
+
+# KE and APE ----------------------------------------------------------------
 
 # cycles to exclude
-EXCL = 4;
-t1,t2 = 4, tday[end]-EXCL*T2/24
+EXCL = 2;
+t1,t2 = 14, tday[end]-EXCL*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
 
-# undecomposed time-mean KE energy 
-# KEt is total, unfiltered
-# KE  is D2+HH  filtered at once
-# KE2 = KEh + KEl is the sum
-# KEh is HH
-# KEl is D2
+# time-mean, depth-intgr. KE energy 
 fact = 1/2*rho0
-KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2  .+ vc[Iday,:,:].^2  .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2 .+ wc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2  .+ vh[Iday,:,:].^2  .+ wh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEl = fact*dropdims(mean(sum((ul[Iday,:,:].^2  .+ vl[Iday,:,:].^2  .+ wl[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEll = KEt - KE;
+KE  = fact*dropdims(mean(sum((uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2 .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEt = fact*dropdims(mean(sum((ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEs = fact*dropdims(mean(sum((us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 
-#KEut = fact*dropdims(mean(sum(uc[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
-#KEu  = fact*dropdims(mean(sum(uc2[Iday,:,:].^2 .*dzz,dims=3),dims=1), dims=(1,3))
-#KEuh = fact*dropdims(mean(sum(uh[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
-#KEul = fact*dropdims(mean(sum(ul[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+# time-mean, depth-intgr. APE energy (Kang & Fringer, 2010 eq2)
+APEz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
+APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+APEz = APEKFeq2(rt[Iday,:,:], rhorefc, zc, grav, thresh);
+APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+APEz = APEKFeq2(rh[Iday,:,:], rhorefc, zc, grav, thresh);
+APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+APEz = APEKFeq2(rs[Iday,:,:], rhorefc, zc, grav, thresh);
+APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
 
-# this is equal to KE?
-KE2 = KEh + KEl;
-
-# APE
-# b = -g/rho0*rho_pert [m/s2]
-# 1/2*rho0*b2/N2 [J/m3 = Nm/m3 = kg*m2/s2/m3]
-#  [kg/m3 * m2/s4 * s2 =         kg*m2/s2/m3]
-
-# omit N2c values <= 1e-10, keep the others
-Ikp = findall(>(1e-10),N2c)
-
-factA = 1/2*rho0*1.0./N2cc;
-APEt = dropdims(mean(sum((bc[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-APE  = dropdims(mean(sum((bc2[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-APEh = dropdims(mean(sum((bh[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-APEl = dropdims(mean(sum((bl[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-APEll = APEt - APE;
-
-# nonlinear addition eq3 Kang and Fringer 2010
-dN2dz  = diff(N2w) ./ diff(zfw)   # length Nz, lives on zc grid
-dN2dzz = reshape(dN2dz,1,1,:);
-factB  = .- 1/6*rho0 .* dN2dzz ./ N2cc.^3;
-
-# theoretical
-APEtnl  = APEt .+ dropdims(mean(sum(factB[:,:,Ikp] .* bc[:,:,Ikp].^3 .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-
-# precise
-APENL = compute_APE_3D(rhop, rhorefc, zc, grav, thresh);
-APEtnl2 = dropdims(mean(sum( APENL[:,:,Ikp] .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3));
+APEz=nothing;
+GC.gc()
 
 # undecomposed time-mean flux 
-Fxt = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-Fx  = dropdims(mean(sum(uc2[Iday,:,:].*pcp2[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fx  = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxt = dropdims(mean(sum(ut[Iday,:,:].*pt[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-Fxl = dropdims(mean(sum(ul[Iday,:,:].*pl[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 
-# this is equal to Fx?
-Fx2 = Fxh + Fxl
-
-
-# create some figures
-
-# KEt is total, unfiltered
-# KE  is D2+HH
-# KE2 = KEh + KEl;
-# KEh is HH
-# KEl is D2
+# create some figures ----------------------------------------------
 
 #ylimE = [0 75]; ylimA = [0 75];
-ylimE = [0 15]; ylimA = [0 15];
+ylimE = [0 15]; ylimA = [0 15]; ylimf = [-2 7];
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
-lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
-#lines!(ax, xc/1e3, KE2[:,1]/1e3, label = "D2 + HH", linestyle=:dash, color = :yellow, linewidth = 3)
-lines!(ax, xc/1e3, KEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, KE[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
 lines!(ax, xc/1e3, KEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-#lines!(ax, xc/1e3, KEut[:,1]/1e3, label = "tot", linestyle=:dash, color = :blue, linewidth = 3)
-#lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3)
-#lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
-#lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
+lines!(ax, xc/1e3, KEs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
 
 ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
-# add nonlinear stuff
-lines!(ax2, xc/1e3, APEtnl[:,1]/1e3, label = "tnl",linestyle=:dash, color = :cyan, linewidth = 3)
-lines!(ax2, xc/1e3, APEtnl2[:,1]/1e3, label = "tnl2",linestyle=:dash, color = :blue, linewidth = 3)
-
-lines!(ax2, xc/1e3, APEt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax2, xc/1e3, APE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
-lines!(ax2, xc/1e3, APEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
-lines!(ax2, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax, xc/1e3, APE[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax, xc/1e3, APEt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax, xc/1e3, APEs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
-axislegend(ax2, position = :rt)
-
 
 ax3 = Axis(fig[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
-lines!(ax3, xc/1e3, Fxt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, Fx[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
-lines!(ax3, xc/1e3, Fxl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
-lines!(ax3, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax, xc/1e3, Fx[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax, xc/1e3, Fxt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax, xc/1e3, Fxs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax3, 0, Ldom/1e3)
-#ylimf = [0 15]
-ylimf = [-2 15]
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
-
 fig
 
 # Save the figure as a PNG file
@@ -701,7 +679,7 @@ println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 # compute some ffts of surface velocity ======================================================
 
 EXCL = 0;  # can be zero for fft
-t1,t2 = 4, tday[end]-EXCL*T2/24
+t2 = tday[end]-EXCL*T2/24; #t1 is defined above
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
@@ -775,13 +753,6 @@ println(string(fnameout)," data saved ........ ")
 
 # end # runnms loop ---------------
 
-
-# nonhyd pressure
-# nonlinear APE
-# ratio KE/APE 
-# check reflections
-# fft
-# make wider sponge layers to avoid reflections
 
 stop()
 
@@ -1548,3 +1519,158 @@ fig3
 
 # close the nc file
 close(ds)
+
+
+
+
+stop()
+
+# old filter and KE/APE code -------------------------------
+# old filter and KE/APE code -------------------------------
+# old filter and KE/APE code -------------------------------
+
+# remove the low frequency motions - if any?
+if mainnm == 3     # D2
+    Tcut1 = 16/24  #low
+    Tcut2 = 9/24   #high
+elseif mainnm == 5 # D1
+    Tcut1 = 30/24
+    Tcut2 = 20/24
+end
+
+uc2  = lowhighpass_butter(uc,Tcut1,dt,Nf,"high"); # all tidal+supertidal
+vc2  = lowhighpass_butter(vc,Tcut1,dt,Nf,"high");
+wc2  = lowhighpass_butter(wc,Tcut1,dt,Nf,"high");
+pcp2 = lowhighpass_butter(pcp,Tcut1,dt,Nf,"high");
+bc2  = lowhighpass_butter(bc,Tcut1,dt,Nf,"high");
+# isolate the subtidal flows
+ull = uc - uc2;
+vll = vc - vc2;
+
+# remove high freq from tidal freq
+# high
+uh = lowhighpass_butter(uc2,Tcut2,dt,Nf,"high");
+vh = lowhighpass_butter(vc2,Tcut2,dt,Nf,"high");
+wh = lowhighpass_butter(wc2,Tcut2,dt,Nf,"high");
+ph = lowhighpass_butter(pcp2,Tcut2,dt,Nf,"high");
+bh = lowhighpass_butter(bc2,Tcut2,dt,Nf,"high");
+
+# l refers to tidal
+ul = uc2 - uh;
+vl = vc2 - vh;
+wl = wc2 - wh;
+pl = pcp2 - ph;
+bl = bc2 - bh;
+
+
+# filtered KE, APE, and fluxes =======================================================
+
+# cycles to exclude
+EXCL = 4;
+t1,t2 = 4, tday[end]-EXCL*T2/24
+numcycles = floor((t2-t1)/(T2/24))
+t2 = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
+
+# undecomposed time-mean KE energy 
+# KEt is total, unfiltered
+# KE  is D2+HH  filtered at once
+# KE2 = KEh + KEl is the sum
+# KEh is HH
+# KEl is D2
+fact = 1/2*rho0
+KEt = fact*dropdims(mean(sum((uc[Iday,:,:].^2  .+ vc[Iday,:,:].^2  .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KE  = fact*dropdims(mean(sum((uc2[Iday,:,:].^2 .+ vc2[Iday,:,:].^2 .+ wc2[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2  .+ vh[Iday,:,:].^2  .+ wh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEl = fact*dropdims(mean(sum((ul[Iday,:,:].^2  .+ vl[Iday,:,:].^2  .+ wl[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEll = KEt - KE;
+
+#KEut = fact*dropdims(mean(sum(uc[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+#KEu  = fact*dropdims(mean(sum(uc2[Iday,:,:].^2 .*dzz,dims=3),dims=1), dims=(1,3))
+#KEuh = fact*dropdims(mean(sum(uh[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+#KEul = fact*dropdims(mean(sum(ul[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+
+# this is equal to KE?
+KE2 = KEh + KEl;
+
+# APE
+# b = -g/rho0*rho_pert [m/s2]
+# 1/2*rho0*b2/N2 [J/m3 = Nm/m3 = kg*m2/s2/m3]
+#  [kg/m3 * m2/s4 * s2 =         kg*m2/s2/m3]
+
+# omit N2c values <= 1e-10, keep the others
+Ikp = findall(>(1e-10),N2c)
+
+factA = 1/2*rho0*1.0./N2cc;
+APEt = dropdims(mean(sum((bc[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+APE  = dropdims(mean(sum((bc2[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+APEh = dropdims(mean(sum((bh[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+APEl = dropdims(mean(sum((bl[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+APEll = APEt - APE;
+
+# nonlinear addition eq3 Kang and Fringer 2010
+dN2dz  = diff(N2w) ./ diff(zfw)   # length Nz, lives on zc grid
+dN2dzz = reshape(dN2dz,1,1,:);
+factB  = .- 1/6*rho0 .* dN2dzz ./ N2cc.^3;
+
+# theoretical
+APEtnl  = APEt .+ dropdims(mean(sum(factB[:,:,Ikp] .* bc[:,:,Ikp].^3 .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+
+# precise
+APENL = APEKFeq2(rhop, rhorefc, zc, grav, thresh);
+APEtnl2 = dropdims(mean(sum( APENL[:,:,Ikp] .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3));
+
+# undecomposed time-mean flux 
+Fxt = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fx  = dropdims(mean(sum(uc2[Iday,:,:].*pcp2[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+Fxl = dropdims(mean(sum(ul[Iday,:,:].*pl[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+
+# this is equal to Fx?
+Fx2 = Fxh + Fxl
+
+
+ create some figures ----------------------------------------------
+
+#ylimE = [0 75]; ylimA = [0 75];
+ylimE = [0 15]; ylimA = [0 15];
+
+fig = Figure(size=(750,750))
+ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
+lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
+lines!(ax, xc/1e3, KEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, KEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+#lines!(ax, xc/1e3, KEut[:,1]/1e3, label = "tot", linestyle=:dash, color = :blue, linewidth = 3)
+#lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3)
+#lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
+#lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
+xlims!(ax, 0, Ldom/1e3)
+ylims!(ax, ylimE[1], ylimE[2])
+
+ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
+# add nonlinear stuff
+lines!(ax2, xc/1e3, APEtnl[:,1]/1e3, label = "tnl",linestyle=:dash, color = :cyan, linewidth = 3)
+lines!(ax2, xc/1e3, APEtnl2[:,1]/1e3, label = "tnl2",linestyle=:dash, color = :blue, linewidth = 3)
+
+lines!(ax2, xc/1e3, APEt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax2, xc/1e3, APE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
+lines!(ax2, xc/1e3, APEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
+lines!(ax2, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+xlims!(ax2, 0, Ldom/1e3)
+ylims!(ax2, ylimA[1], ylimA[2])
+axislegend(ax2, position = :rt)
+
+
+ax3 = Axis(fig[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+lines!(ax3, xc/1e3, Fxt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, Fx[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
+lines!(ax3, xc/1e3, Fxl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
+lines!(ax3, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
+xlims!(ax3, 0, Ldom/1e3)
+#ylimf = [0 15]
+ylimf = [-2 15]
+ylims!(ax3, ylimf[1], ylimf[2])
+axislegend(ax3, position = :rt)
+
+fig
