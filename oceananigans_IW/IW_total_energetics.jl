@@ -13,6 +13,7 @@ using CairoMakie
 using Statistics
 using JLD2
 using Interpolations
+using Trapz
 
 
 WIN = 0;
@@ -38,6 +39,8 @@ include(string(pathname,"include_functions.jl"))
 figflag = 1
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
+const rho0=1020; 
+const grav=9.81; 
 
 #=
 #      38 39 40 41 42 43 44 45 46 47 48    49
@@ -124,8 +127,18 @@ Nt = length(tday);
 
 # u, v, w velocities
 # NOTE: in future select a certain x range away from boundaries
+@time begin
+    println("reading nc file ",filename)
+    uf  = permutedims(ds["u"][:,:,:],    (3,1,2))
+    vc  = permutedims(ds["v"][:,:,:],    (3,1,2))
+    wf  = permutedims(ds["w"][:,:,:],    (3,1,2))
+    bc  = permutedims(ds["b"][:,:,:],    (3,1,2))
+    pHY = permutedims(ds["pHY"][:,:,:],  (3,1,2))
+    pNH = permutedims(ds["pNHS"][:,:,:], (3,1,2))
+end
 
-# a loop is faster than permuting?
+#= a loop is slower than the above w. permuting?
+@time begin
 uf = zeros(Nt,Nx+1,Nz);
 vc = zeros(Nt,Nx,Nz);
 wf = zeros(Nt,Nx,Nz+1);
@@ -142,9 +155,9 @@ for i in 1:Nt
     pHY[i,:,:] = ds["pHY"][:, :, i];    
     pNH[i,:,:] = ds["pNHS"][:, :, i];        
 end
+end
+=#
 
-rho0=1020; 
-grav=9.81; 
 
 # total pressure in N/m2
 ptot = (pHY.+pNH)*rho0/grav;
@@ -215,6 +228,32 @@ ylims!(ax1, -500, 0)
 #xlims!(ax1, -2000, 10)
 fig
 
+#= APE linear and nonlinear
+# b = -g/rho0*rho_pert [m/s2]
+# 1/2*rho0*b2/N2 [J/m3 = Nm/m3 = kg*m2/s2/m3]
+#  [kg/m3 * m2/s4 * s2 =         kg*m2/s2/m3]
+
+dzz = reshape(dz,1,1,:); 
+
+# omit N2c values <= 1e-10, keep the others
+Ikp = findall(>(1e-10),N2c);
+N2cc = reshape(N2c,1,1,:);
+factA = 1/2*rho0*1.0./N2cc;
+
+APE3z = zeros(Nt,Nx,Nz);
+APE3z[:,:,Ikp] = (bc[:,:,Ikp].^2).*factA[:,:,Ikp];
+APE3  = sum((bc[:,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3);
+
+# nonlinear addition
+dN2dz  = diff(N2w) ./ diff(zfw)   # length Nz, lives on zc grid
+dN2dzz = reshape(dN2dz,1,1,:);
+factB  = .- 1/6*rho0 .* dN2dzz ./ N2cc.^3;
+
+APE3nlz = copy(APE3z)
+APE3nlz[:,:,Ikp] = APE3z[:,:,Ikp] .+ factB[:,:,Ikp] .* bc[:,:,Ikp].^3;
+=#
+
+
 # ref and pert densities ----------------------------------------------------
 # compute reference density profile
 # b = sum N2 * dz = sum -g/rho0*drho/dz * dz
@@ -225,88 +264,135 @@ fig
 breff = cumtrapz(zfw, N2w);   # length Nz+1, on zfw grid
 
 # in the mod sims buoyancy is interpolated to cell centers
-intzc = interpolate((zfw,), breff, Gridded(Linear()));
+intzc   = interpolate((zfw,), breff, Gridded(Linear()));
 rhorefc = -intzc.(zc) * rho0/grav;
 rr      = reshape(rhorefc, 1, 1, :);
 rhop    = -bc * rho0/grav .+ rr;
 
+#=
 idx, d = nearest_index(xc, 1480e3)
 
-# plot buoyancy as a function of time
-# depth-integrate to see if mass changes .....??
-# turn of diffusivity??
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-lines!(ax1,tday, bc[:,idx,end], color = :black)
-#lines!(ax1,tday, bc[:,idx,end-10], color = :red)
-#lines!(ax1,tday, bc[:,idx,50], color = :green)
-#limits!(ax1, nothing, nothing,-300, 0)
-fig
+# find vertical displacement xi
+#it = 700 #xi down
+#it = 718 #xi up
+it = 740 #xi up
+rhops = rhop[it,idx,:]  #xi is up
 
-# find vertical displacement eta
-rhops = rhop[700,idx,:]
-
-# only compute eta when density difference is >1/1000
-rhorefc_s = rhorefc[end:-1:1]
-zc_s      = zc[end:-1:1]
-rhops_s   = rhops[end:-1:1]
-
-# map rhops_s values out of rhorefc_s range to local rhorefc_s
+# map rhops values out of rhorefc range to local rhorefc
 # this is due to machine errors
 # near surface
-Isel = rhorefc_s[1] .- rhops_s  .> 0 
-rhops_s[Isel] = rhorefc_s[Isel]
+Isel = rhorefc[end] .- rhops  .> 0 
+rhops[Isel] = rhorefc[Isel]
 
 # and near bottom
-Isel = rhorefc_s[end] .- rhops_s  .< 0 
-rhops_s[Isel] = rhorefc_s[Isel]
+Isel = rhorefc[1] .- rhops  .< 0 
+rhops[Isel] = rhorefc[Isel]
 
 # exclude small differences to avoid weird extrapolations
-Isel = abs.(rhorefc_s .- rhops_s)  .> 1/1e5 
+Isel = abs.(rhorefc .- rhops)  .> 1/1e5 
+Ilp = collect(1:Nz)
+Ilp = Ilp[Isel]
 
-
-itp   = interpolate((rhorefc_s,), zc_s, Gridded(Linear()))
+# interpolate zstar along rhoref @ rhops
+# minus sign is to accomodate positive increase 
+itp   = interpolate((-rhorefc,), zc, Gridded(Linear()))
 intrc = extrapolate(itp, Line())
-zs    = intrc.(rhops_s[Isel]) 
 
-etas = zc_s[Isel]-zs
+zs = copy(zc)
+zs[Isel] = intrc.(-rhops[Isel]) 
 
+# vertical displacement (+ is upward)
+xi = zc - zs
+
+# loop over depth and non-zero xi
+APE = zeros(size(zc))
+for i in Ilp
+    zstar = zs[i]  # location of rho on rhoref; z-xi
+    zrho  = zc[i]  # peturbation density rho  
+    if zrho < zstar      # xi<0; down
+        Is = findall(zrho .< zc .< zstar)
+        zz = [zrho; zc[Is]; zstar]        
+        rr = rhops[i] .- [rhorefc[i] ;rhorefc[Is]; rhops[i]] 
+        fac = -1
+    elseif zrho > zstar  # xi>0; up
+        Is = findall(zstar .< zc .< zrho)
+        zz = [zstar; zc[Is]; zrho]        
+        rr = rhops[i] .- [rhops[i] ;rhorefc[Is]; rhorefc[i]] 
+        fac = 1        
+    end
+    APE[i] = fac * grav * trapz(zz,rr)
+end
+=#
+
+# function to compute APE as in Kang And Fringer (2010) --------------------
+# This is Claudformed code based on the expensive loop APE and its preamble
+
+# if rhop-rhorefc > thresh, then APE  = 0
+thresh = 1e-5;
+function compute_APE_3D(rhop, rhorefc, zc, grav, thresh)
+    # suggested value thresh = 1e-5;
+    Nt, Nx, Nz = size(rhop)
+    APE        = zeros(Nt, Nx, Nz)
+
+    itp_zs = extrapolate(interpolate((-rhorefc,), zc, Gridded(Linear())), Flat())
+    F_ref  = cumtrapz(zc, rhorefc)
+    rho_lo = rhorefc[end]   # lightest (surface)
+    rho_hi = rhorefc[1]     # densest  (bottom)
+
+    # exact cumulative integral of piecewise-linear rhorefc from zc[1] to z
+    function exact_F(z)
+        j = searchsortedfirst(zc, z)
+        if j == 1
+            return F_ref[1] + rhorefc[1] * (z - zc[1])
+        elseif j > length(zc)
+            return F_ref[end] + rhorefc[end] * (z - zc[end])
+        else
+            dz = zc[j] - zc[j-1]
+            dt = z - zc[j-1]
+            return F_ref[j-1] + rhorefc[j-1]*dt + (rhorefc[j]-rhorefc[j-1])/(2*dz) * dt^2
+        end
+    end
+
+    Threads.@threads for it in 1:Nt
+        for ix in 1:Nx
+            for i in 1:Nz
+                rho_i = rhop[it, ix, i]
+                (rho_i < rho_lo || rho_i > rho_hi) && continue
+                abs(rhorefc[i] - rho_i) < thresh    && continue
+
+                zrho  = zc[i]
+                zstar = itp_zs(-rho_i)
+                z1    = min(zrho, zstar)
+                z2    = max(zrho, zstar)
+                fac   = zrho > zstar ? 1.0 : -1.0
+
+                APE[it, ix, i] = fac * grav * (rho_i*(z2-z1) - (exact_F(z2) - exact_F(z1)))
+            end
+        end
+    end
+    return APE
+end
+
+# APE_4D = compute_APE_3D(rhop, rhorefc, zc, grav, thresh);
+
+#= compare the performance of the various APEs
 fig = Figure(size = (600, 800))
 ax1 = Axis(fig[1,1])
-#scatter!(1:Nz,rhops, color = :black)
-#scatter!(1:Nz,rhorefc, color = :red)
-lines!(ax1,etas, zc_s[Isel], color = :black)
+lines!(ax1,APE3z[it,idx,:], zc,   color = :red,   label = "APE3z")
+lines!(ax1,APE, zc,               color = :black, label = "APE")
+lines!(ax1,APE3nlz[it,idx,:], zc, color = :green, label = "APE3nlz")
+lines!(ax1,APE_4D[it,idx,:], zc, color = :orange, label = "APE_4D", linestyle = :dash)
+axislegend(ax1, position = :rb)
+
+ax2 = Axis(fig[1,2])
+lines!(ax2,APE .- APE3z[it,idx,:], zc,   color = :red,   label = "APE3z")
+lines!(ax2,APE .- APE3nlz[it,idx,:], zc, color = :green, label = "APE3nlz")
+lines!(ax2,APE .- APE_4D[it,idx,:], zc, color = :orange, label = "APE_4D")
+axislegend(ax2, position = :rb)
 #limits!(ax1, nothing, nothing,-300, 0)
-#limits!(ax1, 90, Nz+1, nothing, nothing)
 fig
+=#
 
-
-idx, d = nearest_index(xc, 1480e3)
-
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-scatter!(ax1,rhop[700,idx,:], zc, color = :black)
-#scatter!(ax1,rhop[718,idx,:], zc, color = :blue)
-scatter!(ax1,rhorefc, zc, color = :red)
-#limits!(ax1, nothing, nothing,-50, 0)
-limits!(ax1, -4.761, -4.759,-15, 0)
-fig
-
-
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-lines!(ax1,bc[700,idx,:], zc, color = :black)
-lines!(ax1,bc[718,idx,:], zc, color = :blue)
-lines!(ax1,rhorefc*0, zc, color = :red)
-fig
-
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-#limits!(ax1, 1450, 1500, nothing, nothing)
-lines!(ax1,xc/1e3,bc[700,:,end-10]* rho0/grav)
-lines!(ax1,xc/1e3,bc[718,:,end-10]* rho0/grav)
-lines!(ax1,xc/1e3,bc[736,:,end-10]* rho0/grav)
-fig
 
 # compute pressure -----------------------------------------------------------
 
@@ -433,6 +519,7 @@ fig
 # uh:  HH
 # 
 Nf = 6;
+Nf = 8;
 
 #= isolate the D2 motions
 Tl=(T2+T2/4)/24,Th=(T2-T2/4)/24
@@ -478,42 +565,6 @@ wl = wc2 - wh;
 pl = pcp2 - ph;
 bl = bc2 - bh;
 
-#= do not remove any low-pass motions
-uh2 = lowhighpass_butter(uc,Tcut2,dt,Nf,"high");
-vh2 = lowhighpass_butter(vc,Tcut2,dt,Nf,"high");
-wh2 = lowhighpass_butter(wc,Tcut2,dt,Nf,"high");
-bh2 = lowhighpass_butter(bc,Tcut2,dt,Nf,"high");
-ul2 = uc-uh2;
-vl2 = vc-vh2;
-bl2 = bc-bh2;
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax,tday,ul[:,100,end], color = :black)
-lines!(ax,tday,ul2[:,100,end], color = :red)
-fig
-
-# some more hovmullers
-clims = (-0.2,0.2)
-fig1 = Figure(size=(660,800))
-ax1a = Axis(fig1[1, 1],title="subtidal u")
-ax1b = Axis(fig1[2, 1],title="subtidal v") 
-hm1=heatmap!(ax1a, xc/1e3, tday, transpose(ull[:,:,end]), colormap = Reverse(:Spectral), colorrange = clims)
-hm2=heatmap!(ax1b, xc/1e3, tday, transpose(vll[:,:,end]), colormap = Reverse(:Spectral), colorrange = clims)
-Colorbar(fig1[1, 2], hm1)
-Colorbar(fig1[2, 2], hm2)
-fig1
-
-
-fig1 = Figure(size=(660,800))
-ax1a = Axis(fig1[1, 1],title="b")
-ax1b = Axis(fig1[2, 1],title="bl") 
-hm1=heatmap!(ax1a, xc/1e3, tday, transpose(bc[:,:,85]), colormap = Reverse(:Spectral))
-hm2=heatmap!(ax1b, xc/1e3, tday, transpose(bl[:,:,85]), colormap = Reverse(:Spectral))
-Colorbar(fig1[1, 2], hm1)
-Colorbar(fig1[2, 2], hm2)
-fig1
-=#
 
 # filtered KE, APE, and fluxes =======================================================
 
@@ -537,10 +588,10 @@ KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2  .+ vh[Iday,:,:].^2  .+ wh[Iday,:,
 KEl = fact*dropdims(mean(sum((ul[Iday,:,:].^2  .+ vl[Iday,:,:].^2  .+ wl[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 KEll = KEt - KE;
 
-KEut = fact*dropdims(mean(sum(uc[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
-KEu  = fact*dropdims(mean(sum(uc2[Iday,:,:].^2 .*dzz,dims=3),dims=1), dims=(1,3))
-KEuh = fact*dropdims(mean(sum(uh[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
-KEul = fact*dropdims(mean(sum(ul[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+#KEut = fact*dropdims(mean(sum(uc[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+#KEu  = fact*dropdims(mean(sum(uc2[Iday,:,:].^2 .*dzz,dims=3),dims=1), dims=(1,3))
+#KEuh = fact*dropdims(mean(sum(uh[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
+#KEul = fact*dropdims(mean(sum(ul[Iday,:,:].^2  .*dzz,dims=3),dims=1), dims=(1,3))
 
 # this is equal to KE?
 KE2 = KEh + KEl;
@@ -560,6 +611,18 @@ APEh = dropdims(mean(sum((bh[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=
 APEl = dropdims(mean(sum((bl[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
 APEll = APEt - APE;
 
+# nonlinear addition eq3 Kang and Fringer 2010
+dN2dz  = diff(N2w) ./ diff(zfw)   # length Nz, lives on zc grid
+dN2dzz = reshape(dN2dz,1,1,:);
+factB  = .- 1/6*rho0 .* dN2dzz ./ N2cc.^3;
+
+# theoretical
+APEtnl  = APEt .+ dropdims(mean(sum(factB[:,:,Ikp] .* bc[:,:,Ikp].^3 .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+
+# precise
+APENL = compute_APE_3D(rhop, rhorefc, zc, grav, thresh);
+APEtnl2 = dropdims(mean(sum( APENL[:,:,Ikp] .* dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3));
+
 # undecomposed time-mean flux 
 Fxt = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fx  = dropdims(mean(sum(uc2[Iday,:,:].*pcp2[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
@@ -578,8 +641,8 @@ Fx2 = Fxh + Fxl
 # KEh is HH
 # KEl is D2
 
-ylimE = [0 75]
-ylimA = [0 75]
+#ylimE = [0 75]; ylimA = [0 75];
+ylimE = [0 15]; ylimA = [0 15];
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
@@ -588,33 +651,32 @@ lines!(ax, xc/1e3, KE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3
 #lines!(ax, xc/1e3, KE2[:,1]/1e3, label = "D2 + HH", linestyle=:dash, color = :yellow, linewidth = 3)
 lines!(ax, xc/1e3, KEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax, xc/1e3, KEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-
 #lines!(ax, xc/1e3, KEut[:,1]/1e3, label = "tot", linestyle=:dash, color = :blue, linewidth = 3)
 #lines!(ax, xc/1e3, KEu[:,1]/1e3, label = "D2 + HH", color = :blue, linewidth = 3)
 #lines!(ax, xc/1e3, KEul[:,1]/1e3, label = "D2", color = :orange, linewidth = 3)
 #lines!(ax, xc/1e3, KEuh[:,1]/1e3, label = "HH", color = :cyan, linewidth = 3)
-
 xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
 
 ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
+# add nonlinear stuff
+lines!(ax2, xc/1e3, APEtnl[:,1]/1e3, label = "tnl",linestyle=:dash, color = :cyan, linewidth = 3)
+lines!(ax2, xc/1e3, APEtnl2[:,1]/1e3, label = "tnl2",linestyle=:dash, color = :blue, linewidth = 3)
 
 lines!(ax2, xc/1e3, APEt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax2, xc/1e3, APE[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
 lines!(ax2, xc/1e3, APEl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax2, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-
 xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
+axislegend(ax2, position = :rt)
 
 
 ax3 = Axis(fig[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
-
 lines!(ax3, xc/1e3, Fxt[:,1]/1e3, label = "tot",linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax3, xc/1e3, Fx[:,1]/1e3, label = "D2 + HH", color = :black, linewidth = 3)
 lines!(ax3, xc/1e3, Fxl[:,1]/1e3, label = "D2", color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-
 xlims!(ax3, 0, Ldom/1e3)
 #ylimf = [0 15]
 ylimf = [-2 15]

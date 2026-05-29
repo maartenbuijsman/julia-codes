@@ -59,7 +59,7 @@ max_Δt     = 10minutes
 =#
 
 # high resolution: 100/200 m
-DX  = 100;
+DX  = 200;
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
 
@@ -338,7 +338,8 @@ model = NonhydrostaticModel(grid;
 #    advection         = Centered(order=4),
 #    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
     advection         = WENO(),
-    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
+    closure           = ScalarDiffusivity(ν=1e-5),    
+#    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
     tracers           = :b,
     buoyancy          = BuoyancyTracer(),
     background_fields = (; b=B),
