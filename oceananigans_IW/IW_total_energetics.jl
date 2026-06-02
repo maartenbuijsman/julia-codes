@@ -52,9 +52,15 @@ runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
 
 #= D2
 mainnm = 3
-LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 27.5, 30.0, 35.0, 40.0, 50.0];
+LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0];
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
 =#
+
+# D2, mode 1, 2
+mainnm = 6
+LATS   = [0.0, 0.0, 0.0];
+runnms = [1,   2,   3];
+#
 
 #= D1
 mainnm = 5
@@ -62,14 +68,14 @@ LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
 runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 =#
 
-# one run
+#= one run
 mainnm = 3
 LATS   = [0]
 runnms = [16] 
-#
+=#
 
-# for runnm in runnms  # runnms loop ---------------
-    runnm = runnms[1]
+#for runnm in runnms  # runnms loop ---------------
+    runnm = runnms[2]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -177,8 +183,7 @@ uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2;
 wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
 
 # clear variables from memory
-uf= nothing; wf = nothing; 
-GC.gc()
+uf=nothing; wf=nothing; GC.gc()
 
 # plot surface velocity to check effect of resolution
 idx, d = nearest_index(xc, 369e3)
@@ -524,7 +529,7 @@ fig
 Nf = 8;
 
 # remove the low frequency motions - if any?
-if mainnm == 3     # D2
+if mainnm ~= 3     # D2
     Tcut1 = 16/24  #D2+HH
     Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
     #Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
@@ -571,7 +576,7 @@ vs = lowhighpass_butter(vc,Tcut1,dt,Nf,passflg);
 ws = lowhighpass_butter(wc,Tcut1,dt,Nf,passflg);
 ps = lowhighpass_butter(pcp,Tcut1,dt,Nf,passflg);
 bs = lowhighpass_butter(bc,Tcut1,dt,Nf,passflg);
-#rs = -bs*rho0/grav
+rs = -bs*rho0/grav
 
 # isolate "t" tidal-band frequencies
 ut = ul .- us
@@ -600,7 +605,9 @@ GC.gc()
 
 # cycles to exclude
 EXCL = 2;
-t1,t2 = 14, tday[end]-EXCL*T2/24
+#t1 = 14;
+t1 = 13;
+t2 = tday[end]-EXCL*T2/24
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
@@ -613,13 +620,14 @@ KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:]
 KEs = fact*dropdims(mean(sum((us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
 
 # time-mean, depth-intgr. APE energy (Kang & Fringer, 2010 eq2)
+rrr = reshape(rhorefc,1,1,:);  
 APEz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
-APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-APEz = APEKFeq2(rt[Iday,:,:], rhorefc, zc, grav, thresh);
+APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));  #total
+APEz = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-APEz = APEKFeq2(rh[Iday,:,:], rhorefc, zc, grav, thresh);
+APEz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-APEz = APEKFeq2(rs[Iday,:,:], rhorefc, zc, grav, thresh);
+APEz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
 
 APEz=nothing;
@@ -634,30 +642,33 @@ Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 # create some figures ----------------------------------------------
 
 #ylimE = [0 75]; ylimA = [0 75];
-ylimE = [0 15]; ylimA = [0 15]; ylimf = [-2 7];
+ylimE = [0 30]; ylimA = [0 30]; ylimf = [-2 7];
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
-lines!(ax, xc/1e3, KE[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax, xc/1e3, KEt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax, xc/1e3, KEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-lines!(ax, xc/1e3, KEs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
+lines!(ax, xc/1e3, (KEt+KEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
+lines!(ax, xc/1e3, KE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax, xc/1e3, KEt/1e3, label = "tidal", color = :red, linewidth = 3)
+lines!(ax, xc/1e3, KEh/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax, xc/1e3, KEs/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
 
 ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
-lines!(ax, xc/1e3, APE[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax, xc/1e3, APEt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax, xc/1e3, APEh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-lines!(ax, xc/1e3, APEs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
+lines!(ax2, xc/1e3, (APEt+APEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
+lines!(ax2, xc/1e3, APE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax2, xc/1e3, APEt/1e3, label = "tidal", color = :red, linewidth = 3)
+lines!(ax2, xc/1e3, APEh/1e3, label = "HH", color = :green, linewidth = 3)
+#lines!(ax2, xc/1e3, APEs/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
 
 ax3 = Axis(fig[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
-lines!(ax, xc/1e3, Fx[:,1]/1e3, label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax, xc/1e3, Fxt[:,1]/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax, xc/1e3, Fxh[:,1]/1e3, label = "HH", color = :green, linewidth = 3)
-lines!(ax, xc/1e3, Fxs[:,1]/1e3, label = "sub", color = :yellow, linewidth = 2)
+lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3, label = "t+HH", color = :black, linewidth = 3)
+lines!(ax3, xc/1e3, Fx/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, Fxt/1e3, label = "tidal", color = :red, linewidth = 3)
+lines!(ax3, xc/1e3, Fxh/1e3, label = "HH", color = :green, linewidth = 3)
+#lines!(ax3, xc/1e3, Fxs/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax3, 0, Ldom/1e3)
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
@@ -747,11 +758,11 @@ end
 # save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, 
-       KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
+jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fx, Fxt, Fxh, Fxs, 
+    KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
 println(string(fnameout)," data saved ........ ")
 
-# end # runnms loop ---------------
+#end # runnms loop ---------------
 
 
 stop()
@@ -1674,3 +1685,7 @@ ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
 
 fig
+
+jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fxt, Fx, Fxh, Fxl, Fx2, KEt, APEt, KE, APE, 
+       KEh, APEh, KEl, APEl, KE2, KEut, KEu, KEuh, KEul);
+println(string(fnameout)," data saved ........ ")
