@@ -56,7 +56,7 @@ LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0];
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
 =#
 
-# D2, mode 1, 2
+# D2, mode 1 + 2 interactions
 mainnm = 6
 LATS   = [0.0, 0.0, 0.0];
 runnms = [1,   2,   3];
@@ -74,8 +74,57 @@ LATS   = [0]
 runnms = [16] 
 =#
 
-#for runnm in runnms  # runnms loop ---------------
-    runnm = runnms[2]
+# function to compute APE as in Kang And Fringer (2010) --------------------
+# This is Claudformed code based on the expensive loop APE and its preamble (below)
+
+# if rhop-rhorefc > thresh, then APE  = 0
+thresh = 1e-5;
+function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
+    # suggested value thresh = 1e-5;
+    Nt, Nx, Nz = size(rhop)
+    APEx        = zeros(Nt, Nx, Nz)
+
+    itp_zs = extrapolate(interpolate((-rhorefc,), zc, Gridded(Linear())), Flat())
+    F_ref  = cumtrapz(zc, rhorefc)
+    rho_lo = rhorefc[end]   # lightest (surface)
+    rho_hi = rhorefc[1]     # densest  (bottom)
+
+    # exact cumulative integral of piecewise-linear rhorefc from zc[1] to z
+    function exact_F(z)
+        j = searchsortedfirst(zc, z)
+        if j == 1
+            return F_ref[1] + rhorefc[1] * (z - zc[1])
+        elseif j > length(zc)
+            return F_ref[end] + rhorefc[end] * (z - zc[end])
+        else
+            dz = zc[j] - zc[j-1]
+            dt = z - zc[j-1]
+            return F_ref[j-1] + rhorefc[j-1]*dt + (rhorefc[j]-rhorefc[j-1])/(2*dz) * dt^2
+        end
+    end
+
+    Threads.@threads for it in 1:Nt
+        for ix in 1:Nx
+            for i in 1:Nz
+                rho_i = rhop[it, ix, i]
+                (rho_i < rho_lo || rho_i > rho_hi) && continue
+                abs(rhorefc[i] - rho_i) < thresh    && continue
+
+                zrho  = zc[i]
+                zstar = itp_zs(-rho_i)
+                z1    = min(zrho, zstar)
+                z2    = max(zrho, zstar)
+                fac   = zrho > zstar ? 1.0 : -1.0
+
+                APEx[it, ix, i] = fac * grav * (rho_i*(z2-z1) - (exact_F(z2) - exact_F(z1)))
+            end
+        end
+    end
+    return APEx
+end
+
+for runnm in runnms  # runnms loop ---------------
+#    runnm = runnms[3]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -108,15 +157,26 @@ else
 end
 
 # load simulations ===========================================
+# only select data after the spinup time 
+# => i.e., time it takes before waves reach the eastern boundary
+
+tspin = 4; #days
 
 ds = NCDataset(filename,"r");
 #println(ds)
 println(keys(ds))
 
-tsec = ds["time"][:];
+# select Indices after spinup
+tday0 = ds["time"][:]/24/3600;
+Isel = findall(>=(tspin),tday0);
+
+tsec = ds["time"][Isel];
 tday = tsec/24/3600;
+
+
 dt = tday[2]-tday[1]
 
+#lines(Isel,tday[Isel])
 xf   = ds["x_faa"][:]; 
 xc   = ds["x_caa"][:]; 
 zc   = ds["z_aac"][:]; 
@@ -135,12 +195,12 @@ Nt = length(tday);
 # NOTE: in future select a certain x range away from boundaries
 @time begin
     println("reading nc file ",filename)
-    uf  = permutedims(ds["u"][:,:,:],    (3,1,2))
-    vc  = permutedims(ds["v"][:,:,:],    (3,1,2))
-    wf  = permutedims(ds["w"][:,:,:],    (3,1,2))
-    bc  = permutedims(ds["b"][:,:,:],    (3,1,2))
-    pHY = permutedims(ds["pHY"][:,:,:],  (3,1,2))
-    pNH = permutedims(ds["pNHS"][:,:,:], (3,1,2))
+    uf  = permutedims(ds["u"][:,:,Isel],    (3,1,2));
+    vc  = permutedims(ds["v"][:,:,Isel],    (3,1,2));
+    wf  = permutedims(ds["w"][:,:,Isel],    (3,1,2));
+    bc  = permutedims(ds["b"][:,:,Isel],    (3,1,2));
+    pHY = permutedims(ds["pHY"][:,:,Isel],  (3,1,2));
+    pNH = permutedims(ds["pNHS"][:,:,Isel], (3,1,2));
 end
 
 #= a loop is slower than the above w. permuting?
@@ -329,55 +389,6 @@ for i in Ilp
 end
 =#
 
-# function to compute APE as in Kang And Fringer (2010) --------------------
-# This is Claudformed code based on the expensive loop APE and its preamble
-
-# if rhop-rhorefc > thresh, then APE  = 0
-thresh = 1e-5;
-function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
-    # suggested value thresh = 1e-5;
-    Nt, Nx, Nz = size(rhop)
-    APE        = zeros(Nt, Nx, Nz)
-
-    itp_zs = extrapolate(interpolate((-rhorefc,), zc, Gridded(Linear())), Flat())
-    F_ref  = cumtrapz(zc, rhorefc)
-    rho_lo = rhorefc[end]   # lightest (surface)
-    rho_hi = rhorefc[1]     # densest  (bottom)
-
-    # exact cumulative integral of piecewise-linear rhorefc from zc[1] to z
-    function exact_F(z)
-        j = searchsortedfirst(zc, z)
-        if j == 1
-            return F_ref[1] + rhorefc[1] * (z - zc[1])
-        elseif j > length(zc)
-            return F_ref[end] + rhorefc[end] * (z - zc[end])
-        else
-            dz = zc[j] - zc[j-1]
-            dt = z - zc[j-1]
-            return F_ref[j-1] + rhorefc[j-1]*dt + (rhorefc[j]-rhorefc[j-1])/(2*dz) * dt^2
-        end
-    end
-
-    Threads.@threads for it in 1:Nt
-        for ix in 1:Nx
-            for i in 1:Nz
-                rho_i = rhop[it, ix, i]
-                (rho_i < rho_lo || rho_i > rho_hi) && continue
-                abs(rhorefc[i] - rho_i) < thresh    && continue
-
-                zrho  = zc[i]
-                zstar = itp_zs(-rho_i)
-                z1    = min(zrho, zstar)
-                z2    = max(zrho, zstar)
-                fac   = zrho > zstar ? 1.0 : -1.0
-
-                APE[it, ix, i] = fac * grav * (rho_i*(z2-z1) - (exact_F(z2) - exact_F(z1)))
-            end
-        end
-    end
-    return APE
-end
-
 # APE_4D = APEKFeq2(rhop, rhorefc, zc, grav, thresh);
 
 #= compare the performance of the various APEs
@@ -529,7 +540,7 @@ fig
 Nf = 8;
 
 # remove the low frequency motions - if any?
-if mainnm ~= 3     # D2
+if mainnm != 3     # D2
     Tcut1 = 16/24  #D2+HH
     Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
     #Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
@@ -586,17 +597,17 @@ pt = pl .- ps
 bt = bl .- bs
 rt = -bt*rho0/grav
 
-#= plot bpassed vels
+# plot bpassed vels
 idx, d = nearest_index(xc, 1000e3)
 fig = Figure(size=(800,400))
 ax = Axis(fig[1, 1])
 lines!(ax, tday, uc[:,idx,end], label = "uc", linestyle=:solid, color = :black, linewidth = 2)
 lines!(ax, tday, ut[:,idx,end], label = "ut", linestyle=:solid, color = :red, linewidth = 4)
-lines!(ax, tday, ul[:,idx,end], label = "ul", linestyle=:solid, color = :cyan, linewidth = 1)
+#lines!(ax, tday, ul[:,idx,end], label = "ul", linestyle=:solid, color = :cyan, linewidth = 1)
 lines!(ax, tday, uh[:,idx,end], label = "uh", linestyle=:solid, color = :green, linewidth = 1)
-xlims!(ax,15,20)
+#xlims!(ax,15,20)
 fig
-=#
+#
 
 ul=nothing; vl=nothing; wl=nothing; wl=nothing; pl=nothing; bl=nothing;
 GC.gc()
@@ -604,34 +615,53 @@ GC.gc()
 # KE and APE ----------------------------------------------------------------
 
 # cycles to exclude
-EXCL = 2;
-#t1 = 14;
-t1 = 13;
-t2 = tday[end]-EXCL*T2/24
+EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
+
+# exclude 0.5 and 1 days to get 10 tidal cycles for 11 day sim
+# EXCL = 1; t1 = tday[1]+0.5; t2 = tday[end]-EXCL;
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
 
 # time-mean, depth-intgr. KE energy 
 fact = 1/2*rho0
-KE  = fact*dropdims(mean(sum((uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2 .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEt = fact*dropdims(mean(sum((ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wc[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEh = fact*dropdims(mean(sum((uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
-KEs = fact*dropdims(mean(sum((us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2).*dzz,dims=3),dims=1), dims=(1,3))
+KEz = uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2 .+ wc[Iday,:,:].^2
+KE  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKx = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3)) # advective flux
+
+KEz = ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wc[Iday,:,:].^2
+KEt = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxt = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+
+KEz = uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:].^2
+KEh = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxh = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+
+KEz = us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2
+KEs = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxs = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+
+KEz=nothing; GC.gc();
 
 # time-mean, depth-intgr. APE energy (Kang & Fringer, 2010 eq2)
 rrr = reshape(rhorefc,1,1,:);  
 APEz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
 APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));  #total
+FAx  = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+
 APEz = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+FAxt = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+
 APEz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+FAxh = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+
 APEz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
+FAxs = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
-APEz=nothing;
-GC.gc()
+APEz=nothing; GC.gc();
 
 # undecomposed time-mean flux 
 Fx  = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
@@ -642,7 +672,7 @@ Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 # create some figures ----------------------------------------------
 
 #ylimE = [0 75]; ylimA = [0 75];
-ylimE = [0 30]; ylimA = [0 30]; ylimf = [-2 7];
+ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
 
 fig = Figure(size=(750,750))
 ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
@@ -669,6 +699,23 @@ lines!(ax3, xc/1e3, Fx/1e3,  label = "tot", linestyle=:dash, color = :grey, line
 lines!(ax3, xc/1e3, Fxt/1e3, label = "tidal", color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, Fxh/1e3, label = "HH", color = :green, linewidth = 3)
 #lines!(ax3, xc/1e3, Fxs/1e3, label = "sub", color = :yellow, linewidth = 2)
+
+# advective flux
+lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
+#lines!(ax3, xc/1e3, (FEx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, (Fx + FKx+FAx)/1e3,  label = "up+uE",  linestyle=:dash, color = :blue, linewidth = 3)
+lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
+lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
+#
+
+#= advective APE flux is larger than KE!
+lines!(ax3, xc/1e3, (FAxt+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
+#lines!(ax3, xc/1e3, (FEx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, (Fx + FAx)/1e3,  linestyle=:dash, color = :blue, linewidth = 3)
+lines!(ax3, xc/1e3, (FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
+lines!(ax3, xc/1e3, (FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
+=#
+
 xlims!(ax3, 0, Ldom/1e3)
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
@@ -689,11 +736,13 @@ println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 
 # compute some ffts of surface velocity ======================================================
 
+#= use the same as above
 EXCL = 0;  # can be zero for fft
 t2 = tday[end]-EXCL*T2/24; #t1 is defined above
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
+=#
 
 tukeycf=0.2; numwin=1; linfit=true; prewhit=false;
 
@@ -714,7 +763,7 @@ KEom = poweru .+ powerv;    # mode 1+2
 flim = [0 20]; fstp=2;
 clims = (-0.05,0.05)
 
-fig1 = Figure(size=(750,1000))
+fig1 = Figure(size=(500,750))
 axa = Axis(fig1[1, 1],xticks = (flim[1]:fstp:flim[2]),
 title=string(fname_short2,"; lat=",LAT,"; log10(KE) [m2/s2/cpd] "),xlabel="frequency [cpd]",ylabel="x [km]");  
 xlims!(axa, flim[1], flim[2])
@@ -724,8 +773,8 @@ hm.colorrange = (-6, 0)
 fig1   
 
 # average coefficients fall inside 75-500 km range
-xlims = [0,1000]*1e3; # excl. generation on left and relaxation on right
-#xlims = [75,500]*1e3; # excl. generation on left and relaxation on right
+#xlims = [0,1000]*1e3; # excl. generation on left and relaxation on right
+xlims = [75,500]*1e3; # excl. generation on left and relaxation on right
 #xlims = [0,480]*1e3; # AMZ1 set up with specified boundaries excl. 20 km relaxation on right
 Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
 KEoma = vec(mean(KEom[:,Ix],dims=2)); 
@@ -762,7 +811,7 @@ jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fx, Fxt, Fxh, Fxs,
     KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
 println(string(fnameout)," data saved ........ ")
 
-#end # runnms loop ---------------
+end # runnms loop ---------------
 
 
 stop()
