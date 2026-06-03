@@ -684,19 +684,23 @@ Fxt = dropdims(mean(sum(ut[Iday,:,:].*pt[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 
-#=
+#
 fig1 = Figure(size=(1000,750))
 axa = Axis(fig1[1, 1],title="zeta [m/s]",xlabel="x [km]",ylabel="z [m]");  
-hm = heatmap!(axa, xc/1e3, zc, Zz[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
+hm = heatmap!(axa, xc/1e3, zc, Zzt[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
 #hm = heatmap!(axa, xc/1e3, zc, APEz[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (0, 35)
 fig1 
-=#
+#
 
 # compute non-dimensional parameters from Sutherland 2022
 I1 = argmin(abs.(zc .- -100))
 I2 = argmin(abs.(zc .- -300))
+dnl = (zc[I1]- zc[I2])/log(N2c[I1]/N2c[I2])
 
-d = 
+# max vertical displacement at mid time
+A0nl, idx = findmax(Zzt[Nt÷2-100:Nt÷2+100,:,:])
+#it, ix, iz = Tuple(idx)
+alpnl = A0nl/dnl
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
