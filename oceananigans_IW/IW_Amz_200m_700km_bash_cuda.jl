@@ -1,6 +1,6 @@
 #= IW_Amz_200m_700km_bash_cuda.jl
 Maarten Buijsman, USM DMS, 2026-6-1
-    06 series
+    07 series
     for mode 1 M2, dx=200m, 700km, 15days
     Amz stratification
 
@@ -371,15 +371,17 @@ b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 
 model = NonhydrostaticModel(grid;
     coriolis          = fcor,
-    advection         = Centered(order=4),
-    closure           = ScalarDiffusivity(ν=1e-2),    
+#    advection         = Centered(order=4),
+#    closure           = ScalarDiffusivity(ν=1e-2),    
 #    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-#    advection         = WENO(),
-#    closure           = ScalarDiffusivity(ν=1e-5, κ=1e-5),
+    advection         = WENO(),
+    closure           = ScalarDiffusivity(ν=1e-5),
     tracers           = :b,
     buoyancy          = BuoyancyTracer(),
     background_fields = (; b=B),
     forcing           = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing))
+
+println(model)
 
 ###########------ SIMULATION ------#############
 

@@ -57,7 +57,7 @@ runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
 =#
 
 # D2, mode 1 + 2 interactions
-mainnm = 6
+mainnm = 7
 LATS   = [0.0, 0.0, 0.0];
 runnms = [1,   2,   3];
 #
@@ -83,6 +83,7 @@ function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
     # suggested value thresh = 1e-5;
     Nt, Nx, Nz = size(rhop)
     APEx        = zeros(Nt, Nx, Nz)
+    zeta        = zeros(Nt, Nx, Nz) 
 
     itp_zs = extrapolate(interpolate((-rhorefc,), zc, Gridded(Linear())), Flat())
     F_ref  = cumtrapz(zc, rhorefc)
@@ -110,6 +111,7 @@ function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
                 (rho_i < rho_lo || rho_i > rho_hi) && continue
                 abs(rhorefc[i] - rho_i) < thresh    && continue
 
+                # zeta = zrho-zstar
                 zrho  = zc[i]
                 zstar = itp_zs(-rho_i)
                 z1    = min(zrho, zstar)
@@ -117,14 +119,17 @@ function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
                 fac   = zrho > zstar ? 1.0 : -1.0
 
                 APEx[it, ix, i] = fac * grav * (rho_i*(z2-z1) - (exact_F(z2) - exact_F(z1)))
+                zeta[it, ix, i] = zrho - zstar
             end
         end
     end
     return APEx
 end
 
-for runnm in runnms  # runnms loop ---------------
-#    runnm = runnms[3]
+# do the analysis in a function
+function run_analysis(runnm)
+
+#    runnm = runnms[1]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -597,7 +602,7 @@ pt = pl .- ps
 bt = bl .- bs
 rt = -bt*rho0/grav
 
-# plot bpassed vels
+#= plot bpassed vels
 idx, d = nearest_index(xc, 1000e3)
 fig = Figure(size=(800,400))
 ax = Axis(fig[1, 1])
@@ -607,7 +612,7 @@ lines!(ax, tday, ut[:,idx,end], label = "ut", linestyle=:solid, color = :red, li
 lines!(ax, tday, uh[:,idx,end], label = "uh", linestyle=:solid, color = :green, linewidth = 1)
 #xlims!(ax,15,20)
 fig
-#
+=#
 
 ul=nothing; vl=nothing; wl=nothing; wl=nothing; pl=nothing; bl=nothing;
 GC.gc()
@@ -629,17 +634,17 @@ KEz = uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2 .+ wc[Iday,:,:].^2
 KE  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
 FKx = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3)) # advective flux
 
-KEz = ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wc[Iday,:,:].^2
+KEz = ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wt[Iday,:,:].^2
 KEt = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxt = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxt = dropdims(mean(sum(ut[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 KEz = uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:].^2
 KEh = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxh = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxh = dropdims(mean(sum(uh[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 KEz = us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2
 KEs = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxs = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+FKxs = dropdims(mean(sum(us[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 KEz=nothing; GC.gc();
 
@@ -651,19 +656,27 @@ FAx  = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 APEz = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxt = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+FAxt = dropdims(mean(sum(ut[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 APEz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxh = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+FAxh = dropdims(mean(sum(uh[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
 APEz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxs = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
-
+FAxs = dropdims(mean(sum(us[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 APEz=nothing; GC.gc();
 
+# linear APE
+# omit N2c values <= 1e-10, keep the others
+Ikp = findall(>(1e-10),N2c);
+factA  = 1/2*rho0*1.0./N2cc;
+APElin = dropdims(mean(sum((bc[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
+
+
 # undecomposed time-mean flux 
+# pressure flux: m * m/s * N/m2 = W/m
+# APE advection  m * m/s * J/m3 = m * m/s * Nm/m3 = W/m
 Fx  = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxt = dropdims(mean(sum(ut[Iday,:,:].*pt[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
@@ -674,8 +687,8 @@ Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 #ylimE = [0 75]; ylimA = [0 75];
 ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
 
-fig = Figure(size=(750,750))
-ax = Axis(fig[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
+fig1 = Figure(size=(750,750))
+ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
 lines!(ax, xc/1e3, (KEt+KEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
 lines!(ax, xc/1e3, KE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax, xc/1e3, KEt/1e3, label = "tidal", color = :red, linewidth = 3)
@@ -684,16 +697,17 @@ lines!(ax, xc/1e3, KEs/1e3, label = "sub", color = :yellow, linewidth = 2)
 xlims!(ax, 0, Ldom/1e3)
 ylims!(ax, ylimE[1], ylimE[2])
 
-ax2 = Axis(fig[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
+ax2 = Axis(fig1[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
 lines!(ax2, xc/1e3, (APEt+APEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
 lines!(ax2, xc/1e3, APE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax2, xc/1e3, APEt/1e3, label = "tidal", color = :red, linewidth = 3)
 lines!(ax2, xc/1e3, APEh/1e3, label = "HH", color = :green, linewidth = 3)
 #lines!(ax2, xc/1e3, APEs/1e3, label = "sub", color = :yellow, linewidth = 2)
+lines!(ax2, xc/1e3, APElin/1e3, label = "tot lin", color = :grey, linewidth = 1)
 xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
 
-ax3 = Axis(fig[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
+ax3 = Axis(fig1[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
 lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3, label = "t+HH", color = :black, linewidth = 3)
 lines!(ax3, xc/1e3, Fx/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax3, xc/1e3, Fxt/1e3, label = "tidal", color = :red, linewidth = 3)
@@ -702,7 +716,7 @@ lines!(ax3, xc/1e3, Fxh/1e3, label = "HH", color = :green, linewidth = 3)
 
 # advective flux
 lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
-#lines!(ax3, xc/1e3, (FEx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, (FKx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
 lines!(ax3, xc/1e3, (Fx + FKx+FAx)/1e3,  label = "up+uE",  linestyle=:dash, color = :blue, linewidth = 3)
 lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
@@ -719,12 +733,12 @@ lines!(ax3, xc/1e3, (FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
 xlims!(ax3, 0, Ldom/1e3)
 ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
-fig
+fig1
 
 # Save the figure as a PNG file
 #if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
 #if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_HYONLY_v3.png"), fig)
-if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig)
+if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig1)
 end
 
 # stop()
@@ -804,15 +818,20 @@ if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
 
 
-# save the energy terms =========================================
+#= save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
 jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fx, Fxt, Fxh, Fxs, 
     KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
 println(string(fnameout)," data saved ........ ")
+=#
 
-end # runnms loop ---------------
+end # function run_analysis(runnm)
 
+# runnms loop ---------------
+for runnm in runnms  
+    run_analysis(runnm)
+end 
 
 stop()
 
