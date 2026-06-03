@@ -57,9 +57,9 @@ runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
 =#
 
 # D2, mode 1 + 2 interactions
-mainnm = 7
 LATS   = [0.0, 0.0, 0.0];
-runnms = [1,   2,   3];
+runnms = [1,   2,   3]; mainnm = 6;
+#runnms = [1,   2,   3]; mainnm = 7;
 #
 
 #= D1
@@ -119,17 +119,18 @@ function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
                 fac   = zrho > zstar ? 1.0 : -1.0
 
                 APEx[it, ix, i] = fac * grav * (rho_i*(z2-z1) - (exact_F(z2) - exact_F(z1)))
+                # vertical displacement
                 zeta[it, ix, i] = zrho - zstar
             end
         end
     end
-    return APEx
+    return APEx, zeta
 end
 
 # do the analysis in a function
-function run_analysis(runnm)
+#function run_analysis(runnm)
 
-#    runnm = runnms[1]
+    runnm = runnms[1]
         println("runnm is ",runnm) 
 
 # file name ===========================================
@@ -650,29 +651,30 @@ KEz=nothing; GC.gc();
 
 # time-mean, depth-intgr. APE energy (Kang & Fringer, 2010 eq2)
 rrr = reshape(rhorefc,1,1,:);  
-APEz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
+APEz,Zz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
 APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));  #total
 FAx  = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+stop()
 
-APEz = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
+APEz,Zzt = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
 FAxt = dropdims(mean(sum(ut[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
-APEz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
+APEz,Zz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
 FAxh = dropdims(mean(sum(uh[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
 
-APEz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
+APEz,Zz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
 FAxs = dropdims(mean(sum(us[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
-APEz=nothing; GC.gc();
+
+APEz=nothing; Zz=nothing; GC.gc();
 
 # linear APE
 # omit N2c values <= 1e-10, keep the others
 Ikp = findall(>(1e-10),N2c);
 factA  = 1/2*rho0*1.0./N2cc;
 APElin = dropdims(mean(sum((bc[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-
 
 # undecomposed time-mean flux 
 # pressure flux: m * m/s * N/m2 = W/m
@@ -681,6 +683,29 @@ Fx  = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(
 Fxt = dropdims(mean(sum(ut[Iday,:,:].*pt[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
 Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
+
+#=
+fig1 = Figure(size=(1000,750))
+axa = Axis(fig1[1, 1],title="zeta [m/s]",xlabel="x [km]",ylabel="z [m]");  
+hm = heatmap!(axa, xc/1e3, zc, Zz[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
+#hm = heatmap!(axa, xc/1e3, zc, APEz[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (0, 35)
+fig1 
+=#
+
+# compute non-dimensional parameters from Sutherland 2022
+I1 = argmin(abs.(zc .- -100))
+I2 = argmin(abs.(zc .- -300))
+
+d = 
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,N2c, zc)
+#scatter!(ax1, zc, log.(N2c))
+ylims!(ax1, -500, 0)
+#xlims!(ax1, -2000, 10)
+fig
+
 
 # create some figures ----------------------------------------------
 
@@ -799,18 +824,19 @@ KEommax, maxidx = findmax(KEom)
 #KEommax = KEom[Im2,Ix[1]]
 println("KEomax=",log10(KEommax))
 
-
-Plims = [-12 1];
-axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]),
-    title="normalized power",xlabel="frequency [cpd]",ylabel="log10(KE/KEmax)");  
-xlims!(axb, flim[1], flim[2])
-ylims!(axb, Plims[1], Plims[2])
-lines!(axb, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3)
+flim2 = [1 96]; 
+Plims = [-14 1];
+axb = Axis(fig1[2, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, yscale = log10,
+    title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax");  
+xlims!(axb, flim2[1], flim2[2])
+ylims!(axb, 10.0^Plims[1], 10.0^Plims[2])
+#lines!(axb, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3)
+lines!(axb, freq, KEoma./KEommax, linestyle=:solid, color = :black, linewidth = 3)
 
 # add coriolis rad/s => cpd
 fcpd = coriolis(LAT)/(2*pi)*24*3600
 #lines!(vec([fcpd fcpd]),vec([minimum(log10.(KEoma)) maximum(log10.(KEoma))]), linestyle=:dash, color = :red, linewidth = 2)
-lines!(axb, vec([fcpd fcpd]),vec(Plims), linestyle=:dash, color = :red, linewidth = 2)
+lines!(axb, vec([fcpd fcpd]), [10.0^Plims[1], 10.0^Plims[2]], linestyle=:dash, color = :red, linewidth = 2)
 fig1
 
 # Save the figure as a PNG file
@@ -826,7 +852,9 @@ jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fx, Fxt, Fxh, Fxs,
 println(string(fnameout)," data saved ........ ")
 =#
 
-end # function run_analysis(runnm)
+
+stop()
+#end # function run_analysis(runnm)
 
 # runnms loop ---------------
 for runnm in runnms  
@@ -1437,7 +1465,7 @@ Nt = length(tday);
 b = ds["b"];
 
 # create density as a function of time
-const rho0=1020; const grav=9.81; 
+#const rho0=1020; const grav=9.81; 
 Nb2z = Nb^2 .* reshape(zc, 1, :, 1);    # shape: (1, length(zc), 1)
 rho  = -(Nb2z .+ b) * rho0 / grav;      # broadcast without repeat
 #rhor  = -(Nb2z) * rho0 / grav;          # reference density
@@ -1709,7 +1737,7 @@ Fxl = dropdims(mean(sum(ul[Iday,:,:].*pl[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 Fx2 = Fxh + Fxl
 
 
- create some figures ----------------------------------------------
+## create some figures ----------------------------------------------
 
 #ylimE = [0 75]; ylimA = [0 75];
 ylimE = [0 15]; ylimA = [0 15];
