@@ -42,20 +42,6 @@ const T2 = 12+25.2/60
 const rho0=1020; 
 const grav=9.81; 
 
-#=
-#      38 39 40 41 42 43 44 45 46 47 48    49
-mainnm = 1
-LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
-runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
-#runnms = [1]
-=#
-
-#= D2
-mainnm = 3
-LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0];
-runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14];
-=#
-
 # D2, mode 1 + 2 interactions
 LATS   = [0.0, 0.0, 0.0];
 runnms = [1,   2,   3]; mainnm = 6;
@@ -66,12 +52,6 @@ runnms = [1,   2,   3]; mainnm = 6;
 mainnm = 5
 LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
 runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
-=#
-
-#= one run
-mainnm = 3
-LATS   = [0]
-runnms = [16] 
 =#
 
 # function to compute APE as in Kang And Fringer (2010) --------------------
@@ -128,49 +108,24 @@ function APEKFeq2(rhop, rhorefc, zc, grav, thresh)
 end
 
 # do the analysis in a function
-#function run_analysis(runnm)
+#function run_analysis(runnm,LAT)
+IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
 
-    runnm = runnms[1]
-        println("runnm is ",runnm) 
+# filename
+fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+fname_short2 = fnames
+filename = string(dirsim,fnames,".nc")
 
-# file name ===========================================
-
-if oldnm==1
-    # function of latitude
-    lat = 0
-
-   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"
-   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"  # hydro
-   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",lat); titlenm = "mode 1"     # nonhydro
-   fnames = "AMZ4_00.0_hvis_12d_U1_0.40_U2_0.30_v3.nc"; titlenm = "mode 1+2"  # nonhydro and compare with
-
-    fname_short2 = fnames[1:33]
-    filename = string(dirsim,fnames)
-
-    LAT = LATS[1];
-else
-    # file ID
-    #runnm  = 47
-
-    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
-
-    fname_short2 = fnames
-    filename = string(dirsim,fnames,".nc")
-
-    LAT = LATS[runnm-minimum(runnms)+1];
-    println("lat is ",LAT,"------------------------------------") 
-
-end
+println(fname_short2,"; lat=",LAT," -------------------") 
 
 # load simulations ===========================================
-# only select data after the spinup time 
-# => i.e., time it takes before waves reach the eastern boundary
-
-tspin = 4; #days
-
 ds = NCDataset(filename,"r");
 #println(ds)
 println(keys(ds))
+
+# only select data after the spinup time 
+# => i.e., time it takes before waves reach the eastern boundary
+tspin = 4; #days
 
 # select Indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -178,8 +133,6 @@ Isel = findall(>=(tspin),tday0);
 
 tsec = ds["time"][Isel];
 tday = tsec/24/3600;
-
-
 dt = tday[2]-tday[1]
 
 #lines(Isel,tday[Isel])
@@ -208,28 +161,6 @@ Nt = length(tday);
     pHY = permutedims(ds["pHY"][:,:,Isel],  (3,1,2));
     pNH = permutedims(ds["pNHS"][:,:,Isel], (3,1,2));
 end
-
-#= a loop is slower than the above w. permuting?
-@time begin
-uf = zeros(Nt,Nx+1,Nz);
-vc = zeros(Nt,Nx,Nz);
-wf = zeros(Nt,Nx,Nz+1);
-bc = zeros(Nt,Nx,Nz);
-pHY = zeros(Nt,Nx,Nz);
-pNH = zeros(Nt,Nx,Nz);
-
-for i in 1:Nt
-    if rem(i,100)==0; println(i); end
-    uf[i,:,:] = ds["u"][:, :, i];
-    vc[i,:,:] = ds["v"][:, :, i];
-    wf[i,:,:] = ds["w"][:, :, i];
-    bc[i,:,:] = ds["b"][:, :, i];
-    pHY[i,:,:] = ds["pHY"][:, :, i];    
-    pNH[i,:,:] = ds["pNHS"][:, :, i];        
-end
-end
-=#
-
 
 # total pressure in N/m2
 ptot = (pHY.+pNH)*rho0/grav;
@@ -298,6 +229,102 @@ lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 #xlims!(ax1, -2000, 10)
 fig
+
+# calculation of the resonance parameter epsilon
+# 4om2 - om(2k)2 / 4om2
+function getomres(ω,LAT,nonhyd,Nm)
+    nk = 4;
+    fcor   = coriolis(LAT);
+    omi = collect(range(ω, nk*ω, nk))
+    function itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
+        ki  = zeros(nk,)
+        for i=1:nk
+            kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
+                sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, omi[i], nonhyd);
+                ki[i] = kn[Nm] # generally mode 1 is selected
+        end
+        intzc   = interpolate((ki,), omi, Gridded(Linear()));
+        omr = intzc.(kr);
+        return omr
+    end
+
+    # get 2k wavelength
+    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
+    kr = 2*kn[Nm]
+    #println("L1=",Ln[1]/1e3," km")
+
+    # first iteration
+    omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
+
+    # second iteration
+    om2 = collect(range(0.75*omr, 1.25*omr, nk))
+    omr = itom(zfw, N2w, fcor, om2, nonhyd, nk, kr, Nm)
+    return omr
+end
+
+# epsilon, non-dimensional resonance parameter for mode Nm
+# based on k resonance: k+k=2k
+ω      = 2π / (T2*3600)
+#fcor   = coriolis(LAT);
+nonhyd = 1;
+Nm     = 1; #Mode number
+
+omr = getomres(ω,LAT,nonhyd,Nm)
+epsnh = ((2*ω)^2 - omr^2)/(2*ω)^2
+
+nonhyd = 0;
+omr = getomres(ω,LAT,nonhyd,Nm)
+epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
+
+# epsilon for k -----------------------------
+# ((2k)2 - k(2om))/(2k)2
+# based on omega resonance: om+om=2om
+# 
+# Conclusion: epsilon based on omega and k are very much the same
+# Question:   are the nonhydrostatic simulations less resonant?
+#             => less energy in higher harmonics?
+#             => fewer energy transfers?
+
+function getkom(ω,LAT,nonhyd,Nm)
+    fcor   = coriolis(LAT);
+
+    # get k at 2omega
+    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
+    kom = kn[Nm]
+
+    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, 2ω, nonhyd);
+    k2om = kn[Nm]
+    return kom, k2om
+end
+
+nonhyd=1;
+kom, k2om = getkom(ω,LAT,nonhyd,Nm)
+epsomnh = ((2*kom)^2 - k2om^2)/(2*kom)^2
+
+nonhyd=0;
+kom, k2om = getkom(ω,LAT,nonhyd,Nm)
+epsomhy = ((2*kom)^2 - k2om^2)/(2*kom)^2
+
+#= # plot for varying latitudes
+llat = collect(0:2.5:50)
+nonhyd=1;
+epsoms = zeros(length(llat))
+epsks = zeros(length(llat))
+for i=1:length(llat)
+    kom, k2om = getkom(ω,llat[i],nonhyd,Nm)
+    epsoms[i] = ((2*kom)^2 - k2om^2)/(2*kom)^2    
+
+    omr = getomres(ω,llat[i],nonhyd,Nm)
+    epsks[i] = ((2*ω)^2 - omr^2)/(2*ω)^2    
+end
+
+fig = Figure()
+ax1 = Axis(fig[1,1])
+lines!(ax1,1 ./abs.(epsoms),llat)
+lines!(ax1,1 ./abs.(epsks),llat)
+fig
+=#
+
 
 #= APE linear and nonlinear
 # b = -g/rho0*rho_pert [m/s2]
@@ -687,20 +714,38 @@ Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1
 #
 fig1 = Figure(size=(1000,750))
 axa = Axis(fig1[1, 1],title="zeta [m/s]",xlabel="x [km]",ylabel="z [m]");  
-hm = heatmap!(axa, xc/1e3, zc, Zzt[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
-#hm = heatmap!(axa, xc/1e3, zc, APEz[1000,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (0, 35)
+#hm = heatmap!(axa, xc/1e3, zc, ut[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-0.5, 0.5) 
+hm = heatmap!(axa, xc/1e3, zc, Zzt[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
+#hm = heatmap!(axa, xc/1e3, zc, APEz[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (0, 35)
 fig1 
 #
 
 # compute non-dimensional parameters from Sutherland 2022
-I1 = argmin(abs.(zc .- -100))
+I1 = argmin(abs.(zc .- -100))  #max N2 
 I2 = argmin(abs.(zc .- -300))
+#I2 = argmin(abs.(zc .- -800))
 dnl = (zc[I1]- zc[I2])/log(N2c[I1]/N2c[I2])
 
 # max vertical displacement at mid time
 A0nl, idx = findmax(Zzt[Nt÷2-100:Nt÷2+100,:,:])
-#it, ix, iz = Tuple(idx)
 alpnl = A0nl/dnl
+
+# nonlinearity parameter alpha/epsilon
+alpepshy = alpnl/epshy
+alpepsnh = alpnl/epsnh
+
+# beat period of energy exchange
+Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)         
+Tbeathy_days = 2π/(epshy*ω)/(24*3600)
+
+Zzt=nothing; GC.gc();
+
+#=checks
+it, ix, iz = Tuple(idx); 
+xc[ix]/1e3
+zc[iz]
+Zzt[Nt÷2-100+it-1,ix,iz]
+=#
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
@@ -709,6 +754,8 @@ lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 #xlims!(ax1, -2000, 10)
 fig
+
+
 
 
 # create some figures ----------------------------------------------
@@ -858,12 +905,17 @@ println(string(fnameout)," data saved ........ ")
 
 
 stop()
-#end # function run_analysis(runnm)
+#end # function run_analysis(runnm,LAT)
+
 
 # runnms loop ---------------
-for runnm in runnms  
-    run_analysis(runnm)
-end 
+elapsed = @elapsed begin
+    for (runnm, LAT) in zip(runnms, LATS)
+        run_analysis(runnm,LAT)
+    end 
+end
+println("finished in $(round(elapsed, digits=1)) s")
+
 
 stop()
 

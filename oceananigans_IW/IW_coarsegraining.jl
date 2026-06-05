@@ -21,76 +21,58 @@ if WIN==1
     dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
     dirfig = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\figs\\";  
     dirout = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\diagout\\";  
+    dirforce = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
 else
     pathname = "/home/mbui/Documents/julia-codes/functions/"
-    dirsim = "/data3/mbui/ModelOutput/IW/";
-    dirfig = "/data3/mbui/ModelOutput/figs/";
-    dirout = "/data3/mbui/ModelOutput/diagout/";
+    pth0 = "/home/mbui/ModelOutput/"
+    dirsim = string(pth0,"IW/");
+    dirfig = string(pth0,"figs/");
+    dirout = string(pth0,"diagout/");
+    dirforce = string(pth0,"IW/forcingfiles/");
 end
 
 include(string(pathname,"include_functions.jl"))
 
 # print figures
 figflag = 1
-
 const T2 = 12+25.2/60
 
-# file name ===========================================
+# run names --------------------------------
+# D2, mode 1 + 2 interactions
+LATS   = [0.0, 0.0, 0.0];
+#runnms = [1,   2,   3]; mainnm = 6;
+runnms = [1,   2,   3]; mainnm = 7;
+#
 
-# 01 expts
-mainnm = 1
+# coarsegraining function -----------------------------
+function run_coarsegraining(runnm,LAT)
+#IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
 
-#      38 39 40 41 42 43 44 45 46 47 48    49
-LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35];
-runnms = [38 39 40 41 42 43 44 45 46 47 48 49];
+# file ID ----------------------
+fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
 
-# 03 expts
-oldnm  = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
+fname_short2 = fnames
+filename = string(dirsim,fnames,".nc")
 
-mainnm = 3    
-runnm  = 1 
-LAT    = 0
+titlenm = string(LAT,"°N; mode 1")    
+titlenm2 = string(LAT,"°N")        
 
-# file name ===========================================
-#####for runnm in runnms
-    #LAT = LATS[runnm-37];
-    #println("lat is ",LAT,"------------------------------------") 
-    #end
-
-if oldnm==1
-    # function of latitude
-    LAT = LATS[1];
-
-   #fnames = @sprintf("AMZv_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"
-   # fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"  # hydro
-     fnames = @sprintf("AMZ3_%04.1f_hvis_12d_U1_0.40_U2_0.30.nc",LAT); titlenm = "mode 1+2"  # hydro   
-   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.00.nc",LAT); titlenm = "mode 1"     # nonhydro
-   # fnames = @sprintf("AMZ4_%04.1f_hvis_12d_U1_0.40_U2_0.30.nc",LAT); titlenm = "mode 1+2"    # nonhydro
-
-    fname_short2 = fnames[1:33]
-    filename = string(dirsim,fnames)
-
-    titlenm = string(LAT,"°N; ",titlenm)    
-    titlenm2 = string(LAT,"°N")            
-else
-    # file ID
-    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
-
-    fname_short2 = fnames
-    filename = string(dirsim,fnames,".nc")
-
-    println("lat is ",LAT,"------------------------------------") 
-
-    titlenm = string(LAT,"°N; mode 1")    
-    titlenm2 = string(LAT,"°N")        
-end
+println(fname_short2,"; lat=",LAT," -------------------") 
 
 
 # load simulations ===========================================
-
 ds = NCDataset(filename,"r");
+println(keys(ds))
 
-tsec = ds["time"][:];
+# only select data after the spinup time 
+# => i.e., time it takes before waves reach the eastern boundary
+tspin = 4; #days
+
+# select Indices after spinup
+tday0 = ds["time"][:]/24/3600;
+Isel = findall(>=(tspin),tday0);
+
+tsec = ds["time"][Isel];
 tday = tsec/24/3600;
 dt = tday[2]-tday[1]
 
@@ -109,22 +91,11 @@ Nt = length(tday);
 
 # u, v, w velocities
 # NOTE: in future select a certain x range away from boundaries
-
-# 
-#uf = ds["u"]; #x_faa × z_aac × time
-#vf = ds["v"]; #x_caa × z_aac × time
-#wf = ds["w"]; #x_caa × z_aaf × time
-
-# is a loop a faster way of permuting?
-uf = zeros(Nt,Nx+1,Nz);
-vf = zeros(Nt,Nx,Nz);
-wf = zeros(Nt,Nx,Nz+1);
-
-for i in 1:Nt
-    println(i)
-    uf[i,:,:] = ds["u"][:, :, i];
-    vf[i,:,:] = ds["v"][:, :, i];
-    wf[i,:,:] = ds["w"][:, :, i];
+@time begin
+    println("reading nc file ",filename)
+    uf  = permutedims(ds["u"][:,:,Isel],(3,1,2));
+    vf  = permutedims(ds["v"][:,:,Isel],(3,1,2));
+    wf  = permutedims(ds["w"][:,:,Isel],(3,1,2));
 end
 
 # close the nc file
@@ -161,7 +132,9 @@ end
 dth=dt*24; N = 8;   # all in hours
 
 # low-pass
-Tcut=9;  # all in hours
+#Tcut=9;  # all in hours
+#Tcut=  (T2+2*T2/3)/2 
+Tcut=  (T2+2*T2/4)/2 
 fstring = "low"
 
 #= test
@@ -173,33 +146,50 @@ lines!(ax,tday,ww,color=:red)
 lines!(ax,tday,wwf,color=:green,linestyle=:dash); fig
 =#
 
+# starting low-passing
+# instead of filtering the full 3D array at once, filter slices in parallel
 @time begin
-    ufl = lowhighpass_butter(uf,Tcut,dth,N,fstring);
-    vfl = lowhighpass_butter(vf,Tcut,dth,N,fstring);
-    wfl = lowhighpass_butter(wf,Tcut,dth,N,fstring);
+    println("starting low-pass filtering")    
+    ufl = similar(uf); vfl = similar(uc); wfl = similar(wf); 
+    ucl = similar(uc); wcl = similar(uc);
+    uucl = similar(uc); uvcl = similar(uc); uwcl = similar(uc);
+    vvcl = similar(uc); vwcl = similar(uc); wwcl = similar(uc);
+    Threads.@threads for ix in 1:Nx+1
+        for iz in 1:Nz
+            ufl[:, ix, iz] = lowhighpass_butter(uf[:, ix, iz], Tcut, dth, N, fstring)
+        end
+        if ix <= Nx
+            for iz in 1:Nz
+                vfl[:, ix, iz] = lowhighpass_butter(vf[:, ix, iz],Tcut,dth,N,fstring);
+                wfl[:, ix, iz] = lowhighpass_butter(wf[:, ix, iz],Tcut,dth,N,fstring);
 
-    ucl = lowhighpass_butter(uc,Tcut,dth,N,fstring);
-    wcl = lowhighpass_butter(wc,Tcut,dth,N,fstring);
+                ucl[:, ix, iz] = lowhighpass_butter(uc[:, ix, iz],Tcut,dth,N,fstring);
+                wcl[:, ix, iz] = lowhighpass_butter(wc[:, ix, iz],Tcut,dth,N,fstring);
 
-    uucl = lowhighpass_butter(uc.*uc,Tcut,dth,N,fstring);
-    uvcl = lowhighpass_butter(uc.*vf,Tcut,dth,N,fstring);
-    uwcl = lowhighpass_butter(uc.*wc,Tcut,dth,N,fstring);
+                uucl[:, ix, iz] = lowhighpass_butter(uc[:, ix, iz].*uc[:, ix, iz],Tcut,dth,N,fstring);
+                uvcl[:, ix, iz] = lowhighpass_butter(uc[:, ix, iz].*vf[:, ix, iz],Tcut, dth, N, fstring); # co-loc in x
+                uwcl[:, ix, iz] = lowhighpass_butter(uc[:, ix, iz].*wc[:, ix, iz],Tcut,dth,N,fstring);
 
-    vvcl = lowhighpass_butter(vf.*vf,Tcut,dth,N,fstring);    
-    vwcl = lowhighpass_butter(vf.*wc,Tcut,dth,N,fstring);    
+                vvcl[:, ix, iz] = lowhighpass_butter(vf[:, ix, iz].*vf[:, ix, iz],Tcut,dth,N,fstring);    
+                vwcl[:, ix, iz] = lowhighpass_butter(vf[:, ix, iz].*wc[:, ix, iz],Tcut,dth,N,fstring);    
 
-    wwcl = lowhighpass_butter(wc.*wc,Tcut,dth,N,fstring);        
-
-    println("finished in ")
+                wwcl[:, ix, iz] = lowhighpass_butter(wc[:, ix, iz].*wc[:, ix, iz],Tcut,dth,N,fstring);    
+            end
+            wfl[:, ix, Nz+1] = lowhighpass_butter(wf[:, ix, Nz+1],Tcut,dth,N,fstring);
+        end
+    end
 end
 
+#=N = 4;  
+wfl = lowhighpass_butter(wf,Tcut,dth,N,fstring);
 
 fig = Figure()
 ax = Axis(fig[1, 1]) 
-ix = 50
+ix = 1000
 lines!(ax,tday,wf[:,ix,15],color = :red)
 lines!(ax,tday,wfl[:,ix,15],color = :green, linestyle = :dash)
 fig
+=#
 
 #= compute the terms ======================================
 Π = ((ui*uj)_ - ui_*uj_)*dui/dxj, i=j=1,2,3
@@ -308,21 +298,21 @@ fig1
 # use an fixed number of tidal cycles after 4 days to capture modes 1 and 2
 # and before Tend-TM2 to avoid ringing effects
 
-# number of tidal cycles to exclude from the end
-#EXCL = 2 
-EXCL = 4
-t1,t2 = 4, tday[end]-EXCL*T2/24
+# cycles to exclude
+EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
+
+# exclude 0.5 and 1 days to get 10 tidal cycles for 11 day sim
+# EXCL = 1; t1 = tday[1]+0.5; t2 = tday[end]-EXCL;
 numcycles = floor((t2-t1)/(T2/24))
 t2 = t1+numcycles*(T2/24)
 Iday = findall(item -> item >= t1 && item<= t2, tday)
-#tday[Iday]
 
 # f(x,z)
 Πxa = dropdims(mean(Πx[Iday,:,:],dims=1),dims=1);
 Πza = dropdims(mean(Πz[Iday,:,:],dims=1),dims=1);
 Πnha = dropdims(mean(Πnh[Iday,:,:],dims=1),dims=1);
 
-ylim = -500;
+ylim = -700;
 
 fig1 = Figure(size = (600, 800))
 axa = Axis(fig1[1, 1],title=string("Pix [W/kg] ",fname_short2,"; ",titlenm2));  ylims!(axa, ylim, 0)
@@ -413,9 +403,9 @@ fig
 =#
 
 # save only the pi(x) UNSMOOTHED
-xlim = 1400
-#xlim = 700
-fig = Figure(size = (300, 450));
+#xlim = 1400
+xlim = 700
+fig = Figure(size = (600, 300));
  ax2 = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")
 lines!(ax2,xc/1e3,Πzxa,color=:green, label="Πz")
@@ -423,14 +413,12 @@ lines!(ax2,xc/1e3,Πnhxa,color=:black, label="Πnh")
 lines!(ax2,xc/1e3,Πnhxa+Πzxa+Πxxa,color=:orange, label="sum", linewidth = 3)
 axislegend(ax2,position = :rt; framevisible = false )
 xlims!(ax2, 0, xlim)
-ylims!(ax2, -1e-4, 1e-4)
+ylims!(ax2, -1e-4, 2e-4)
 fig
 #
 
 if figflag==1; save(string(dirfig,"PIx_",fname_short2,".png"), fig)
 end
-
-stop()
 
 # save f(x) profiles
 fnameout = string("Etran_",fname_short2,".jld2")
@@ -438,169 +426,16 @@ fnameout = string("Etran_",fname_short2,".jld2")
 jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
 println(string(fnameout)," data saved ........ ")
 
-#####end # runnums
+#stop()
+end         #function run_coarsegraining(runnm,LATS)
 
-stop()
-
-#= test
-using Smoothers
-
-# Generate some noisy data
-x = 1:100
-y = sin.(x .* 0.1) .+ randn(100) .* 0.5
-
-# Apply LOESS smoothing
-# The 'span' parameter (0.2 in this case) controls the degree of smoothing
-#smoothed_y = loess(y, span=0.2)
-ysmooth = sma(y, 10, true)
-#Igood = findall(!ismissing, smoothed_y)
-ysmooth2 = convert(Vector{Float64}, coalesce.(ysmooth, 0.0))
-
-
-# Plot the original and smoothed data
-fig = Figure(); 
-ax = Axis(fig[1, 1])
-lines!(ax,x, y)
-lines!(ax,x, ysmooth2)
-fig
-=#
-
-## load and compare the CG transects =======================================
-
-#=
-fnamal = ["AMZ1_lat0_8d_U1_0.25_U2_0.00",  # mode 1
-          "AMZ1_lat0_8d_U1_0.00_U2_0.20",  # mode 2
-          "AMZ1_lat0_8d_U1_0.25_U2_0.20"]  # mode 1+2
-          =#
-
-#fnamal = ["AMZ2_lat0_12d_U1_0.50_U2_0.00",  # mode 1
-#          "AMZ2_lat0_12d_U1_0.00_U2_0.40",  # mode 2
-#          "AMZ2_lat0_12d_U1_0.50_U2_0.40"]  # mode 1+2
-
-fnamal = ["AMZ3_hvis_12d_U1_0.40_U2_0.00",  # mode 1
-          "AMZ3_hvis_12d_U1_0.00_U2_0.30",  # mode 2
-          "AMZ3_hvis_12d_U1_0.40_U2_0.30"]  # mode 1+2
-
-
-# load simulations
-Πsum = 0;
-xc=0;  Πnhxa=0;  Πzxa=0;  Πxxa=0;
-for i in 1:2
-    path_fname = string(dirout,"Etran_",fnamal[i],".jld2")
-
-    @load path_fname xc  Πnhxa  Πzxa  Πxxa    
-    Πsum = Πsum .+ Πnhxa .+ Πzxa .+ Πxxa
+# runnms loop ---------------
+elapsed = @elapsed begin
+    for (runnm, LAT) in zip(runnms, LATS)
+        run_coarsegraining(runnm, LAT)
+    end
 end
-
-# old stuff? new stuff is below
-# Open the JLD2 file
-path_fname = string(dirout,"Etran_",fnamal[3],".jld2");
-
-fff = jldopen(path_fname, "r")
-println(keys(fff))  # List the keys (variables) in the file
-close(fff)
-
-@load path_fname xc  Πnhxa  Πzxa  Πxxa    
-Πsum2 = Πnhxa .+ Πzxa .+ Πxxa
+println("finished in $(round(elapsed, digits=1)) s")
 
 
-fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]")
-lines!(ax,xc/1e3,Πsum,color=:red, linewidth = 2, label="sim. mode 1 + sim. mode 2")
-lines!(ax,xc/1e3,Πsum2,color=:green, linewidth = 2, label="sim. mode 1+2")
-axislegend(position = :rb)
-fig
 
-
-# cumulative sum
-Πcumsum  = cumtrapz(xc,Πsum);
-Πcumsum2 = cumtrapz(xc,Πsum2);
-
-fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Σ Π [W/kg*m2]", 
-title = "cumulative tidal to supertidal energy transfer")
-lines!(ax,xc/1e3,Πcumsum,color=:red, linewidth = 3, label="sim. mode 1 + sim. mode 2")
-lines!(ax,xc/1e3,Πcumsum2,color=:green, linewidth = 3, label="sim. mode 1+2", linestyle = :dash)
-axislegend(position = :rb)
-xlims!(ax, 0, 500)
-fig
-
-if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
-end
-
-#=
-# test
-
-Πsum2 = Πnhxa .+ Πzxa .+ Πxxa
-
-
-fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]")
-lines!(ax,xc/1e3,Πsum2,color=:green, linewidth = 2, label="sim. mode 1")
-axislegend(position = :rb)
-fig
-
-
-# cumulative sum
-Πcumsum2 = cumtrapz(xc,Πsum2);
-
-fig = Figure(); 
-ax = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Σ Π [W/kg*m2]", 
-title = "cumulative tidal to supertidal energy transfer")
-lines!(ax,xc/1e3,Πcumsum2,color=:green, linewidth = 3, label="sim. mode 1+2", linestyle = :dash)
-axislegend(position = :rb)
-xlims!(ax, 0, 500)
-fig
-
-stop()
-=#
-
-## load all latitudes and plot the cumsum ======================================
-#runnms = [38 39 40 41 42 43 44 45 46 47 48    49];
-#LATS =   [0 2.5 5  10 15 20 25 30 40 50 28.80 35];
-runsel = [38 39 40 41 42 43 44 48 45 49 46 47];
-
-# get xc
-mainnm = 1
-fnames = @sprintf("Etran_AMZexpt%02i.%02i.jld2",mainnm,runsel[1]) 
-path_fname = string(dirout,fnames)
-
-@load path_fname xc
-
-DX = xc[2] - xc[1]
-
-# use data away from forcing and sponges
-#xlims = [75,500]*1e3;
-xlims = [0,700]*1e3;
-Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
-
-Πtran = zeros(length(runsel),length(xc));
-Πmin  = zeros(length(runsel));
-Πmax  = zeros(length(runsel));
-Πsum  = zeros(length(runsel));
-LATSS = zeros(length(runsel));
-for i in 1:length(runsel)
-
-    fnames = @sprintf("Etran_AMZexpt%02i.%02i.jld2",mainnm,runsel[i]) 
-    path_fname = string(dirout,fnames)
-
-    @load path_fname Πnhxa Πzxa Πxxa LAT
-    LATSS[i] = LAT
-    Πtran[i,:] = Πnhxa .+ Πzxa .+ Πxxa
-
-    Πsum[i] = sum(Πtran[i,Ix]*DX)/sum(length(Ix)*DX)
-    Πmin[i],Πmax[i] = extrema(Πtran[i,Ix])
-    #Πmax[i] = max(Πtran[i,Ix])
-end
-
-fig1 = Figure()
-axa = Axis(fig1[1,1], title="Π for τ=9 hr",xlabel="Π [W/kg]",ylabel="latitude [°N]");  
-scatterlines!(axa,Πsum,LATSS, linestyle=:solid, color = :black, linewidth=3,label="mean")
-scatterlines!(axa,Πmax,LATSS, linestyle=:dash, color = :red, linewidth=3,label="max")
-scatterlines!(axa,Πmin,LATSS, linestyle=:dash, color = :deepskyblue, linewidth=3,label="min")
-axislegend(axa, position = :rt)
-fig1
-
-
-if figflag==1; save(string(dirfig,"max_min_ave_PI_lat.png"), fig1)
-end
