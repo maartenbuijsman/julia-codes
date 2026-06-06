@@ -20,6 +20,9 @@ include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testin
 # other
 include(string(pathname,"coriolis.jl"));  # tested in testing_sturmL.jl
 
+# 2D-time diagnostic of APE for oceananigans.jl sims.
+include(string(pathname,"IW_NRG_APE_ZETA.jl")); 
+
 # simple functions
 function stop()
     throw(error("stop here"))
