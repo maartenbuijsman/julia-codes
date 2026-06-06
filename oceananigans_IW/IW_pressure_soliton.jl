@@ -24,10 +24,12 @@ if WIN==1
     dirEIG = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
 else
     pathname = "/home/mbui/Documents/julia-codes/functions/"
-    dirsim = "/data3/mbui/ModelOutput/IW/";
-    dirfig = "/data3/mbui/ModelOutput/figs/";
-    dirout = "/data3/mbui/ModelOutput/diagout/";
-    dirEIG = "/data3/mbui/ModelOutput/IW/forcingfiles/";
+    pth0 = "/home/mbui/ModelOutput/"
+    dirsim = string(pth0,"IW/");
+    dirfig = string(pth0,"figs/");
+    dirout = string(pth0,"diagout/");
+    dirforce = string(pth0,"IW/forcingfiles/");
+    dirEIG = string(pth0,"IW/forcingfiles/");
 end
 
 include(string(pathname,"include_functions.jl"))
@@ -37,11 +39,12 @@ figflag = 0
 oldnm   = 1  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
 
-#      38 39 40 41 42 43 44 45 46 47 48    49
+#=      38 39 40 41 42 43 44 45 46 47 48    49
 LATS = [0 2.5 5 10 15 20 25 30 40 50 28.80 35]
-
 #runnms = [38 39 40 41 42 43 44 45 46 47];
-runnms = [49]
+runnms = [49]=#
+LATS = [0]
+runnms = [1]; mainnm = 8;
 
 
 # file name ===========================================
@@ -71,7 +74,7 @@ else
     fname_short2 = fnames
     filename = string(dirsim,fnames,".nc")
 
-    LAT = LATS[runnm-37];
+    LAT = LATS[runnm];
     #println("lat is ",LAT) 
 
 end

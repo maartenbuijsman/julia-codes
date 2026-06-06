@@ -42,11 +42,11 @@ const T2 = 12+25.2/60
 LATS   = [0.0, 0.0, 0.0];
 #runnms = [1,   2,   3]; mainnm = 6;
 runnms = [1,   2,   3]; mainnm = 7;
-#
+
 
 # coarsegraining function -----------------------------
 function run_coarsegraining(runnm,LAT)
-#IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
+#IS = 3; runnm = runnms[IS]; LAT = LATS[IS]
 
 # file ID ----------------------
 fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
@@ -275,6 +275,12 @@ w*w - w*w * dwdz
 Πnh = (ucl.*wcl .- uwcl).*dwdx +   
       (wcl.*wcl .- wwcl).*dwdz; 
 
+# clear many variables      
+dudx=nothing; dwdz=nothing; dudz=nothing; dvdz=nothing; dvdx=nothing; dwdx=nothing;
+uucl=nothing; uvcl=nothing; uwcl=nothing; vvcl=nothing; vwcl=nothing; wwcl=nothing;
+ucl=nothing; wcl=nothing; ufl=nothing; vfl=nothing; wfl=nothing;
+GC.gc()      
+      
 #= snapshot
 ylim = -500;
 clims = (-maximum(Πx[:]),maximum(Πx[:]))
@@ -332,14 +338,26 @@ end
 #title=latexstring("sim. ",titlenm,"; \$\\Pi\$ [W/kg] ")
 
 # only plot the sum of all coarse graining terms :balance :RdBu_5
+Πtot = Πxa.+Πza.+Πnha;
+
+# smooth only for small dx
+if dx[1] < 500
+    # 3-pnt ave is enough to remove noise!
+    Πtot[2:end-1,:]  = 1/3*Πtot[1:end-2,:] + 1/3*Πtot[2:end-1,:] + 1/3*Πtot[3:end,:]; #best
+
+#    Πtot[2:end-1,:]  = 1/4*Πtot[1:end-2,:] + 1/2*Πtot[2:end-1,:] + 1/4*Πtot[3:end,:];     
+#    Πtot[3:end-2,:]  = 1/5*Πtot[1:end-4,:] + 1/5*Πtot[2:end-3,:] + 1/5*Πtot[3:end-2,:]
+#    + 1/5*Πtot[4:end-1,:] + 1/5*Πtot[5:end,:]; 
+end 
+
 clims = (-1e-6,1e-6)
 fig1 = Figure(size = (1000, 250))
-axa = Axis(fig1[1, 1], title=string(titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
+axa = Axis(fig1[1, 1], title=string(fname_short2,"; ",titlenm,"; cross-scale transfer [W/kg] "), xlabel="x [km]", ylabel="z [m]"); 
 #hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:Spectral), colorrange = clims); 
-hm = heatmap!(axa, xc/1e3, zc, Πxa.+Πza.+Πnha, colormap = Reverse(:RdBu_5), colorrange = clims); 
+hm = heatmap!(axa, xc/1e3, zc, Πtot, colormap = Reverse(:RdBu_5), colorrange = clims); 
 ylims!(axa, ylim, 0)
 Colorbar(fig1[1,2], hm); 
-fig1    
+fig1  
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"PIsumxz_",fname_short2,".png"), fig1)
