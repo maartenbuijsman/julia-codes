@@ -44,8 +44,10 @@ const grav=9.81;
 
 # D2, mode 1 + 2 interactions
 LATS   = [0.0, 0.0, 0.0];
-runnms = [1,   2,   3]; mainnm = 6;
-#runnms = [1,   2,   3]; mainnm = 7;
+#runnms = [1,   2,   3]; mainnm = 6;   # nonhyd 4 km, centered
+#runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered
+runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno
+#runnms = [1,   2,   3]; mainnm = 8;   # hyd, 4 km, 200 m, 200 m, weno
 #
 
 #= D1
@@ -56,8 +58,8 @@ runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 
 
 # do the analysis in a function
-#function run_analysis(runnm,LAT)
-IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
+function run_analysis(runnm,LAT)
+# IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
 
 # filename
 fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
@@ -108,6 +110,7 @@ Nt = length(tday);
     bc  = permutedims(ds["b"][:,:,Isel],    (3,1,2));
     pHY = permutedims(ds["pHY"][:,:,Isel],  (3,1,2));
     pNH = permutedims(ds["pNHS"][:,:,Isel], (3,1,2));
+#    pNH = copy(pHY).*0.0; # for hydstat sims 
 end
 
 # total pressure in N/m2
@@ -446,9 +449,9 @@ Nf = 8;
 
 # remove the low frequency motions - if any?
 if mainnm != 3     # D2
-    Tcut1 = 16/24  #D2+HH
-    Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
-    #Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
+    Tcut1 = 18/24  #D2+HH
+    #Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
+    Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
 elseif mainnm == 5 # D1
     Tcut1 = 30/24
     Tcut2 = 20/24
@@ -557,7 +560,6 @@ rrr = reshape(rhorefc,1,1,:);
 APEz,Zz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
 APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));  #total
 FAx  = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
-stop()
 
 APEz,Zzt = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
 APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
@@ -771,17 +773,21 @@ if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
 end
 
 
-#= save the energy terms =========================================
+# save the energy terms =========================================
 fnameout = string("energetics_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); freq, KEoma, KEommax, xc, Fx, Fxt, Fxh, Fxs, 
+jldsave(string(dirout,fnameout); 
+    dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
+    epsnh, epshy, epsomnh, epsomhy,
+    xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
+    FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
     KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
 println(string(fnameout)," data saved ........ ")
-=#
 
 
-stop()
-#end # function run_analysis(runnm,LAT)
+
+#stop()
+end # function run_analysis(runnm,LAT)
 
 
 # runnms loop ---------------
