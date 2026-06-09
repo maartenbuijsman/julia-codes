@@ -1,6 +1,193 @@
-# IW_analysis_coarsegr.jl
-# load coarse graining results
+#= IW_analysis_coarsegr.jl
+Maarten Buijsman, USM DMS, 2026-6-8
+Load coarse graining results from various sims. and make figures
+=#
 
+println("number of threads is ",Threads.nthreads())
+
+using Pkg, NCDatasets, Printf, CairoMakie, Statistics, 
+JLD2, ColorSchemes, LaTeXStrings, Interpolations
+
+WIN = 0;
+
+if WIN==1
+    pathname = "C:\\Users\\w944461\\Documents\\JULIA\\functions\\";
+    dirsim = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\";
+    dirfig = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\figs\\";  
+    dirout = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\diagout\\";  
+    dirEIG = "C:\\Users\\w944461\\Documents\\work\\data\\julia\\Oceananigans\\IW\\forcingfiles\\";
+else
+    pathname = "/home/mbui/Documents/julia-codes/functions/"
+    pth0 = "/home/mbui/ModelOutput/"
+    dirsim = string(pth0,"IW/");
+    dirfig = string(pth0,"figs/");
+    dirout = string(pth0,"diagout/");
+    dirforce = string(pth0,"IW/forcingfiles/");
+    dirEIG = string(pth0,"IW/forcingfiles/");
+end
+
+include(string(pathname,"include_functions.jl"))
+
+# print figures
+figflag = 0
+const T2 = 12+25.2/60
+const rho0=1020; 
+const grav=9.81; 
+
+# only select data after the spinup time 
+# => i.e., time it takes before waves reach the eastern boundary
+const tspin = 4; #days
+
+# run names --------------------------------
+# D2, mode 1 + 2 interactions
+LATS    = [0, 0, 0];
+mainnms = [7, 7, 7]; #4km-nh, 4k-h, 200m-nh, 200m-k
+runnms  = [1, 2, 3];
+
+#titstrs = ["4 km nonhyd.","4 km hyd.","200 m nonhyd.","200 m hyd."]
+
+#= load energetics_AMZexpt06.01.jld2" data --------------------------
+dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
+epsnh, epshy, epsomnh, epsomhy,
+xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
+FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
+KE, KEt, KEh, KEs, APE, APEt, APEh, APEs    
+=#
+
+# pre-allocate 
+fnames0  = @sprintf("AMZexpt%02i.%02i", mainnms[1], runnms[1])
+@load string(dirout, "energetics_", fnames0, ".jld2") xc
+FXT = zeros(length(runnms), length(xc))
+FXH = zeros(length(runnms), length(xc))
+
+for i=1:length(runnms)
+    mainnm = mainnms[i]; runnm = runnms[i]; LAT = LATS[i];
+
+    # filename
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+    println(fnames,"; lat=",LAT," -------------------") 
+
+    fnameout = string("energetics_",fnames,".jld2")
+    path_fname = string(dirout,fnameout)
+    @load path_fname xc Fxt Fxh  
+    FXT[i,:] = Fxt;
+    FXH[i,:] = Fxh;
+end
+
+#= load cross-scale transfers Etran_AMZexptX.X.jld2" data --------------------------
+LAT, xc, zc, 
+Πnhxa, Πxxa, Πzxa (depend on x), 
+Πnhza, Πxza, Πzza (depend on z),
+Πxztot (depends on x,z)
+=#
+
+# pre-allocate 
+@load string(dirout, "Etran_", fnames0, ".jld2") zc
+CGE = zeros(length(runnms), length(xc))
+Πxztot = nothing
+dx = xc[2]-xc[1]
+
+for i=1:length(runnms)
+    mainnm = mainnms[i]; runnm = runnms[i]; LAT = LATS[i];
+
+    # filename
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+    println(fnames,"; lat=",LAT," -------------------") 
+
+    fnameout = string("Etran_",fnames,".jld2")
+    path_fname = string(dirout,fnameout)
+    @load path_fname Πnhxa  Πxxa  Πzxa
+    pietot = Πnhxa+Πxxa+Πzxa;
+    CGE[i,:] = copy(pietot)
+
+    if dx < 500
+        # 3-pnt ave is enough to remove noise!
+#        pietot[2:end-1]  = 1/3*pietot[1:end-2] +
+#         1/3*pietot[2:end-1] + 1/3*pietot[3:end]; #best
+
+        pietot[3:end-2]  = 1/5*pietot[1:end-4] + 1/5*pietot[2:end-3] + 1/5*pietot[3:end-2] +
+         1/5*pietot[4:end-1] + 1/5*pietot[5:end]; 
+
+        CGE[i,:] = pietot  
+    end 
+    
+
+    if i==3; 
+        global Πxztot  #xc, zc
+        @load path_fname Πxztot; 
+
+        if dx < 500
+            # 3-pnt ave is enough to remove noise!
+#            Πxztot[2:end-1,:] = 1/3*Πxztot[1:end-2,:] +
+#            1/3*Πxztot[2:end-1,:] + 1/3*Πxztot[3:end,:]; #best
+
+            Πxztot[3:end-2,:]  = 1/5*Πxztot[1:end-4,:] + 1/5*Πxztot[2:end-3,:] + 1/5*Πxztot[3:end-2,:] +
+             1/5*Πxztot[4:end-1,:] + 1/5*Πxztot[5:end,:];             
+        end 
+           
+
+    end
+end
+
+# plot figure
+ylim = [0 7]
+ylim3 = [-0.1 1.7]
+
+Ldom = 700e3;
+
+
+fig = Figure(size=(600,750))
+ax = Axis(fig[1, 1],title = "(a) tidal flux", ylabel = "flux [W/m]")
+ylims!(ax, ylim[1], ylim[2])
+trslc = 0.2; vspan!(ax, 500, 700, color = (:yellow, trslc))
+vspan!(ax, 0, 56, color = (:lightblue, trslc))
+lines!(ax, xc/1e3, (FXT[1,:]+FXT[2,:])/1e3, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
+lines!(ax, xc/1e3, FXT[3,:]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
+axislegend(ax, position = :rt)
+
+ax2 = Axis(fig[2, 1],title = "(b) supertidal flux", ylabel = "flux [W/m]")
+ylims!(ax2, ylim[1], ylim[2])
+vspan!(ax2, 500, 700, color = (:yellow, trslc))
+vspan!(ax2, 0, 56, color = (:lightblue, trslc))
+lines!(ax2, xc/1e3, (FXH[1,:]+FXH[2,:])/1e3, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
+lines!(ax2, xc/1e3, FXH[3,:]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
+
+ax3 = Axis(fig[3, 1],title = "(c) cross-scale energy transfers (τ=9.3 h)", ylabel = "Π [1e4 W/kg m]")
+fc = 1e4;
+ylims!(ax3, ylim3[1], ylim3[2])
+vspan!(ax3, 500, 700, color = (:yellow, trslc))
+vspan!(ax3, 0, 56, color = (:lightblue, trslc))
+lines!(ax3, xc/1e3, (CGE[1,:]+CGE[2,:])*fc, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
+lines!(ax3, xc/1e3, CGE[3,:]*fc, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
+
+ylim4 = -500;
+fc2 = 1e7;
+clims = (-1e-6*fc2,1e-6*fc2)
+ax4 = Axis(fig[4, 1], title="(d) cross-scale transfers [1e-7 W/kg]", xlabel="x [km]", ylabel="z [m]"); 
+hm = heatmap!(ax4, xc/1e3, zc, Πxztot*fc2, colormap = Reverse(:RdBu_5), colorrange = clims); 
+ylims!(ax4, ylim4, 0)
+Colorbar(fig[4,2], hm); 
+
+xlims!(ax, 0, Ldom/1e3)
+xlims!(ax2, 0, Ldom/1e3)
+xlims!(ax3, 0, Ldom/1e3)
+xlims!(ax4, 0, Ldom/1e3)
+fig
+
+
+
+
+# Save the figure as a PNG file
+#if figflag==1; save(string(dirfig,"flux_undecomp_hi_lo.png"), fig)
+#end
+
+
+
+
+##
+
+
+stop()
 
 #= smooth some data ????
 using Smoothers

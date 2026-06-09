@@ -40,8 +40,8 @@ const T2 = 12+25.2/60
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
 LATS   = [0.0, 0.0, 0.0];
-#runnms = [1,   2,   3]; mainnm = 6;
-runnms = [1,   2,   3]; mainnm = 7;
+runnms = [1,   2,   3]; mainnm = 6;
+#runnms = [1,   2,   3]; mainnm = 7;
 
 
 # coarsegraining function -----------------------------
@@ -346,8 +346,8 @@ if dx[1] < 500
     Πtot[2:end-1,:]  = 1/3*Πtot[1:end-2,:] + 1/3*Πtot[2:end-1,:] + 1/3*Πtot[3:end,:]; #best
 
 #    Πtot[2:end-1,:]  = 1/4*Πtot[1:end-2,:] + 1/2*Πtot[2:end-1,:] + 1/4*Πtot[3:end,:];     
-#    Πtot[3:end-2,:]  = 1/5*Πtot[1:end-4,:] + 1/5*Πtot[2:end-3,:] + 1/5*Πtot[3:end-2,:]
-#    + 1/5*Πtot[4:end-1,:] + 1/5*Πtot[5:end,:]; 
+#    Πtot[3:end-2,:]  = 1/5*Πtot[1:end-4,:] + 1/5*Πtot[2:end-3,:] + 1/5*Πtot[3:end-2,:] +
+#    1/5*Πtot[4:end-1,:] + 1/5*Πtot[5:end,:]; 
 end 
 
 clims = (-1e-6,1e-6)
@@ -438,10 +438,14 @@ fig
 if figflag==1; save(string(dirfig,"PIx_",fname_short2,".png"), fig)
 end
 
-# save f(x) profiles
+# save f(x,z) profiles
+
+# 2D profile; needs averaging in space
+Πxztot = Πxa.+Πza.+Πnha;
+
 fnameout = string("Etran_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza);
+jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza, Πxztot);
 println(string(fnameout)," data saved ........ ")
 
 #stop()
