@@ -40,8 +40,10 @@ const T2 = 12+25.2/60
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
 LATS   = [0.0, 0.0, 0.0];
-runnms = [1,   2,   3]; mainnm = 6;
+#runnms = [1,   2,   3]; mainnm = 6;
+runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
 #runnms = [1,   2,   3]; mainnm = 7;
+#runnms = [4,   5,   6]; mainnm = 7;
 
 
 # coarsegraining function -----------------------------

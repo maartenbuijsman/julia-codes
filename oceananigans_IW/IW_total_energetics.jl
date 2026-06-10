@@ -45,10 +45,14 @@ const grav=9.81;
 # D2, mode 1 + 2 interactions
 LATS   = [0.0, 0.0, 0.0];
 #runnms = [1,   2,   3]; mainnm = 6;   # nonhyd 4 km, centered
-#runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered
-runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno
+#runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
+#runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
+#runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno v=1e-5
+#runnms = [7,   8,   9]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
 #runnms = [1,   2,   3]; mainnm = 8;   # hyd, 4 km, 200 m, 200 m, weno
 #
+
+runnms = [3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
 
 #= D1
 mainnm = 5
@@ -145,6 +149,7 @@ fig1
 # some more hovmullers
 fig1 = Figure(size=(600,600))
 clims =(0,0.8)
+#clims =(0,0.6)
 ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
 hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
 #hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 

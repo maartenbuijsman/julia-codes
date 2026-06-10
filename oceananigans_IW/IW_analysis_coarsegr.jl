@@ -29,7 +29,8 @@ end
 include(string(pathname,"include_functions.jl"))
 
 # print figures
-figflag = 0
+figflag = 1
+
 const T2 = 12+25.2/60
 const rho0=1020; 
 const grav=9.81; 
@@ -41,10 +42,19 @@ const tspin = 4; #days
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
 LATS    = [0, 0, 0];
-mainnms = [7, 7, 7]; #4km-nh, 4k-h, 200m-nh, 200m-k
-runnms  = [1, 2, 3];
+mainnms = [6, 6, 6]; #4km-nh
+runnms  = [1, 2, 3]; #centered v=1e-2
+#runnms  = [4, 5, 6]; #weno v=1e-2 => too diffusive
 
-#titstrs = ["4 km nonhyd.","4 km hyd.","200 m nonhyd.","200 m hyd."]
+#mainnms = [7, 7, 7]; #200m-nh
+#runnms  = [1, 2, 3]; #centered v=1e-2
+#runnms  = [4, 5, 6]; #weno v=1e-5 
+
+fnum = string(mainnms[1],".",runnms[1],"-",runnms[3])
+
+if     mainnms[1] == 6; titstr = string("4-km hydrostatic (",fnum,")")
+elseif mainnms[1] == 7; titstr = string("200 m non-hydrostatic (",fnum,")")    
+end
 
 #= load energetics_AMZexpt06.01.jld2" data --------------------------
 dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
@@ -69,7 +79,7 @@ for i=1:length(runnms)
 
     fnameout = string("energetics_",fnames,".jld2")
     path_fname = string(dirout,fnameout)
-    @load path_fname xc Fxt Fxh  
+    @load path_fname xc Fxt Fxh 
     FXT[i,:] = Fxt;
     FXH[i,:] = Fxh;
 end
@@ -84,6 +94,7 @@ LAT, xc, zc,
 # pre-allocate 
 @load string(dirout, "Etran_", fnames0, ".jld2") zc
 CGE = zeros(length(runnms), length(xc))
+CGEsum = copy(CGE)
 Πxztot = nothing
 dx = xc[2]-xc[1]
 
@@ -110,7 +121,9 @@ for i=1:length(runnms)
 
         CGE[i,:] = pietot  
     end 
-    
+
+    # cumtrapz 
+    CGEsum[i,:] = cumtrapz(xc,CGE[i,:]) 
 
     if i==3; 
         global Πxztot  #xc, zc
@@ -124,7 +137,6 @@ for i=1:length(runnms)
             Πxztot[3:end-2,:]  = 1/5*Πxztot[1:end-4,:] + 1/5*Πxztot[2:end-3,:] + 1/5*Πxztot[3:end-2,:] +
              1/5*Πxztot[4:end-1,:] + 1/5*Πxztot[5:end,:];             
         end 
-           
 
     end
 end
@@ -132,18 +144,18 @@ end
 # plot figure
 ylim = [0 7]
 ylim3 = [-0.1 1.7]
-
+ylim5 = [-2 35]
 Ldom = 700e3;
 
-
-fig = Figure(size=(600,750))
-ax = Axis(fig[1, 1],title = "(a) tidal flux", ylabel = "flux [W/m]")
+fig = Figure(size=(600,925))
+ax = Axis(fig[1, 1],title = string("(a) ",titstr,"; tidal flux"), ylabel = "flux [W/m]")
 ylims!(ax, ylim[1], ylim[2])
 trslc = 0.2; vspan!(ax, 500, 700, color = (:yellow, trslc))
 vspan!(ax, 0, 56, color = (:lightblue, trslc))
 lines!(ax, xc/1e3, (FXT[1,:]+FXT[2,:])/1e3, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
 lines!(ax, xc/1e3, FXT[3,:]/1e3, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
 axislegend(ax, position = :rt)
+#ax.xticklabelsvisible = false
 
 ax2 = Axis(fig[2, 1],title = "(b) supertidal flux", ylabel = "flux [W/m]")
 ylims!(ax2, ylim[1], ylim[2])
@@ -160,34 +172,122 @@ vspan!(ax3, 0, 56, color = (:lightblue, trslc))
 lines!(ax3, xc/1e3, (CGE[1,:]+CGE[2,:])*fc, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
 lines!(ax3, xc/1e3, CGE[3,:]*fc, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
 
+ax5 = Axis(fig[4, 1],title = "(d) cumulative cross-scale energy transfers", 
+ylabel = "Σ Π dx [W/kg m2]")
+fc5 = 1;
+ylims!(ax5, ylim5[1], ylim5[2])
+vspan!(ax5, 500, 700, color = (:yellow, trslc))
+vspan!(ax5, 0, 56, color = (:lightblue, trslc))
+lines!(ax5, xc/1e3, (CGEsum[1,:]+CGEsum[2,:])*fc5, label = "sim. mode 1 + sim. mode 2", color = :red, linewidth = 3, linestyle = :dash)
+lines!(ax5, xc/1e3, CGEsum[3,:]*fc5, label = "sim. mode 1+2", color = :green, linewidth = 3, linestyle = :solid)
+
 ylim4 = -500;
 fc2 = 1e7;
 clims = (-1e-6*fc2,1e-6*fc2)
-ax4 = Axis(fig[4, 1], title="(d) cross-scale transfers [1e-7 W/kg]", xlabel="x [km]", ylabel="z [m]"); 
+ax4 = Axis(fig[5, 1], title="(e) Π sim. mode 1 + 2 [1e-7 W/kg]", xlabel="x [km]", ylabel="z [m]"); 
 hm = heatmap!(ax4, xc/1e3, zc, Πxztot*fc2, colormap = Reverse(:RdBu_5), colorrange = clims); 
 ylims!(ax4, ylim4, 0)
-Colorbar(fig[4,2], hm); 
+Colorbar(fig[5,2], hm); 
 
 xlims!(ax, 0, Ldom/1e3)
 xlims!(ax2, 0, Ldom/1e3)
 xlims!(ax3, 0, Ldom/1e3)
 xlims!(ax4, 0, Ldom/1e3)
-fig
+xlims!(ax5, 0, Ldom/1e3)
+display(fig)
+
+# Save the figure as a PNG file
+titstr2 = replace(titstr, " " => "_", "(" => "", ")" => "")
+
+if figflag==1; save(string(dirfig,"flux_coarsgr_",titstr2,".png"), fig)
+end
+
+## plot energy spectra =======================
+
+mainnms = [6, 7]; #4km-nh, 4k-h, 200m-nh, 200m-k
+runnms  = [3, 3];
+LAT = 0.0;
+
+fnum1 = string(mainnms[1],".",runnms[1])
+fnum2 = string(mainnms[2],".",runnms[2])
+
+titstra = string("4-km hyd (",fnum1,")")
+titstrb = string("200-m nonhyd (",fnum2,")")    
+
+#= load energetics_AMZexpt06.01.jld2" data --------------------------
+dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
+epsnh, epshy, epsomnh, epsomhy,
+xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
+FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
+KE, KEt, KEh, KEs, APE, APEt, APEh, APEs    
+=#
+
+# pre-allocate 
+fnames0  = @sprintf("AMZexpt%02i.%02i", mainnms[1], runnms[1])
+@load string(dirout, "energetics_", fnames0, ".jld2") xc freq
+
+KEOM = zeros(length(runnms), length(freq))
+KEOMmax = zeros(length(runnms))
+
+for i=1:length(runnms)
+    mainnm = mainnms[i]; runnm = runnms[i]; 
+
+    # filename
+    fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+    println(fnames," -------------------") 
+
+    fnameout = string("energetics_",fnames,".jld2")
+    path_fname = string(dirout,fnameout)
+    @load path_fname KEoma KEommax
+    KEOM[i,:] = KEoma;
+    KEOMmax[i] = KEommax;
+end
 
 
+flim2 = [1 48]; 
+Plims = [-14 1];
+
+fig1 = Figure(size=(500,500))
+ax1 = Axis(fig1[1, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, yscale = log10,
+    title="transect-mean normalized spectral KE",ylabel="KE/KEmax");  
+xlims!(ax1, flim2[1], flim2[2])
+ylims!(ax1, 10.0^Plims[1], 10.0^Plims[2])
+lines!(ax1, freq, KEOM[1,:]./KEOMmax[1], label = titstra, linestyle=:solid, color = :black, linewidth = 3)
+lines!(ax1, freq, KEOM[2,:]./KEOMmax[2], label = titstrb, linestyle=:solid, color = :red, linewidth = 2)
+axislegend(ax1, position = :lb)
+
+# add coriolis rad/s => cpd
+#fcpd = coriolis(LAT)/(2*pi)*24*3600
+#lines!(vec([fcpd fcpd]),vec([minimum(log10.(KEoma)) maximum(log10.(KEoma))]), linestyle=:dash, color = :red, linewidth = 2)
+#lines!(axb, vec([fcpd fcpd]), [10.0^Plims[1], 10.0^Plims[2]], linestyle=:dash, color = :red, linewidth = 2)
+
+ax2 = Axis(fig1[2, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, 
+    title=string(titstra," - ",titstrb),xlabel="frequency [cpd]",ylabel="ΔKE [m2/s2 1/cpd]")
+xlims!(ax2, flim2[1], flim2[2])
+#lines!(ax2,freq, KEOM[1,:]./KEOMmax[1] .- KEOM[2,:]./KEOMmax[2], linestyle=:solid, color = :blue, linewidth = 3)
+lines!(ax2,freq, KEOM[1,:] .- KEOM[2,:], linestyle=:solid, color = :blue, linewidth = 2)
+
+rowsize!(fig1.layout, 1, Relative(2/3))
+rowsize!(fig1.layout, 2, Relative(1/3))
+
+display(fig1)
 
 
 # Save the figure as a PNG file
-#if figflag==1; save(string(dirfig,"flux_undecomp_hi_lo.png"), fig)
-#end
+titstrc = replace(string(titstra,"_",titstrb), " " => "_", "(" => "", ")" => "")
 
-
+if figflag==1; save(string(dirfig,"fft_KEsur_",titstrc,".png"), fig1)
+end
 
 
 ##
 
 
 stop()
+
+##############################################
+##############################################
+##############################################
 
 #= smooth some data ????
 using Smoothers
