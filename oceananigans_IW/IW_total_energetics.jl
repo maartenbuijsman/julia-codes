@@ -49,16 +49,23 @@ LATS   = [0.0, 0.0, 0.0];
 #runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
 #runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno v=1e-5
 #runnms = [7,   8,   9]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
+runnms = [13,   14,   15]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
 #runnms = [1,   2,   3]; mainnm = 8;   # hyd, 4 km, 200 m, 200 m, weno
 #
 
-runnms = [3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
+#runnms = [3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
 
 #= D1
 mainnm = 5
 LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
 runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 =#
+
+
+# D2
+mainnm = 3
+LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
+runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 
 
 # do the analysis in a function
@@ -79,7 +86,8 @@ println(keys(ds))
 
 # only select data after the spinup time 
 # => i.e., time it takes before waves reach the eastern boundary
-tspin = 4; #days
+#tspin = 4; #days  # for 700 km domain
+tspin = 10; #days  # for 2000 km domain
 
 # select Indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -453,11 +461,11 @@ fig
 Nf = 8;
 
 # remove the low frequency motions - if any?
-if mainnm != 3     # D2
-    Tcut1 = 18/24  #D2+HH
-    #Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
-    Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
-elseif mainnm == 5 # D1
+#if mainnm != 3     # D2
+Tcut1 = 18/24  #D2+HH
+#Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
+Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
+if mainnm == 5 # D1
     Tcut1 = 30/24
     Tcut2 = 20/24
 end
@@ -758,9 +766,12 @@ KEommax, maxidx = findmax(KEom)
 #KEommax = KEom[Im2,Ix[1]]
 println("KEomax=",log10(KEommax))
 
-flim2 = [1 96]; 
+#flim2 = [1 96]; 
+flim2 = [0 20]; 
 Plims = [-14 1];
-axb = Axis(fig1[2, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, yscale = log10,
+#axb = Axis(fig1[2, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, yscale = log10,
+#    title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax");  
+axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]), yscale = log10,
     title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax");  
 xlims!(axb, flim2[1], flim2[2])
 ylims!(axb, 10.0^Plims[1], 10.0^Plims[2])

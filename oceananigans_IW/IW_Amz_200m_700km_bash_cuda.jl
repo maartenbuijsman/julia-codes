@@ -88,10 +88,17 @@ max_Δt     = 10minutes
 
 #high resolution: 100/200 m
 L   = 700_000;                   # domain length
-DX  = 200;
+#DX  = 200;
+DX  = 100;
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
 
+#=medium resolution: 600 m
+L   = 720_000;                   # domain length
+DX  = 600;
+max_Δt = 2minutes  
+Δt     = 15seconds 
+=#
 
 # run duration and output frequency
 #dtoutput   = 15minutes 
@@ -371,12 +378,13 @@ b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 
 model = NonhydrostaticModel(grid;
     coriolis          = fcor,
-    advection         = Centered(order=4),
-    closure           = ScalarDiffusivity(ν=1e-2),    
+#    advection         = Centered(order=4),
+#    closure           = ScalarDiffusivity(ν=1e-2),    # blow up
 #    closure           = ScalarDiffusivity(ν=1e-5),     # blow up   
 #    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
-#    advection         = WENO(),
+    advection         = WENO(),
 #    closure           = ScalarDiffusivity(ν=1e-5),
+    closure           = ScalarDiffusivity(ν=1e-2),
     tracers           = :b,
     buoyancy          = BuoyancyTracer(),
     background_fields = (; b=B),

@@ -46,9 +46,11 @@ mainnms = [6, 6, 6]; #4km-nh
 runnms  = [1, 2, 3]; #centered v=1e-2
 #runnms  = [4, 5, 6]; #weno v=1e-2 => too diffusive
 
-#mainnms = [7, 7, 7]; #200m-nh
+mainnms = [7, 7, 7]; #200m-nh
 #runnms  = [1, 2, 3]; #centered v=1e-2
 #runnms  = [4, 5, 6]; #weno v=1e-5 
+runnms  = [13, 14, 15]; #weno v=1e-5 
+
 
 fnum = string(mainnms[1],".",runnms[1],"-",runnms[3])
 
@@ -147,6 +149,11 @@ ylim3 = [-0.1 1.7]
 ylim5 = [-2 35]
 Ldom = 700e3;
 
+ylim = [0 15]
+ylim3 = [-0.1 3.5]
+ylim5 = [-2 70]
+Ldom = 700e3;
+
 fig = Figure(size=(600,925))
 ax = Axis(fig[1, 1],title = string("(a) ",titstr,"; tidal flux"), ylabel = "flux [W/m]")
 ylims!(ax, ylim[1], ylim[2])
@@ -206,6 +213,10 @@ end
 
 mainnms = [6, 7]; #4km-nh, 4k-h, 200m-nh, 200m-k
 runnms  = [3, 3];
+
+mainnms = [7, 7]; #200m-nh, weak, 200m-nh, strong
+runnms  = [3, 15];
+
 LAT = 0.0;
 
 fnum1 = string(mainnms[1],".",runnms[1])

@@ -48,11 +48,32 @@ const tspin = 4; #days
 
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
+#=
 LATS    = [0, 0, 0, 0];
 mainnms = [6, 8, 7, 8]; #4km-nh, 4k-h, 200m-nh, 200m-k
 runnms  = [1, 1, 1, 2];
-
 titstrs = ["4 km nonhyd.","4 km hyd.","200 m nonhyd.","200 m hyd."]
+=#
+
+#=
+mainnms = [6, 8, 7, 7]; #4km-nh, 4k-h, 200m-nh, 200m-k
+runnms  = [1, 1, 1, 13];
+titstrs = ["4 km nonhyd.","4 km hyd.","200 m nonhyd.","200 m nonhydx1.5."]
+=#
+
+#= test 600 m 
+mainnms = [7, 7, 8, 8]; 
+runnms  = [13, 16, 6, 7];
+titstrs = ["200 m nonhyd. 0N +50%","200 m nonhyd. 20N +50%","600 m hyd. 0N +50%","600 m hyd. 20N +50%"]
+=#
+
+# test 600 m 
+mainnms = [7, 7, 7, 8]; 
+runnms  = [18, 16, 17, 7];
+titstrs = ["100 m nonhyd. 20N +50%","200 m nonhyd. 20N +50%","600 m nonhyd. 20N +50%","600 m hyd. 20N +50%"]
+
+LATS    = [20, 20, 20, 20];
+
 
 ## plotting function  -----------------------------
 
@@ -99,7 +120,8 @@ ax = function run_figs(mainnm,runnm,LAT,titstr,figcount)
     # u, v, w velocities
     # NOTE: in future select a certain x range away from boundaries
     # this is much faster than loading all data in Isel
-    It = Isel[462];
+    #It = Isel[462];
+    It = Isel[1+144*1];
 
     @time begin
         println("reading nc file ",filename)
@@ -171,11 +193,14 @@ ax = function run_figs(mainnm,runnm,LAT,titstr,figcount)
     # plot a heatmap of velocity and include density contours
     cmap = Reverse(:RdBu_9);
     clims  = (-0.3,0.3)
-    xlim = (305,385); zlim = (-1500,0); 
+    #clims  = (-0.5,0.5)
+    #xlim = (305,385); #GRC
+    xlim = (320,420); 
+    zlim = (-1500,0); 
 
     fnum = string(mainnm,".",runnm)
 
-    ax = Axis(fig[figcount, 1],title=string(titstr," (",fnum,"); velocity [m/s]"), ylabel="z [m]",xticks = 310:10:380)#, xticks = 367:2:387)
+    ax = Axis(fig[figcount, 1],title=string(titstr," (",fnum,"); velocity [m/s]"), ylabel="z [m]",xticks = 320:10:420)#, xticks = 367:2:387)
     hm=heatmap!(ax, xc/1e3, zc, uc, colormap = cmap, colorrange = clims) # Customize colormap as needed
 
     my_levels = [1015, 1015.5, 1018.5, 1019, 1019.5, 1019.95]
@@ -210,4 +235,5 @@ println("finished in $(round(elapsed, digits=1)) s")
 ax.xlabel = "x [km]"
 display(fig)
 
-save(string(dirfig,"four_snapshots.png"), fig)
+#save(string(dirfig,"four_snapshots_1.5.png"), fig)
+save(string(dirfig,"four_snapshots_for_jeroen4.png"), fig)

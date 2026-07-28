@@ -44,6 +44,16 @@ LATS   = [0.0, 0.0, 0.0];
 runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
 #runnms = [1,   2,   3]; mainnm = 7;
 #runnms = [4,   5,   6]; mainnm = 7;
+runnms = [13, 14, 15]; mainnm = 7;
+
+xlim = 700
+
+# function of latitude
+mainnm = 3
+LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
+runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
+
+xlim = 2000
 
 
 # coarsegraining function -----------------------------
@@ -68,7 +78,8 @@ println(keys(ds))
 
 # only select data after the spinup time 
 # => i.e., time it takes before waves reach the eastern boundary
-tspin = 4; #days
+#tspin = 4; #days  # for 700 km domain
+tspin = 10; #days  # for 2000 km domain
 
 # select Indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -102,7 +113,6 @@ end
 
 # close the nc file
 close(ds)
-
 
 # compute at cell centers
 # v is already at x,W centers
@@ -424,7 +434,6 @@ fig
 
 # save only the pi(x) UNSMOOTHED
 #xlim = 1400
-xlim = 700
 fig = Figure(size = (600, 300));
  ax2 = Axis(fig[1, 1], xlabel = "x [km]", ylabel = "Π [W/kg*m]", title=string(fname_short2,"; ",titlenm2))
 lines!(ax2,xc/1e3,Πxxa,color=:red, label="Πx")

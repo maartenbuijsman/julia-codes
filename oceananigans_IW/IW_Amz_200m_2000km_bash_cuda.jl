@@ -1,8 +1,9 @@
-#= IW_Amz_hydfrsur_200m_700km_bash_cuda.jl
-Maarten Buijsman, USM DMS, 2026-6-1
-    08 series
-    for mode 1 M2, dx=200m, 700km, 15days
+#= IW_Amz_200m_2000km_bash_cuda.jl
+Maarten Buijsman, USM DMS, 2026-7-28
+    09 series
+    for mode 1 M2, dx=200m, 2000km, 20days
     Amz stratification
+    Make sure 5-min output starts after 10 days
 
 use realistic N(z) and eigenfunctions generated in testing_sturmL.jl
 adopt closed L and R BCOs with sponge layers
@@ -79,37 +80,25 @@ TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 # numM = [1];
 # Usur1, Usur2 = 0.4, 0.0  
 
-#=low resolution: 4-km
-L   = 700_000;                   # domain length
-DX  = 4000;
-max_Δt     = 2minutes
-Δt         = 30seconds
-=#
-
-#=high resolution: 100/200 m
-L   = 700_000;                   # domain length
+#high resolution: 100/200 m
+L   = 2_000_000;                   # domain length
 DX  = 200;
-max_Δt = 1minutes
-#max_Δt = 30seconds
-Δt     = 15seconds
-=#
+#DX  = 100;
+max_Δt = 2minutes  
+Δt     = 15seconds   # nonhyd
 
-#medium resolution: 600 m
-L   = 720_000;                   # domain length
-DX  = 600;
-max_Δt = 1minutes
-#max_Δt = 30seconds
-Δt     = 15seconds
+println("domain length = ",L/1e3," km")
+
 
 # run duration and output frequency
 #dtoutput   = 15minutes 
 start_time = 0days
-mid_time   = 4days
-stop_time  = 11days
+mid_time   = 10days
+stop_time  = 20days
 
 #println("stop_time: ", stop_time, "; lat: ", lat, "; select mode: ", numM)
 
-t_coarse = range(start_time,  mid_time, step=20minutes)  # 0 → day 4,  every 20 min
+t_coarse = range(start_time,  mid_time, step=60minutes)  # 0 → day 10, every 60 min
 t_fine   = range(mid_time,   stop_time, step=5minutes)   # day 4 → 11, every 5 min
 
 output_times = vcat(collect(t_coarse), collect(t_fine)[2:end])  # avoid duplicate at day 4
@@ -177,7 +166,7 @@ grid = RectilinearGrid(GPU(), size=(pm.Nx, pm.Nz),
 fcor = FPlane(latitude=pm.lat);
 pm   = merge(pm, (f=fcor.f, ω=ω))
 
-nonhyd = 0;
+nonhyd = 1;
 kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
     sturm_liouville_noneqDZ_norm(zfw, N2w, pm.f, pm.ω, nonhyd);
 
@@ -361,39 +350,35 @@ end
 @inline u_sponge(x, z, t, u, p) = -(fnudl * left_mask(x, p) + fnudr * right_mask(x, p)) * u
 @inline v_sponge(x, z, t, v, p) = -(fnudl * left_mask(x, p) + fnudr * right_mask(x, p)) * v
 @inline w_sponge(x, z, t, w, p) = -(fnudl * left_mask(x, p) + fnudr * right_mask(x, p)) * w
-# b is perturbation b' = b_total - B(z); sponge relaxes to b'=0
 @inline b_sponge(x, z, t, b, p) = -(fnudl * left_mask(x, p) + fnudr * right_mask(x, p)) * b
 
-@inline force_u(x, z, t, u, p)    = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
-@inline force_v(x, z, t, v, p)    = v_sponge(x, z, t, v, p) + Fv_wave(x, z, t, p)
-@inline force_w(x, z, t, w, p)    = w_sponge(x, z, t, w, p)
-# -N²(z)*w is the source of b' from vertical advection of the background B(z)
-@inline force_b(x, z, t, b, w, p) = b_sponge(x, z, t, b, p) - gpu_interp1(p.zfw, p.N2w, z) * w
+@inline force_u(x, z, t, u, p) = u_sponge(x, z, t, u, p) + Fu_wave(x, z, t, p)
+@inline force_v(x, z, t, v, p) = v_sponge(x, z, t, v, p)
+@inline force_w(x, z, t, w, p) = w_sponge(x, z, t, w, p)
+@inline force_b(x, z, t, b, p) = b_sponge(x, z, t, b, p)
 
 ###########------ BUILD OCEANANIGANS MODEL ------#############
 
-u_forcing = Forcing(force_u, field_dependencies=:u,        parameters=pm_gpu)
-v_forcing = Forcing(force_v, field_dependencies=:v,        parameters=pm_gpu)
-b_forcing = Forcing(force_b, field_dependencies=(:b, :w),  parameters=pm_gpu)
+B         = BackgroundField(B_func, parameters=pm_gpu)
 
-model = HydrostaticFreeSurfaceModel(grid;
-    coriolis           = fcor,
-#    advection          = Centered(order=4),
-#    closure            = ScalarDiffusivity(ν=1e-2, κ=1e-5),    
-    momentum_advection = WENO(),
-    tracer_advection   = WENO(),
-#    closure            = ScalarDiffusivity(VerticallyImplicitTimeDiscretization(), ν=1e-5, κ=1e-5), #200m diagnostic: remove HorizDiff
-   closure              = ScalarDiffusivity(VerticallyImplicitTimeDiscretization(), ν=1e-5, κ=1e-5),# 600 km                          
-#   closure             = (ScalarDiffusivity(VerticallyImplicitTimeDiscretization(), ν=1e-2, κ=1e-5),# 4 km                          
-#                          HorizontalScalarDiffusivity(ν=100.0, κ=1.0),
-#                          HorizontalScalarBiharmonicDiffusivity(ν=1e9, κ=1e7)), 
-    tracers            = :b,
-    buoyancy           = BuoyancyTracer(),
-    free_surface       = ImplicitFreeSurface(),
-    forcing            = (u=u_forcing, v=v_forcing, b=b_forcing))
+u_forcing = Forcing(force_u, field_dependencies=:u, parameters=pm_gpu)
+v_forcing = Forcing(force_v, field_dependencies=:v, parameters=pm_gpu)
+w_forcing = Forcing(force_w, field_dependencies=:w, parameters=pm_gpu)
+b_forcing = Forcing(force_b, field_dependencies=:b, parameters=pm_gpu)
 
-# b is perturbation b' = b_total - B(z); start at 0 everywhere
-# background B(z) enters via the -N²(z)*w source term in b_forcing
+model = NonhydrostaticModel(grid;
+    coriolis          = fcor,
+#    advection         = Centered(order=4),
+#    closure           = ScalarDiffusivity(ν=1e-2),    # blow up
+#    closure           = ScalarDiffusivity(ν=1e-5),     # blow up   
+#    closure           = ScalarDiffusivity(ν=1e-2, κ=1e-2),
+    advection         = WENO(),
+    closure           = ScalarDiffusivity(ν=1e-5),
+#    closure           = ScalarDiffusivity(ν=1e-2),
+    tracers           = :b,
+    buoyancy          = BuoyancyTracer(),
+    background_fields = (; b=B),
+    forcing           = (u=u_forcing, v=v_forcing, w=w_forcing, b=b_forcing))
 
 println(model)
 
@@ -412,7 +397,8 @@ fields = Dict("u"    => model.velocities.u,
               "v"    => model.velocities.v,
               "w"    => model.velocities.w,
               "b"    => model.tracers.b,
-              "pHY"  => model.pressure.pHY′)
+              "pNHS" => model.pressures.pNHS,
+              "pHY"  => model.pressures.pHY′) #′ is not an error!
 
 filenameout = string(pathout, fid, ".nc")
 simulation.output_writers[:field_writer] =
@@ -426,4 +412,3 @@ model.clock.iteration = 0
 model.clock.time      = 0
 
 run!(simulation)
-
