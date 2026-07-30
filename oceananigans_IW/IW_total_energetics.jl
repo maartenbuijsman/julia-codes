@@ -36,6 +36,7 @@ end
 include(string(pathname,"include_functions.jl"))
 
 # print figures
+savefl  = 0
 figflag = 1
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 const T2 = 12+25.2/60
@@ -73,7 +74,7 @@ LATS  = [0.0, 2.5, 5.0]
 runnms = [1, 2, 3]
 
 # do the analysis in a function
-function run_analysis(runnm,LAT)
+function run_analysis(runnm,LAT,savefl)
 # IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
 
 # filename
@@ -149,14 +150,14 @@ wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2;
 # clear variables from memory
 uf=nothing; wf=nothing; GC.gc()
 
-# plot surface velocity to check effect of resolution
+#= plot surface velocity to check effect of resolution
 idx, d = nearest_index(xc, 369e3)
 fig1 = Figure(size=(600,600))
 ax = Axis(fig1[1, 1],limits = (200, 500, nothing, nothing),title = string(fname_short2,"; lat=",LAT,"; u [m/s]"), xlabel = "x [km]", ylabel = "u [m/s]")
 lines!(ax,xc/1e3,uc[end,:,1])
 scatter!(ax, [xc[idx]/1e3], [uc[end, idx, 1]], color = :red, markersize = 12)
 fig1
-
+=#
 
 # some more hovmullers
 fig1 = Figure(size=(600,600))
@@ -170,6 +171,8 @@ fig1
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"KE_hovmuller_", fname_short2 ,".png"), fig1)
 end
+
+#= by-pass NRG calcs
 
 return
 #stop()
@@ -719,6 +722,7 @@ println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m"
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 
 
+=# #by-pass NRG calcs
 
 # compute some ffts of surface velocity ======================================================
 
@@ -795,16 +799,17 @@ end
 
 
 # save the energy terms =========================================
-fnameout = string("energetics_",fname_short2,".jld2")
+if savefl == 1
+    fnameout = string("energetics_",fname_short2,".jld2")
 
-jldsave(string(dirout,fnameout); 
-    dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
-    epsnh, epshy, epsomnh, epsomhy,
-    xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
-    FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
-    KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
-println(string(fnameout)," data saved ........ ")
-
+    jldsave(string(dirout,fnameout); 
+        dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
+        epsnh, epshy, epsomnh, epsomhy,
+        xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
+        FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
+        KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
+    println(string(fnameout)," data saved ........ ")
+end
 
 
 #stop()
@@ -814,7 +819,7 @@ end # function run_analysis(runnm,LAT)
 # runnms loop ---------------
 elapsed = @elapsed begin
     for (runnm, LAT) in zip(runnms, LATS)
-        run_analysis(runnm,LAT)
+        run_analysis(runnm,LAT,savefl)
     end 
 end
 println("finished in $(round(elapsed, digits=1)) s")
