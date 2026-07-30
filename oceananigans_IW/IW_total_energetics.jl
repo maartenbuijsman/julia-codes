@@ -43,13 +43,13 @@ const rho0=1020;
 const grav=9.81; 
 
 # D2, mode 1 + 2 interactions
-LATS   = [0.0, 0.0, 0.0];
+#LATS   = [0.0, 0.0, 0.0];
 #runnms = [1,   2,   3]; mainnm = 6;   # nonhyd 4 km, centered
 #runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
 #runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
 #runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno v=1e-5
 #runnms = [7,   8,   9]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
-runnms = [13,   14,   15]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
+#runnms = [13,   14,   15]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
 #runnms = [1,   2,   3]; mainnm = 8;   # hyd, 4 km, 200 m, 200 m, weno
 #
 
@@ -61,12 +61,16 @@ LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
 runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
 =#
 
-
-# D2
+#= D2
 mainnm = 3
 LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
+=#
 
+# D2 NH
+mainnm = 9
+LATS  = [0.0, 2.5, 5.0]
+runnms = [1, 2, 3]
 
 # do the analysis in a function
 function run_analysis(runnm,LAT)
@@ -156,8 +160,8 @@ fig1
 
 # some more hovmullers
 fig1 = Figure(size=(600,600))
-clims =(0,0.8)
-#clims =(0,0.6)
+#clims =(0,0.8)
+clims =(0,0.6)
 ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
 hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
 #hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
@@ -167,6 +171,7 @@ fig1
 if figflag==1; save(string(dirfig,"KE_hovmuller_", fname_short2 ,".png"), fig1)
 end
 
+return
 #stop()
 
 # load N2 profile -----------------------------------------------------------
