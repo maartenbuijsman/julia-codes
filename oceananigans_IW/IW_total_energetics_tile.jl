@@ -1,5 +1,5 @@
-#= IW_total_energetics.jl
-Maarten Buijsman, USM DMS, 2025-12-22
+#= IW_total_energetics_tile.jl
+Maarten Buijsman, USM DMS, 2026-7-31
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 =#
@@ -77,132 +77,52 @@ function run_analysis(runnm,LAT,savefl)
 # IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
 
 # filename
-fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
+fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm)
 fname_short2 = fnames
 filename = string(dirsim,fnames,".nc")
 
-println(fname_short2,"; lat=",LAT," -------------------") 
+println(fname_short2,"; lat=",LAT," -------------------")
 
-# load simulations ===========================================
+# open nc file and keep open for tiled reads
 ds = NCDataset(filename,"r");
-#println(ds)
 println(keys(ds))
 
-# only select data after the spinup time 
-# => i.e., time it takes before waves reach the eastern boundary
-#tspin = 4; #days  # for 700 km domain
+# only select data after the spinup time
 tspin = 10; #days  # for 2000 km domain
 
-# select Indices after spinup
+# select indices after spinup
 tday0 = ds["time"][:]/24/3600;
-Isel = findall(>=(tspin),tday0);
+Isel  = findall(>=(tspin),tday0);
 
 tsec = ds["time"][Isel];
 tday = tsec/24/3600;
-dt = tday[2]-tday[1]
+dt   = tday[2]-tday[1]
 
-#lines(Isel,tday[Isel])
-xf   = ds["x_faa"][:]; 
-xc   = ds["x_caa"][:]; 
-zc   = ds["z_aac"][:]; 
-
+xf   = ds["x_faa"][:];
+xc   = ds["x_caa"][:];
+zc   = ds["z_aac"][:];
 dx   = ds["Δx_caa"][:];
 dz   = ds["Δz_aac"][:];
 Ldom = sum(dx);
-
-H  = sum(dz);   # depth
+H    = sum(dz);
 
 Nz = length(zc);
 Nx = length(xc);
 Nt = length(tday);
 
-# u, v, w velocities
-# NOTE: in future select a certain x range away from boundaries
-@time begin
-    println("reading nc file ",filename)
-    uf  = permutedims(ds["u"][:,:,Isel],    (3,1,2));
-    vc  = permutedims(ds["v"][:,:,Isel],    (3,1,2));
-    wf  = permutedims(ds["w"][:,:,Isel],    (3,1,2));
-    bc  = permutedims(ds["b"][:,:,Isel],    (3,1,2));
-    pHY = permutedims(ds["pHY"][:,:,Isel],  (3,1,2));
-    pNH = permutedims(ds["pNHS"][:,:,Isel], (3,1,2));
-#    pNH = copy(pHY).*0.0; # for hydstat sims 
-end
-
-# total pressure in N/m2
-ptot = (pHY.+pNH)*rho0/grav;
-#ptot = (pHY)*rho0/grav;
-#ptot = (pNH)*rho0/grav;    # NH pressure only
-
-# clear variables from memory
-pHY= nothing; pNH = nothing; 
-GC.gc()
-
-# close the nc file
-close(ds)
-
-# compute at cell centers
-# v is already at x,W centers
-uc = uf[:,1:end-1,:]/2 + uf[:,2:end,:]/2; 
-wc = wf[:,:,1:end-1]/2 + wf[:,:,2:end]/2; 
-
-# clear variables from memory
-uf=nothing; wf=nothing; GC.gc()
-
-#= plot surface velocity to check effect of resolution
-idx, d = nearest_index(xc, 369e3)
-fig1 = Figure(size=(600,600))
-ax = Axis(fig1[1, 1],limits = (200, 500, nothing, nothing),title = string(fname_short2,"; lat=",LAT,"; u [m/s]"), xlabel = "x [km]", ylabel = "u [m/s]")
-lines!(ax,xc/1e3,uc[end,:,1])
-scatter!(ax, [xc[idx]/1e3], [uc[end, idx, 1]], color = :red, markersize = 12)
-fig1
-=#
-
-# some more hovmullers
-fig1 = Figure(size=(600,600))
-#clims =(0,0.8)
-clims =(0,0.6)
-ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"), xlabel = "x [km]", ylabel = "time [days]")
-hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
-#hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
-fig1
-
-# Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"KE_hovmuller_", fname_short2 ,".png"), fig1)
-end
-
-#= by-pass NRG calcs
-
-return
-#stop()
-
 # load N2 profile -----------------------------------------------------------
-# load profile created by AMZ_stratification_profile.jl
 fnamegrid = "N2_amz1.jld2";
 path_fname = string(dirforce,fnamegrid);
-
-# variables loaded
-# "N2w", "zfw", "lonsel", "latsel"
-
-# Open the JLD2 file
-gridfile = jldopen(path_fname, "r")
-println(keys(gridfile))  # List the keys (variables) in the file
-close(gridfile)
-
 @load path_fname N2w zfw
-
-# map to cell centers
 N2c = N2w[1:end-1]/2 + N2w[2:end]/2;
 
 fig = Figure()
 ax1 = Axis(fig[1,1])
 lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
-#xlims!(ax1, -2000, 10)
 fig
 
-# calculation of the resonance parameter epsilon
-# 4om2 - om(2k)2 / 4om2
+# epsilon calculations -------------------------------------------------------
 function getomres(ω,LAT,nonhyd,Nm)
     nk = 4;
     fcor   = coriolis(LAT);
@@ -212,626 +132,377 @@ function getomres(ω,LAT,nonhyd,Nm)
         for i=1:nk
             kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
                 sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, omi[i], nonhyd);
-                ki[i] = kn[Nm] # generally mode 1 is selected
+                ki[i] = kn[Nm]
         end
         intzc   = interpolate((ki,), omi, Gridded(Linear()));
         omr = intzc.(kr);
         return omr
     end
-
-    # get 2k wavelength
     kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
-    kr = 2*kn[Nm]
-    #println("L1=",Ln[1]/1e3," km")
-
-    # first iteration
+    kr  = 2*kn[Nm]
     omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
-
-    # second iteration
     om2 = collect(range(0.75*omr, 1.25*omr, nk))
     omr = itom(zfw, N2w, fcor, om2, nonhyd, nk, kr, Nm)
     return omr
 end
 
-# epsilon, non-dimensional resonance parameter for mode Nm
-# based on k resonance: k+k=2k
-ω      = 2π / (T2*3600)
-#fcor   = coriolis(LAT);
-nonhyd = 1;
-Nm     = 1; #Mode number
-
-omr = getomres(ω,LAT,nonhyd,Nm)
-epsnh = ((2*ω)^2 - omr^2)/(2*ω)^2
-
-nonhyd = 0;
-omr = getomres(ω,LAT,nonhyd,Nm)
-epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
-
-# epsilon for k -----------------------------
-# ((2k)2 - k(2om))/(2k)2
-# based on omega resonance: om+om=2om
-# 
-# Conclusion: epsilon based on omega and k are very much the same
-# Question:   are the nonhydrostatic simulations less resonant?
-#             => less energy in higher harmonics?
-#             => fewer energy transfers?
-
 function getkom(ω,LAT,nonhyd,Nm)
     fcor   = coriolis(LAT);
-
-    # get k at 2omega
     kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
-    kom = kn[Nm]
-
+    kom  = kn[Nm]
     kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, 2ω, nonhyd);
     k2om = kn[Nm]
     return kom, k2om
 end
 
+ω      = 2π / (T2*3600)
+nonhyd = 1; Nm = 1;
+
+omr   = getomres(ω,LAT,nonhyd,Nm)
+epsnh = ((2*ω)^2 - omr^2)/(2*ω)^2
+
+nonhyd = 0;
+omr   = getomres(ω,LAT,nonhyd,Nm)
+epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
+
 nonhyd=1;
 kom, k2om = getkom(ω,LAT,nonhyd,Nm)
-epsomnh = ((2*kom)^2 - k2om^2)/(2*kom)^2
+epsomnh   = ((2*kom)^2 - k2om^2)/(2*kom)^2
 
 nonhyd=0;
 kom, k2om = getkom(ω,LAT,nonhyd,Nm)
-epsomhy = ((2*kom)^2 - k2om^2)/(2*kom)^2
+epsomhy   = ((2*kom)^2 - k2om^2)/(2*kom)^2
 
-#= # plot for varying latitudes
-llat = collect(0:2.5:50)
-nonhyd=1;
-epsoms = zeros(length(llat))
-epsks = zeros(length(llat))
-for i=1:length(llat)
-    kom, k2om = getkom(ω,llat[i],nonhyd,Nm)
-    epsoms[i] = ((2*kom)^2 - k2om^2)/(2*kom)^2    
-
-    omr = getomres(ω,llat[i],nonhyd,Nm)
-    epsks[i] = ((2*ω)^2 - omr^2)/(2*ω)^2    
-end
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,1 ./abs.(epsoms),llat)
-lines!(ax1,1 ./abs.(epsks),llat)
-fig
-=#
-
-
-#= APE linear and nonlinear
-# b = -g/rho0*rho_pert [m/s2]
-# 1/2*rho0*b2/N2 [J/m3 = Nm/m3 = kg*m2/s2/m3]
-#  [kg/m3 * m2/s4 * s2 =         kg*m2/s2/m3]
-
-dzz = reshape(dz,1,1,:); 
-
-# omit N2c values <= 1e-10, keep the others
-Ikp = findall(>(1e-10),N2c);
-N2cc = reshape(N2c,1,1,:);
-factA = 1/2*rho0*1.0./N2cc;
-
-APE3z = zeros(Nt,Nx,Nz);
-APE3z[:,:,Ikp] = (bc[:,:,Ikp].^2).*factA[:,:,Ikp];
-APE3  = sum((bc[:,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3);
-
-# nonlinear addition
-dN2dz  = diff(N2w) ./ diff(zfw)   # length Nz, lives on zc grid
-dN2dzz = reshape(dN2dz,1,1,:);
-factB  = .- 1/6*rho0 .* dN2dzz ./ N2cc.^3;
-
-APE3nlz = copy(APE3z)
-APE3nlz[:,:,Ikp] = APE3z[:,:,Ikp] .+ factB[:,:,Ikp] .* bc[:,:,Ikp].^3;
-=#
-
-
-# ref and pert densities ----------------------------------------------------
-# compute reference density profile
-# b = sum N2 * dz = sum -g/rho0*drho/dz * dz
-# b = -g/rho0*rho_pert
-# rho_pert = -b*rho0/g 
-
-# bottom up!
-breff = cumtrapz(zfw, N2w);   # length Nz+1, on zfw grid
-
-# in the mod sims buoyancy is interpolated to cell centers
+# reference density ----------------------------------------------------------
+breff   = cumtrapz(zfw, N2w);
 intzc   = interpolate((zfw,), breff, Gridded(Linear()));
-rhorefc = -intzc.(zc) * rho0/grav;     # rho0 is not added!
-rr      = reshape(rhorefc, 1, 1, :);
-rhop    = -bc * rho0/grav .+ rr;  
+rhorefc = -intzc.(zc) * rho0/grav;
 
-# compute pressure -----------------------------------------------------------
+# time window for KE/APE averaging ------------------------------------------
+EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
+numcycles = floor((t2-t1)/(T2/24))
+t2   = t1+numcycles*(T2/24)
+Iday = findall(item -> item >= t1 && item<= t2, tday)
+Nlen = length(Iday)
+imid = Nlen÷2   # midpoint index within Iday-length arrays
 
-# rho_pert = -b*rho0/g 
-# dp       = -g*rho*dz
-# dp/dz    = b*rho0
-
-# In Oceananigans: dpk/dz = b = -g/rho0*rho_pert [m/s2]
-#                  [m2/s2*1/m] = [m/s2]               
-# units b: [m/s2]
-# because of kinematic pressure pk = p/rho0 = kg*m2/s2*1/m3 *m3/kg = m2/s2
-
-# hydrostatic p from b compares well with pHY*rho0/grav
-# ptot = (pHY+pNH)*rho0/grav
-# remove time-mean and then depth-mean
-
-# remove time-mean
-ptota = mean(ptot,dims=1);
-ptotp = ptot .- ptota;
-
-# remove depth-mean
-dzz = reshape(dz,1,1,:);                                    # shape: (1, length(zc), 1)
-ptotpa  = sum(ptotp.*dzz,dims=3)/H; # depth-mean pressure
-pcp = ptotp .- ptotpa;              # the perturbation pressure!
-
-#check integral of perturbation pressure should be zero 
-sum(pcp[200,50,:].*dz)   
-Figure(); lines(tday, pcp[:,50,end])
-
-N2cc = reshape(N2c,1,1,:);
-
-# compute density
-
-#=
-# indirect method, which compares well with pHY
-# hydrostatic pressure
-pfi = cumsum(bc[:,:,end:-1:1].*dzz[:,:,end:-1:1], dims=3);  # reverse, z surface down, at faces
-pfi = pfi * -1 * rho0 / grav;                               # convert to pert pressure
-
-# average to centers, and reverse back (z bottom up)
-pc = zeros(size(pfi));
-pc[:,:,1:end-1] = pfi[:,:,end:-1:2]/2 + pfi[:,:,end-1:-1:1]/2; # compute center values
-pc[:,:,end]     = pfi[:,:,1]/2;                                # add surface value
-#pc[1,:,10]
-
-# remove depth-mean
-pa  = sum(pc.*dzz,dims=3)/H; # depth-mean pressure
-#pa[1,:,100]
-pcp = pc .- pa;             # the perturbation pressure!
-
-#check integral of perturbation pressure should be zero 
-sum(pcp[200,50,:].*dz)   
-Figure(); lines(tday, pcp[:,50,end])
-
-
-# compare diagnosed hydrostatic pressure, with b based pressure
-# pHY needs to  be multiplied with rho0 / grav
-
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-#limits!(ax1, nothing, nothing, -200, 0)
-lines!(ax1,pHY[end,idx,:]*rho0/grav, zc, color = :black)
-lines!(ax1,pNH[end,idx,:]*rho0/grav, zc, color = :blue)
-lines!(ax1,(pHY[end,idx,:].+pNH[end,idx,:])*rho0/grav, zc, color = :magenta)
-lines!(ax1,pc[end,idx,:], zc, color = :red)
-lines!(ax1,(pHY[end,idx,:]*rho0/grav .- pc[end,idx,:])./pc[end,idx,:]*100, zc, color = :green)
-fig
-
-# plot NH pressure
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-#limits!(ax1, nothing, nothing, -200, 0)
-lines!(ax1,xc/1e3,pNH[end,:,1]*rho0/grav, color = :blue)
-lines!(ax1,xc/1e3,pHY[end,:,1]*rho0/grav, color = :red)
-lines!(ax1,xc/1e3,(pHY[end,:,1].+pNH[end,:,1])*rho0/grav, color = :magenta)
-
-#lines!(ax1,xc/1e3,pNH[end,:,end]*rho0/grav, color = :red)
-
-ax2 = Axis(fig[2,1])
-lines!(ax2,xc/1e3,pNH[end,:,end]*rho0/grav, color = :blue)
-lines!(ax2,xc/1e3,pHY[end,:,end]*rho0/grav, color = :red)
-lines!(ax2,xc/1e3,(pHY[end,:,end].+pNH[end,:,end])*rho0/grav, color = :magenta)
-fig
-
-# check integral of pHY and pNH
-# depth-integral has horizontal structure ...
-ptot = pHY.+pNH;
-
-# remove time-mean
-ptota = mean(ptot,dims=1);
-ptotp = ptot .- ptota;
-
-# check time-mean profile
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-#limits!(ax1, nothing, nothing, -200, 0)
-lines!(ax1,dropdims(ptota[:,idx,:],dims=1)*rho0/grav, zc, color = :black)
-fig
-#pHNH = pHY;
-
-# check x-integral
-ptotix = dropdims(sum(ptotp,dims=2),dims=2);
-
-# remove depth-integral (not really needed)
-ptotpp = ptotp .- sum(ptotp,dims=2)
-
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-lines!(ax1,ptotix[end,:]*rho0/grav, zc, color = :black)
-fig
-
-# check depth-integral
-sss = dropdims(sum(ptotpp.*dzz, dims=3), dims=3)
-fig = Figure(size = (600, 800))
-ax1 = Axis(fig[1,1])
-lines!(ax1,xc/1e3,sss[end,:], color = :magenta)
-fig
-=#
-
-#stop()
-
-# filter variables  ======================================================
-# t is tidal 
-# l is tidal+sub
-# h is supertidal
-# s is subtidal
-
-# Nf = 6;
-Nf = 8;
-
-# remove the low frequency motions - if any?
-#if mainnm != 3     # D2
-Tcut1 = 18/24  #D2+HH
-#Tcut2 = ( (T2+2*T2/3)/2 )/24 #day; HH M2-D3 = 10.35 h
-Tcut2 = (T2+T2/2)/2/24      #day; HH M2-M4 = 9.315 h
-if mainnm == 5 # D1
+# filter settings ------------------------------------------------------------
+Nf    = 8;
+Tcut1 = 18/24       #D2+HH
+Tcut2 = (T2+T2/2)/2/24  #day; HH M2-M4
+if mainnm == 5
     Tcut1 = 30/24
     Tcut2 = 20/24
 end
 
-# only filter high-pass motions
-# then remove hp from total
-# we are ignoring the generation of mean flows
-# for the 4 km cases
-uca = dropdims(mean(uc,dims=1), dims=(1))
+# helpers defined once (z-only, broadcasted over tiles) ----------------------
+dzz   = reshape(dz,1,1,:);
+N2cc  = reshape(N2c,1,1,:);
+Ikp   = findall(>(1e-10),N2c);
+factA = 1/2*rho0*1.0./N2cc;
+thresh     = 1e-5;
+rrr_shape  = reshape(rhorefc,1,1,:);
 
-fig1 = Figure(size=(1000,750))
-axa = Axis(fig1[1, 1],title="mean flow [m/s]",xlabel="fx [km]",ylabel="z [m]");  
-hm = heatmap!(axa, xc/1e3, zc, uca,colormap = Reverse(:Spectral)); 
-Colorbar(fig1[1,2], hm); 
-hm.colorrange = (-0.02, 0.02)
-fig1 
+# load surface velocities for hovmuller and FFT (cheap 2D slices) ------------
+# ds["u"] has layout (Nx+1, Nz, Nt_full) → surface = last z-index
+println("loading surface velocities...")
+uf_surf_tmp = permutedims(ds["u"][:, end, Isel], (2,1));        # (Nt, Nx+1)
+uc_surf = uf_surf_tmp[:,1:end-1]/2 .+ uf_surf_tmp[:,2:end]/2;  # (Nt, Nx)
+uf_surf_tmp = nothing; GC.gc()
+vc_surf = permutedims(ds["v"][:, end, Isel], (2,1));  # (Nt, Nx)
 
-# high-pass the total
-# dt in days
-passflg = "high";
-uh = lowhighpass_butter(uc,Tcut2,dt,Nf,passflg);
-vh = lowhighpass_butter(vc,Tcut2,dt,Nf,passflg);
-wh = lowhighpass_butter(wc,Tcut2,dt,Nf,passflg);
-ph = lowhighpass_butter(pcp,Tcut2,dt,Nf,passflg);
-bh = lowhighpass_butter(bc,Tcut2,dt,Nf,passflg);
-rh = -bh*rho0/grav
+# pre-allocate full-domain output arrays (1D: Nx; 2D: Nx×Nz) ----------------
+KE    = zeros(Nx); KEt   = zeros(Nx); KEh   = zeros(Nx); KEs   = zeros(Nx)
+APE   = zeros(Nx); APEt  = zeros(Nx); APEh  = zeros(Nx); APEs  = zeros(Nx)
+APElin = zeros(Nx)
+Fx    = zeros(Nx); Fxt   = zeros(Nx); Fxh   = zeros(Nx); Fxs   = zeros(Nx)
+FKx   = zeros(Nx); FKxt  = zeros(Nx); FKxh  = zeros(Nx); FKxs  = zeros(Nx)
+FAx   = zeros(Nx); FAxt  = zeros(Nx); FAxh  = zeros(Nx); FAxs  = zeros(Nx)
+uca_full = zeros(Nx, Nz)
+Zzt_mid  = zeros(Nx, Nz)
+A0nl     = 0.0
+fact     = 1/2*rho0
 
-# isolate "l" tidal-band frequencies + mean flows (small)
-ul = uc .- uh 
-vl = vc .- vh
-wl = wc .- wh
-pl = pcp .- ph
-bl = bc .- bh
-#rl = -bl*rho0/grav
+# tile loop (nhalo=0: no x-gradients needed) ---------------------------------
+ntile   = 20
+nx_base = Nx ÷ ntile
 
-# low-pass the total to get subtidal "s"
-passflg = "low";
-us = lowhighpass_butter(uc,Tcut1,dt,Nf,passflg);
-vs = lowhighpass_butter(vc,Tcut1,dt,Nf,passflg);
-ws = lowhighpass_butter(wc,Tcut1,dt,Nf,passflg);
-ps = lowhighpass_butter(pcp,Tcut1,dt,Nf,passflg);
-bs = lowhighpass_butter(bc,Tcut1,dt,Nf,passflg);
-rs = -bs*rho0/grav
+println("starting tile loop, ntile=",ntile)
+for i_tile in 1:ntile
+    ix_a = (i_tile-1)*nx_base + 1
+    ix_b = (i_tile == ntile) ? Nx : i_tile*nx_base
+    nx_t = ix_b - ix_a + 1
+    println("  tile ",i_tile,"/",ntile,"  ix=",ix_a,":",ix_b)
 
-# isolate "t" tidal-band frequencies
-ut = ul .- us
-vt = vl .- vs
-wt = wl .- ws
-pt = pl .- ps
-bt = bl .- bs
-rt = -bt*rho0/grav
+    # load tile data ---------------------------------------------------------
+    # u on x-faces: need one extra face at ix_b+1 to center to ix_b
+    uf_t  = permutedims(ds["u"][ix_a:ix_b+1, :, Isel], (3,1,2));   # (Nt, nx_t+1, Nz)
+    vc_t  = permutedims(ds["v"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
+    wf_t  = permutedims(ds["w"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz+1)
+    bc_t  = permutedims(ds["b"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
+    pHY_t = permutedims(ds["pHY"][ix_a:ix_b, :, Isel], (3,1,2));
+    pNH_t = permutedims(ds["pNHS"][ix_a:ix_b,:, Isel], (3,1,2));
 
-#= plot bpassed vels
-idx, d = nearest_index(xc, 1000e3)
-fig = Figure(size=(800,400))
-ax = Axis(fig[1, 1])
-lines!(ax, tday, uc[:,idx,end], label = "uc", linestyle=:solid, color = :black, linewidth = 2)
-lines!(ax, tday, ut[:,idx,end], label = "ut", linestyle=:solid, color = :red, linewidth = 4)
-#lines!(ax, tday, ul[:,idx,end], label = "ul", linestyle=:solid, color = :cyan, linewidth = 1)
-lines!(ax, tday, uh[:,idx,end], label = "uh", linestyle=:solid, color = :green, linewidth = 1)
-#xlims!(ax,15,20)
-fig
-=#
+    # cell-center velocities
+    uc_t = uf_t[:,1:end-1,:]/2 .+ uf_t[:,2:end,:]/2;  # (Nt, nx_t, Nz)
+    wc_t = wf_t[:,:,1:end-1]/2 .+ wf_t[:,:,2:end]/2;  # (Nt, nx_t, Nz)
+    uf_t = nothing; wf_t = nothing; GC.gc()
 
-ul=nothing; vl=nothing; wl=nothing; wl=nothing; pl=nothing; bl=nothing;
-GC.gc()
+    # pressure perturbation (local in x: time-mean and depth-mean removal) ---
+    ptot_t   = (pHY_t .+ pNH_t) * rho0/grav;
+    pHY_t = nothing; pNH_t = nothing; GC.gc()
+    ptota_t  = mean(ptot_t, dims=1);
+    ptotp_t  = ptot_t .- ptota_t;
+    ptot_t   = nothing;
+    ptotpa_t = sum(ptotp_t .* dzz, dims=3) / H;
+    pcp_t    = ptotp_t .- ptotpa_t;
+    ptotp_t  = nothing; GC.gc()
 
-# KE and APE ----------------------------------------------------------------
+    # density
+    rhop_t = -bc_t * rho0/grav .+ rrr_shape;
 
-# cycles to exclude
-EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
+    # track time-mean flow
+    uca_full[ix_a:ix_b,:] = dropdims(mean(uc_t, dims=1), dims=1);
 
-# exclude 0.5 and 1 days to get 10 tidal cycles for 11 day sim
-# EXCL = 1; t1 = tday[1]+0.5; t2 = tday[end]-EXCL;
-numcycles = floor((t2-t1)/(T2/24))
-t2 = t1+numcycles*(T2/24)
-Iday = findall(item -> item >= t1 && item<= t2, tday)
+    # filter: high-pass (supertidal) -----------------------------------------
+    passflg = "high";
+    uh_t = zeros(size(uc_t)); vh_t = zeros(size(vc_t))
+    wh_t = zeros(size(wc_t)); ph_t = zeros(size(pcp_t)); bh_t = zeros(size(bc_t))
+    Threads.@threads for ix = 1:nx_t
+        for iz = 1:Nz
+            uh_t[:,ix,iz] = lowhighpass_butter(uc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+            vh_t[:,ix,iz] = lowhighpass_butter(vc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+            wh_t[:,ix,iz] = lowhighpass_butter(wc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+            ph_t[:,ix,iz] = lowhighpass_butter(pcp_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+            bh_t[:,ix,iz] = lowhighpass_butter(bc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+        end
+    end
+    rh_t = -bh_t * rho0/grav;
 
-# time-mean, depth-intgr. KE energy 
-fact = 1/2*rho0
-KEz = uc[Iday,:,:].^2 .+ vc[Iday,:,:].^2 .+ wc[Iday,:,:].^2
-KE  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKx = dropdims(mean(sum(uc[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3)) # advective flux
+    # filter: low-pass (subtidal) --------------------------------------------
+    passflg = "low";
+    us_t = zeros(size(uc_t)); vs_t = zeros(size(vc_t))
+    ws_t = zeros(size(wc_t)); ps_t = zeros(size(pcp_t)); bs_t = zeros(size(bc_t))
+    Threads.@threads for ix = 1:nx_t
+        for iz = 1:Nz
+            us_t[:,ix,iz] = lowhighpass_butter(uc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+            vs_t[:,ix,iz] = lowhighpass_butter(vc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+            ws_t[:,ix,iz] = lowhighpass_butter(wc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+            ps_t[:,ix,iz] = lowhighpass_butter(pcp_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+            bs_t[:,ix,iz] = lowhighpass_butter(bc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+        end
+    end
+    rs_t = -bs_t * rho0/grav;
 
-KEz = ut[Iday,:,:].^2 .+ vt[Iday,:,:].^2 .+ wt[Iday,:,:].^2
-KEt = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxt = dropdims(mean(sum(ut[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+    # tidal band = (total - highpass) - subtidal
+    ut_t = (uc_t .- uh_t) .- us_t
+    vt_t = (vc_t .- vh_t) .- vs_t
+    wt_t = (wc_t .- wh_t) .- ws_t
+    pt_t = (pcp_t .- ph_t) .- ps_t
+    bt_t = (bc_t .- bh_t) .- bs_t
+    rt_t = -bt_t * rho0/grav;
 
-KEz = uh[Iday,:,:].^2 .+ vh[Iday,:,:].^2 .+ wh[Iday,:,:].^2
-KEh = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxh = dropdims(mean(sum(uh[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+    # KE and advective KE flux -----------------------------------------------
+    KEz_t = uc_t[Iday,:,:].^2 .+ vc_t[Iday,:,:].^2 .+ wc_t[Iday,:,:].^2
+    KE[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FKx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
 
-KEz = us[Iday,:,:].^2 .+ vs[Iday,:,:].^2 .+ ws[Iday,:,:].^2
-KEs = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1), dims=(1,3))
-FKxs = dropdims(mean(sum(us[Iday,:,:].*KEz.*dzz,dims=3),dims=1), dims=(1,3))
+    KEz_t = ut_t[Iday,:,:].^2 .+ vt_t[Iday,:,:].^2 .+ wt_t[Iday,:,:].^2
+    KEt[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FKxt[ix_a:ix_b] = dropdims(mean(sum(ut_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
 
-KEz=nothing; GC.gc();
+    KEz_t = uh_t[Iday,:,:].^2 .+ vh_t[Iday,:,:].^2 .+ wh_t[Iday,:,:].^2
+    KEh[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FKxh[ix_a:ix_b] = dropdims(mean(sum(uh_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
 
-# time-mean, depth-intgr. APE energy (Kang & Fringer, 2010 eq2)
+    KEz_t = us_t[Iday,:,:].^2 .+ vs_t[Iday,:,:].^2 .+ ws_t[Iday,:,:].^2
+    KEs[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FKxs[ix_a:ix_b] = dropdims(mean(sum(us_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    KEz_t = nothing; GC.gc()
 
-# if rhop-rhorefc > thresh, then APE  = 0
-thresh = 1e-5;
+    # APE (Kang & Fringer 2010 eq2) and advective APE flux ------------------
+    APEz_t, Zz_t = APEKFeq2(rhop_t[Iday,:,:], rhorefc, zc, grav, thresh)
+    APE[ix_a:ix_b] = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FAx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    Zz_t = nothing
 
-rrr = reshape(rhorefc,1,1,:);  
-APEz,Zz = APEKFeq2(rhop[Iday,:,:], rhorefc, zc, grav, thresh);
-APE  = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));  #total
-FAx  = dropdims(mean(sum(uc[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+    APEz_t, Zzt_t = APEKFeq2(rt_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+    APEt[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FAxt[ix_a:ix_b]  = dropdims(mean(sum(ut_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    Zzt_mid[ix_a:ix_b,:] = Zzt_t[imid,:,:]   # snapshot at mid-time
+    A0nl = max(A0nl, maximum(Zzt_t[max(1,imid-100):min(Nlen,imid+100),:,:]))
+    Zzt_t = nothing
 
-APEz,Zzt = APEKFeq2(rt[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
-APEt = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxt = dropdims(mean(sum(ut[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+    APEz_t, Zz_t = APEKFeq2(rh_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+    APEh[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FAxh[ix_a:ix_b]  = dropdims(mean(sum(uh_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    Zz_t = nothing
 
-APEz,Zz = APEKFeq2(rh[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
-APEh = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxh = dropdims(mean(sum(uh[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+    APEz_t, Zz_t = APEKFeq2(rs_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+    APEs[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    FAxs[ix_a:ix_b]  = dropdims(mean(sum(us_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    APEz_t = nothing; Zz_t = nothing; GC.gc()
 
-APEz,Zz = APEKFeq2(rs[Iday,:,:] .+ rrr, rhorefc, zc, grav, thresh);
-APEs = dropdims(mean(sum( APEz .* dzz,dims=3),dims=1), dims=(1,3));
-FAxs = dropdims(mean(sum(us[Iday,:,:].*APEz.*dzz,dims=3),dims=1), dims=(1,3))
+    # linear APE
+    APElin[ix_a:ix_b] = dropdims(mean(sum((bc_t[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1),dims=(1,3))
 
-APEz=nothing; Zz=nothing; GC.gc();
+    # pressure flux ----------------------------------------------------------
+    Fx[ix_a:ix_b]  = dropdims(mean(sum(uc_t[Iday,:,:].*pcp_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
+    Fxt[ix_a:ix_b] = dropdims(mean(sum(ut_t[Iday,:,:].*pt_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
+    Fxh[ix_a:ix_b] = dropdims(mean(sum(uh_t[Iday,:,:].*ph_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
+    Fxs[ix_a:ix_b] = dropdims(mean(sum(us_t[Iday,:,:].*ps_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
 
-# linear APE
-# omit N2c values <= 1e-10, keep the others
-Ikp = findall(>(1e-10),N2c);
-factA  = 1/2*rho0*1.0./N2cc;
-APElin = dropdims(mean(sum((bc[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1), dims=(1,3))
-
-# undecomposed time-mean flux 
-# pressure flux: m * m/s * N/m2 = W/m
-# APE advection  m * m/s * J/m3 = m * m/s * Nm/m3 = W/m
-Fx  = dropdims(mean(sum(uc[Iday,:,:].*pcp[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-Fxt = dropdims(mean(sum(ut[Iday,:,:].*pt[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-Fxh = dropdims(mean(sum(uh[Iday,:,:].*ph[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-Fxs = dropdims(mean(sum(us[Iday,:,:].*ps[Iday,:,:].*dzz,dims=3),dims=1), dims=(1,3))
-
-#
-fig1 = Figure(size=(1000,750))
-axa = Axis(fig1[1, 1],title="zeta [m/s]",xlabel="x [km]",ylabel="z [m]");  
-#hm = heatmap!(axa, xc/1e3, zc, ut[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-0.5, 0.5) 
-hm = heatmap!(axa, xc/1e3, zc, Zzt[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (-100, 100) 
-#hm = heatmap!(axa, xc/1e3, zc, APEz[Nt÷2,:,:],colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); hm.colorrange = (0, 35)
-fig1 
-#
-
-# compute non-dimensional parameters from Sutherland 2022
-I1 = argmin(abs.(zc .- -100))  #max N2 
-I2 = argmin(abs.(zc .- -300))
-#I2 = argmin(abs.(zc .- -800))
-dnl = (zc[I1]- zc[I2])/log(N2c[I1]/N2c[I2])
-
-# max vertical displacement at mid time
-A0nl, idx = findmax(Zzt[Nt÷2-100:Nt÷2+100,:,:])
-alpnl = A0nl/dnl
-
-# nonlinearity parameter alpha/epsilon
-alpepshy = alpnl/epshy
-alpepsnh = alpnl/epsnh
-
-# beat period of energy exchange
-Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)         
-Tbeathy_days = 2π/(epshy*ω)/(24*3600)
-
-Zzt=nothing; GC.gc();
-
-#=checks
-it, ix, iz = Tuple(idx); 
-xc[ix]/1e3
-zc[iz]
-Zzt[Nt÷2-100+it-1,ix,iz]
-=#
-
-fig = Figure()
-ax1 = Axis(fig[1,1])
-lines!(ax1,N2c, zc)
-#scatter!(ax1, zc, log.(N2c))
-ylims!(ax1, -500, 0)
-#xlims!(ax1, -2000, 10)
-fig
-
-
-
-
-# create some figures ----------------------------------------------
-
-#ylimE = [0 75]; ylimA = [0 75];
-ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
-
-fig1 = Figure(size=(750,750))
-ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"), xlabel = "x [km]", ylabel = "KE [kJ/m2]")
-lines!(ax, xc/1e3, (KEt+KEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
-lines!(ax, xc/1e3, KE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax, xc/1e3, KEt/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax, xc/1e3, KEh/1e3, label = "HH", color = :green, linewidth = 3)
-lines!(ax, xc/1e3, KEs/1e3, label = "sub", color = :yellow, linewidth = 2)
-xlims!(ax, 0, Ldom/1e3)
-ylims!(ax, ylimE[1], ylimE[2])
-
-ax2 = Axis(fig1[2, 1],title = "APE", xlabel = "x [km]", ylabel = "APE [kJ/m2]")
-lines!(ax2, xc/1e3, (APEt+APEh)/1e3, label = "t+HH", color = :black, linewidth = 3)
-lines!(ax2, xc/1e3, APE/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax2, xc/1e3, APEt/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax2, xc/1e3, APEh/1e3, label = "HH", color = :green, linewidth = 3)
-#lines!(ax2, xc/1e3, APEs/1e3, label = "sub", color = :yellow, linewidth = 2)
-lines!(ax2, xc/1e3, APElin/1e3, label = "tot lin", color = :grey, linewidth = 1)
-xlims!(ax2, 0, Ldom/1e3)
-ylims!(ax2, ylimA[1], ylimA[2])
-
-ax3 = Axis(fig1[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
-lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3, label = "t+HH", color = :black, linewidth = 3)
-lines!(ax3, xc/1e3, Fx/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, Fxt/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax3, xc/1e3, Fxh/1e3, label = "HH", color = :green, linewidth = 3)
-#lines!(ax3, xc/1e3, Fxs/1e3, label = "sub", color = :yellow, linewidth = 2)
-
-# advective flux
-lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
-lines!(ax3, xc/1e3, (FKx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, (Fx + FKx+FAx)/1e3,  label = "up+uE",  linestyle=:dash, color = :blue, linewidth = 3)
-lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
-lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
-#
-
-#= advective APE flux is larger than KE!
-lines!(ax3, xc/1e3, (FAxt+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
-#lines!(ax3, xc/1e3, (FEx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, (Fx + FAx)/1e3,  linestyle=:dash, color = :blue, linewidth = 3)
-lines!(ax3, xc/1e3, (FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
-lines!(ax3, xc/1e3, (FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
-=#
-
-xlims!(ax3, 0, Ldom/1e3)
-ylims!(ax3, ylimf[1], ylimf[2])
-axislegend(ax3, position = :rt)
-fig1
-
-# Save the figure as a PNG file
-#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
-#if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_HYONLY_v3.png"), fig)
-if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,".png"), fig1)
+    # clear tile memory
+    uc_t=nothing; vc_t=nothing; wc_t=nothing; bc_t=nothing; pcp_t=nothing; rhop_t=nothing
+    uh_t=nothing; vh_t=nothing; wh_t=nothing; ph_t=nothing; bh_t=nothing; rh_t=nothing
+    us_t=nothing; vs_t=nothing; ws_t=nothing; ps_t=nothing; bs_t=nothing; rs_t=nothing
+    ut_t=nothing; vt_t=nothing; wt_t=nothing; pt_t=nothing; bt_t=nothing; rt_t=nothing
+    GC.gc()
 end
 
-# stop()
+close(ds)
+
+# post-tile scalar computations ----------------------------------------------
+I1  = argmin(abs.(zc .- -100))
+I2  = argmin(abs.(zc .- -300))
+dnl = (zc[I1] - zc[I2]) / log(N2c[I1]/N2c[I2])
+
+alpnl        = A0nl/dnl
+alpepshy     = alpnl/epshy
+alpepsnh     = alpnl/epsnh
+Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)
+Tbeathy_days = 2π/(epshy*ω)/(24*3600)
+
+# hovmuller (using surface velocities loaded before tile loop) ---------------
+fig1 = Figure(size=(600,600))
+clims = (0,0.6)
+ax = Axis(fig1[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"),xlabel="x [km]",ylabel="time [days]")
+hm = heatmap!(ax, xc/1e3, tday, transpose(uc_surf.^2 .+ vc_surf.^2), colormap=Reverse(:Spectral), colorrange=clims)
+Colorbar(fig1[1,2], hm)
+fig1
+if figflag==1; save(string(dirfig,"KE_hovmuller_",fname_short2,".png"), fig1); end
+
+# mean flow plot (using uca_full accumulated across tiles) -------------------
+fig2 = Figure(size=(1000,750))
+axa = Axis(fig2[1,1],title="mean flow [m/s]",xlabel="x [km]",ylabel="z [m]")
+hm = heatmap!(axa, xc/1e3, zc, uca_full, colormap=Reverse(:Spectral))
+Colorbar(fig2[1,2], hm)
+hm.colorrange = (-0.02, 0.02)
+fig2
+
+# Zzt snapshot heatmap (midpoint in time, accumulated across tiles) ----------
+fig3 = Figure(size=(1000,750))
+axa = Axis(fig3[1,1],title="zeta [m]",xlabel="x [km]",ylabel="z [m]")
+hm = heatmap!(axa, xc/1e3, zc, Zzt_mid, colormap=Reverse(:Spectral))
+Colorbar(fig3[1,2], hm)
+hm.colorrange = (-100, 100)
+fig3
+
+# KE/APE/flux figures --------------------------------------------------------
+ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
+
+fig4 = Figure(size=(750,750))
+ax = Axis(fig4[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"),xlabel="x [km]",ylabel="KE [kJ/m2]")
+lines!(ax, xc/1e3, (KEt+KEh)/1e3, label="t+HH", color=:black, linewidth=3)
+lines!(ax, xc/1e3, KE/1e3,   label="tot",   linestyle=:dash,  color=:grey,   linewidth=3)
+lines!(ax, xc/1e3, KEt/1e3,  label="tidal", color=:red,    linewidth=3)
+lines!(ax, xc/1e3, KEh/1e3,  label="HH",    color=:green,  linewidth=3)
+lines!(ax, xc/1e3, KEs/1e3,  label="sub",   color=:yellow, linewidth=2)
+xlims!(ax, 0, Ldom/1e3); ylims!(ax, ylimE[1], ylimE[2])
+
+ax2 = Axis(fig4[2,1],title="APE",xlabel="x [km]",ylabel="APE [kJ/m2]")
+lines!(ax2, xc/1e3, (APEt+APEh)/1e3, label="t+HH", color=:black, linewidth=3)
+lines!(ax2, xc/1e3, APE/1e3,   label="tot",      linestyle=:dash, color=:grey,  linewidth=3)
+lines!(ax2, xc/1e3, APEt/1e3,  label="tidal",    color=:red,   linewidth=3)
+lines!(ax2, xc/1e3, APEh/1e3,  label="HH",       color=:green, linewidth=3)
+lines!(ax2, xc/1e3, APElin/1e3,label="tot lin",  color=:grey,  linewidth=1)
+xlims!(ax2, 0, Ldom/1e3); ylims!(ax2, ylimA[1], ylimA[2])
+
+ax3 = Axis(fig4[3,1],title="flux",xlabel="x [km]",ylabel="flux [W/m]")
+lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,          label="t+HH",   color=:black, linewidth=3)
+lines!(ax3, xc/1e3, Fx/1e3,                  label="tot",    linestyle=:dash, color=:grey,  linewidth=3)
+lines!(ax3, xc/1e3, Fxt/1e3,                 label="tidal",  color=:red,   linewidth=3)
+lines!(ax3, xc/1e3, Fxh/1e3,                 label="HH",     color=:green, linewidth=3)
+lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color=:black, linewidth=3)
+lines!(ax3, xc/1e3, (FKx+FAx)/1e3,           linestyle=:dash, color=:grey,  linewidth=3)
+lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,        label="up+uE", linestyle=:dash, color=:blue,  linewidth=3)
+lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,          linestyle=:dash, color=:red,   linewidth=3)
+lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,          linestyle=:dash, color=:green, linewidth=3)
+xlims!(ax3, 0, Ldom/1e3); ylims!(ax3, ylimf[1], ylimf[2])
+axislegend(ax3, position=:rt)
+fig4
+if figflag==1; save(string(dirfig,"KE_flux_",fname_short2,".png"), fig4); end
 
 println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 
-
-=# #by-pass NRG calcs
-
-# compute some ffts of surface velocity ======================================================
-
-#= use the same as above
-EXCL = 0;  # can be zero for fft
-t2 = tday[end]-EXCL*T2/24; #t1 is defined above
-numcycles = floor((t2-t1)/(T2/24))
-t2 = t1+numcycles*(T2/24)
-Iday = findall(item -> item >= t1 && item<= t2, tday)
-=#
-
-# cycles to exclude, same as above --------------------------
-EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
-
-# exclude 0.5 and 1 days to get 10 tidal cycles for 11 day sim
-# EXCL = 1; t1 = tday[1]+0.5; t2 = tday[end]-EXCL;
-numcycles = floor((t2-t1)/(T2/24))
-t2 = t1+numcycles*(T2/24)
-Iday = findall(item -> item >= t1 && item<= t2, tday)
-# cycles to exclude, same as above --------------------------
-
+# FFT spectra of surface velocity (uses uc_surf/vc_surf loaded before tile loop)
 tukeycf=0.2; numwin=1; linfit=true; prewhit=false;
 
 i=1;
-period, freq, pp = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit); #get the dimensions
+period, freq, pp = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
 poweru = zeros(length(period),Nx);
 powerv = zeros(length(period),Nx);
 for i in 1:Nx
-    period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);
-    period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc[Iday,i,end]; tukeycf, numwin, linfit, prewhit);    
+    period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
+    period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
 end
 
 println("max freq: ",freq[end]," cpd")
+KEom = poweru .+ powerv;
 
-KEom = poweru .+ powerv;    # mode 1+2
-
-# heatmap of spectral power
-fmax = 48; #cpd
-fstp = 2; 
+fmax = 48; fstp = 2;
 flim = [0 fmax];
-#flim = [0 20]; fstp=2;
-clims = (-0.05,0.05)
 
-fig1 = Figure(size=(500,750))
-axa = Axis(fig1[1, 1],xticks = (flim[1]:fstp:flim[2]),
-title=string(fname_short2,"; lat=",LAT,"; log10(KE) [m2/s2/cpd] "),xlabel="frequency [cpd]",ylabel="x [km]");  
+fig5 = Figure(size=(500,750))
+axa = Axis(fig5[1,1],xticks=(flim[1]:fstp:flim[2]),
+    title=string(fname_short2,"; lat=",LAT,"; log10(KE) [m2/s2/cpd] "),
+    xlabel="frequency [cpd]",ylabel="x [km]")
 xlims!(axa, flim[1], flim[2])
-hm = heatmap!(axa, freq, xc/1e3, log10.(KEom),colormap = Reverse(:Spectral)); 
-Colorbar(fig1[1,2], hm); 
+hm = heatmap!(axa, freq, xc/1e3, log10.(KEom), colormap=Reverse(:Spectral))
+Colorbar(fig5[1,2], hm)
 hm.colorrange = (-6, 0)
-fig1   
+fig5
 
-# average coefficients fall inside 75-500 km range
-#xlims = [0,1000]*1e3; # excl. generation on left and relaxation on right
-#xlims = [75,500]*1e3; # excl. generation on left and relaxation on right
-xlims = [75,1800]*1e3; # 2000 km
-Ix = findall(item -> item >= xlims[1] && item<= xlims[2], xc);
-KEoma = vec(mean(KEom[:,Ix],dims=2)); 
-
-# store the max M2 amplitude at the forcing boundary
-# use for normalization
+xlims_fft = [75,1800]*1e3;
+Ix     = findall(item -> item >= xlims_fft[1] && item<= xlims_fft[2], xc);
+KEoma  = vec(mean(KEom[:,Ix],dims=2));
 KEommax, maxidx = findmax(KEom)
-#KEommax = KEom[Im2,Ix[1]]
 println("KEomax=",log10(KEommax))
 
-flim2 = [0 fmax];  
-#flim2 = [0 20]; 
-Plims = [-14 1];
-#axb = Axis(fig1[2, 1], xticks = [1, 2, 4, 6, 8, 12, 24, 48], xscale = log10, yscale = log10,
-#    title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax");  
-axb = Axis(fig1[2, 1],xticks = (flim[1]:fstp:flim[2]), yscale = log10,
-    title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax");  
+flim2 = [0 fmax]; Plims = [-14 1];
+axb = Axis(fig5[2,1],xticks=(flim[1]:fstp:flim[2]), yscale=log10,
+    title="normalized power",xlabel="frequency [cpd]",ylabel="KE/KEmax")
 xlims!(axb, flim2[1], flim2[2])
 ylims!(axb, 10.0^Plims[1], 10.0^Plims[2])
-#lines!(axb, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :black, linewidth = 3)
-lines!(axb, freq, KEoma./KEommax, linestyle=:solid, color = :black, linewidth = 3)
-
-# add coriolis rad/s => cpd
+lines!(axb, freq, KEoma./KEommax, linestyle=:solid, color=:black, linewidth=3)
 fcpd = coriolis(LAT)/(2*pi)*24*3600
-#lines!(vec([fcpd fcpd]),vec([minimum(log10.(KEoma)) maximum(log10.(KEoma))]), linestyle=:dash, color = :red, linewidth = 2)
-lines!(axb, vec([fcpd fcpd]), [10.0^Plims[1], 10.0^Plims[2]], linestyle=:dash, color = :red, linewidth = 2)
-fig1
+lines!(axb, vec([fcpd fcpd]), [10.0^Plims[1], 10.0^Plims[2]], linestyle=:dash, color=:red, linewidth=2)
+fig5
+if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig5); end
 
-# Save the figure as a PNG file
-if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
-end
-
-
-# save the energy terms =========================================
+# save energy terms ----------------------------------------------------------
 if savefl == 1
     fnameout = string("energetics_",fname_short2,".jld2")
-
-    jldsave(string(dirout,fnameout); 
-        dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days, 
+    jldsave(string(dirout,fnameout);
+        dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days,
         epsnh, epshy, epsomnh, epsomhy,
-        xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,    
+        xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,
         FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
         KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
     println(string(fnameout)," data saved ........ ")
 end
 
-
-#stop()
-end # function run_analysis(runnm,LAT)
+end # function run_analysis(runnm,LAT,savefl)
 
 
 # runnms loop ---------------
 elapsed = @elapsed begin
     for (runnm, LAT) in zip(runnms, LATS)
-        run_analysis(runnm,LAT,savefl)
+        looptime = @elapsed begin
+            run_analysis(runnm,LAT,savefl)
+        end
+        println("finished ", runnm," in $(round(looptime, digits=1)) s")        
     end 
 end
 println("finished in $(round(elapsed, digits=1)) s")
