@@ -55,8 +55,10 @@ xlim = 700
 #runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 
 mainnm = 9
-LATS   = [0.0, 2.5, 5.0]
-runnms = [1,   2,   3]
+#LATS   = [0.0, 2.5, 5.0]
+#runnms = [1,   2,   3]
+LATS   = collect(50.0:5.0:60.0)
+runnms = collect(12:1:14)
 
 xlim = 2000; # km
 

@@ -70,8 +70,12 @@ runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 
 # D2 NH
 mainnm = 9
-LATS  = [0.0, 2.5, 5.0, 10.0]
-runnms = [1, 2, 3, 4]
+#LATS  = [0.0, 2.5, 5.0, 10.0]
+#runnms = [1, 2, 3, 4]
+#LATS  =  [15, 20, 25, 30, 35, 40, 45] 
+#runnms = [5, 6,  7,  8,  9,  10,  11]
+LATS   = collect(50.0:5.0:60.0)
+runnms = collect(12:1:14)
 # do the analysis in a function
 function run_analysis(runnm,LAT,savefl)
 # IS = 1; runnm = runnms[IS]; LAT = LATS[IS]

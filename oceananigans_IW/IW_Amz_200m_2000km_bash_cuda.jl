@@ -1,5 +1,5 @@
 #= IW_Amz_200m_2000km_bash_cuda.jl
-Maarten Buijsman, USM DMS, 2026-7-28
+Maarten Buijsman, USM DMS, 2026-8-6
     09 series
     for mode 1 M2, dx=200m, 2000km, 20days
     Amz stratification
@@ -17,11 +17,25 @@ FunctionField and ContinuousForcing parameters are isbits-compatible on the GPU.
 Interpolation (linear_interpolation, cumtrapz) pre-computed on CPU and stored
 as CuArray lookup tables  GPU kernels can only index arrays, not call CPU functions.
 
-Command-line usage:
-    julia IW_Amz_bash_cuda.jl <mainnm> <runnm> <lat>
+Run modes (set `runmode` below):
+    "batch"  : parameters come from 6 command-line ARGS, as supplied by
+               run_batch.sh from a params_XX.jl file.
+    "manual" : ARGS are ignored; parameters are hardcoded directly in the
+               "MANUAL MODE PARAMETERS" block below. Use this for
+               interactive debugging (REPL / IDE "run file") where there
+               are no command-line ARGS to parse.
+
+Command-line usage (batch mode):
+    julia IW_Amz_bash_cuda.jl <mainnm> <runnm> <lat> <numM> <Usur1> <Usur2>
 
 Example:
-    julia IW_Amz_bash_cuda.jl 4 3 0.0
+    julia IW_Amz_bash_cuda.jl 4 3 0.0 1 0.4 0.0
+
+N2 forcing source (set `N2source` below):
+    "amz1"       : original WOCE-based N2_amz1.jld2 (single fixed profile).
+    "zonalmean"  : Mercator-based N2_ZonalMeanAtl_lat<lat>.jld2, matched to
+                   this run's `lat` -- only exists at lat = 0, 2.5, 5,
+                   10, 15, ..., 60.
 =#
 
 using Pkg
@@ -38,26 +52,58 @@ using CUDA
 println("number of threads is ", Threads.nthreads())
 
 # -------------------------------------------------------
-# Parse command-line arguments
+# RUN MODE: "batch" (parse command-line ARGS, via run_batch.sh) or
+# "manual" (edit the parameters below directly, for debugging)
 # -------------------------------------------------------
-if length(ARGS) != 6
-    error("Usage: julia IW_Amz2_cuda.jl <mainnm> <runnm> <lat> <numM> <Usur1> <Usur2>\n" *
-          "  mainnm : experiment number (integer)\n" *
-          "  runnm  : run number       (integer)\n" *
-          "  lat    : latitude         (float)\n" *
-          "  numM   : mode selection, e.g. 1 or 1,2\n" *
-          "  Usur1  : mode-1 surface velocity [m/s]\n" *
-          "  Usur2  : mode-2 surface velocity [m/s]")
+runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
+#runmode = "manual"       # 6 ARGS regardless of this flag, so leave this on
+                        # "batch" for real batch runs; only set to "manual"
+                        # when running this file directly (REPL/IDE) to debug
+
+# N2 forcing source: "amz1" (original WOCE-based, single fixed profile) or
+# "zonalmean" (Mercator-based, matched to this run's `lat`) -- NOTE: zonalmean
+# files only exist at lat = 0,2.5,5,10,15,...,60; several existing
+# input_params/*.jl use other latitudes (e.g. 7.5, 12.5, 28.8), so this
+# defaults to "amz1" to preserve existing batch behavior everywhere
+
+#N2source = "amz1"        # "amz1" or "zonalmean"
+N2source = "zonalmean"   
+
+if runmode == "batch"
+
+    if length(ARGS) != 6
+        error("Usage: julia IW_Amz2_cuda.jl <mainnm> <runnm> <lat> <numM> <Usur1> <Usur2>\n" *
+              "  mainnm : experiment number (integer)\n" *
+              "  runnm  : run number       (integer)\n" *
+              "  lat    : latitude         (float)\n" *
+              "  numM   : mode selection, e.g. 1 or 1,2\n" *
+              "  Usur1  : mode-1 surface velocity [m/s]\n" *
+              "  Usur2  : mode-2 surface velocity [m/s]")
+    end
+
+    mainnm = parse(Int,     ARGS[1])
+    runnm  = parse(Int,     ARGS[2])
+    lat    = parse(Float64, ARGS[3])
+    numM   = parse.(Int,    split(ARGS[4], ","))   # e.g. "1" → [1]; "1,2" → [1,2]
+    Usur1  = parse(Float64, ARGS[5])
+    Usur2  = parse(Float64, ARGS[6])
+
+elseif runmode == "manual"
+
+    # ---- MANUAL MODE PARAMETERS: edit these directly for debugging ----
+    mainnm = 9
+    runnm  = 99
+    lat    = 2.5
+    numM   = [1]        # e.g. [1] or [1,2]
+    Usur1  = 0.4
+    Usur2  = 0.2
+    # ---------------------------------------------------------------
+
+else
+    error("runmode must be \"batch\" or \"manual\", got: ", runmode)
 end
 
-mainnm = parse(Int,     ARGS[1])
-runnm  = parse(Int,     ARGS[2])
-lat    = parse(Float64, ARGS[3])
-numM   = parse.(Int,    split(ARGS[4], ","))   # e.g. "1" → [1]; "1,2" → [1,2]
-Usur1  = parse(Float64, ARGS[5])
-Usur2  = parse(Float64, ARGS[6])
-
-println("mainnm = $mainnm, runnm = $runnm, lat = $lat, numM = $numM, Usur1 = $Usur1, Usur2 = $Usur2")
+println("runmode = $runmode, mainnm = $mainnm, runnm = $runnm, lat = $lat, numM = $numM, Usur1 = $Usur1, Usur2 = $Usur2")
 
 # -------------------------------------------------------
 
@@ -105,9 +151,22 @@ output_times = vcat(collect(t_coarse), collect(t_fine)[2:end])  # avoid duplicat
 
 ###########------ LOAD N and grid params ------#############
 
-dirin      = string(pathout, "forcingfiles/");
-fnamegrid  = "N2_amz1.jld2";
+dirin = string(pathout, "forcingfiles/");
+
+if N2source == "amz1"
+    fnamegrid = "N2_amz1.jld2"
+elseif N2source == "zonalmean"
+    fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", lat)
+else
+    error("N2source must be \"amz1\" or \"zonalmean\", got: ", N2source)
+end
+
 path_fname = string(dirin, fnamegrid);
+
+isfile(path_fname) || error("N2 forcing file not found: ", path_fname,
+      N2source == "zonalmean" ? "\n(zonalmean files only exist at lat = 0, 2.5, 5, 10, 15, ..., 60)" : "")
+
+println("N2source = $N2source, fnamegrid = $fnamegrid --------------------------------")
 
 gridfile = jldopen(path_fname, "r")
 println(keys(gridfile))

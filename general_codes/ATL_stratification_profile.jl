@@ -299,7 +299,7 @@ fig
 dirout = "/data3/mbui/ModelOutput/IW/forcingfiles/"
 fnameAZ = "N2_amz1.jld2"
 
-jldsave(string(dirout,fnameAZ); N2w, zfw, lonsel, latsel);
+#jldsave(string(dirout,fnameAZ); N2w, zfw, lonsel, latsel);
 println(string(fnameAZ)," data saved ........ ")
 
 
