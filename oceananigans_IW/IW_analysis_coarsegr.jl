@@ -41,21 +41,27 @@ const tspin = 4; #days
 
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
-LATS    = [0, 0, 0];
-mainnms = [6, 6, 6]; #4km-nh
-runnms  = [1, 2, 3]; #centered v=1e-2
+#LATS    = [0, 0, 0];
+#mainnms = [6, 6, 6]; #4km-nh
+#runnms  = [1, 2, 3]; #centered v=1e-2
 #runnms  = [4, 5, 6]; #weno v=1e-2 => too diffusive
 
-mainnms = [7, 7, 7]; #200m-nh
+#mainnms = [7, 7, 7]; #200m-nh
 #runnms  = [1, 2, 3]; #centered v=1e-2
 #runnms  = [4, 5, 6]; #weno v=1e-5 
-runnms  = [13, 14, 15]; #weno v=1e-5 
+#runnms  = [13, 14, 15]; #weno v=1e-5 
 
+# constant N2 
+runnms  = collect(1:14)
+mainnms = fill(9, size(runnms))
+LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 
-fnum = string(mainnms[1],".",runnms[1],"-",runnms[3])
+fnum = string(mainnms[1],".",runnms[1],"-",runnms[end])
 
 if     mainnms[1] == 6; titstr = string("4-km hydrostatic (",fnum,")")
-elseif mainnms[1] == 7; titstr = string("200 m non-hydrostatic (",fnum,")")    
+elseif mainnms[1] == 7; titstr = string("200 m non-hydrostatic (",fnum,")")   
+elseif mainnms[1] == 9 && runnms[1] == 1; 
+    titstr = string("Const. N(z) (",fnum,")")    
 end
 
 #= load energetics_AMZexpt06.01.jld2" data --------------------------
@@ -136,12 +142,15 @@ for i=1:length(runnms)
 #            Πxztot[2:end-1,:] = 1/3*Πxztot[1:end-2,:] +
 #            1/3*Πxztot[2:end-1,:] + 1/3*Πxztot[3:end,:]; #best
 
+            # 5 point average
             Πxztot[3:end-2,:]  = 1/5*Πxztot[1:end-4,:] + 1/5*Πxztot[2:end-3,:] + 1/5*Πxztot[3:end-2,:] +
              1/5*Πxztot[4:end-1,:] + 1/5*Πxztot[5:end,:];             
         end 
 
     end
 end
+
+##
 
 # plot figure
 ylim = [0 7]
