@@ -1,5 +1,5 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-7-31
+Maarten Buijsman, USM DMS, 2026-8-8 (2)
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 =#
@@ -37,7 +37,7 @@ include(string(pathname,"include_functions.jl"))
 
 # Flags --------------------------
 savefl  = 1  # save data
-figflag = 0  # print figures
+figflag = 1  # print figures
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 const T2 = 12+25.2/60
@@ -69,9 +69,11 @@ LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 =#
 
-# D2 NH, constant N2 
+# D2 NH
 mainnm  = 9
-runnms  = collect(1:14)
+#runnms  = collect(1:14) # constant N2 WOCE AMZ
+runnms  = collect(15:28) # varying  N2 MERCATOR
+#runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 
 # do the analysis in a function
@@ -113,16 +115,25 @@ Nx = length(xc);
 Nt = length(tday);
 
 # load N2 profile -----------------------------------------------------------
-fnamegrid = "N2_amz1.jld2";
+if mainnm == 9 && runnm <= 14
+    fnamegrid = "N2_amz1.jld2"
+elseif mainnm == 9 && runnm <= 28
+    fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", LAT)
+elseif mainnm == 9 && runnm <= 42
+    fnamegrid = "N2_ZonalMeanAtl_lat02.5.jld2"
+else
+    fnamegrid = "N2_amz1.jld2"
+end
 path_fname = string(dirforce,fnamegrid);
 @load path_fname N2w zfw
 N2c = N2w[1:end-1]/2 + N2w[2:end]/2;
 
 fig = Figure()
-ax1 = Axis(fig[1,1])
+ax1 = Axis(fig[1,1], title=fnamegrid, xlabel="N² (s⁻²)", ylabel="z [m]")
 lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 fig
+display(fig)
 
 # epsilon calculations -------------------------------------------------------
 function getomres(ω,LAT,nonhyd,Nm)
@@ -405,33 +416,35 @@ ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
 
 fig4 = Figure(size=(750,750))
 ax = Axis(fig4[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"),xlabel="x [km]",ylabel="KE [kJ/m2]")
-lines!(ax, xc/1e3, (KEt+KEh)/1e3, label="t+HH", color=:black, linewidth=3)
-lines!(ax, xc/1e3, KE/1e3,   label="tot",   linestyle=:dash,  color=:grey,   linewidth=3)
-lines!(ax, xc/1e3, KEt/1e3,  label="tidal", color=:red,    linewidth=3)
-lines!(ax, xc/1e3, KEh/1e3,  label="HH",    color=:green,  linewidth=3)
+lines!(ax, xc/1e3, (KEt+KEh)/1e3, color=:black, linewidth=3)                #,  label="t+HH" 
+lines!(ax, xc/1e3, KE/1e3,  linestyle=:dash,  color=:grey,   linewidth=3)   #,  label="tot"
+lines!(ax, xc/1e3, KEt/1e3, color=:red,    linewidth=3)                     #,  label="tidal"
+lines!(ax, xc/1e3, KEh/1e3, color=:green,  linewidth=3)                     #,  label="HH"
 lines!(ax, xc/1e3, KEs/1e3,  label="sub",   color=:yellow, linewidth=2)
 xlims!(ax, 0, Ldom/1e3); ylims!(ax, ylimE[1], ylimE[2])
+axislegend(ax, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 
 ax2 = Axis(fig4[2,1],title="APE",xlabel="x [km]",ylabel="APE [kJ/m2]")
-lines!(ax2, xc/1e3, (APEt+APEh)/1e3, label="t+HH", color=:black, linewidth=3)
-lines!(ax2, xc/1e3, APE/1e3,   label="tot",      linestyle=:dash, color=:grey,  linewidth=3)
-lines!(ax2, xc/1e3, APEt/1e3,  label="tidal",    color=:red,   linewidth=3)
-lines!(ax2, xc/1e3, APEh/1e3,  label="HH",       color=:green, linewidth=3)
+lines!(ax2, xc/1e3, (APEt+APEh)/1e3, color=:black, linewidth=3)              #,  label="t+HH"
+lines!(ax2, xc/1e3, APE/1e3,  linestyle=:dash, color=:grey,  linewidth=3)    #,  label="tot"
+lines!(ax2, xc/1e3, APEt/1e3, color=:red,   linewidth=3)                     #,  label="tidal"
+lines!(ax2, xc/1e3, APEh/1e3, color=:green, linewidth=3)                     #,  label="HH"
 lines!(ax2, xc/1e3, APElin/1e3,label="tot lin",  color=:grey,  linewidth=1)
 xlims!(ax2, 0, Ldom/1e3); ylims!(ax2, ylimA[1], ylimA[2])
+axislegend(ax2, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 
 ax3 = Axis(fig4[3,1],title="flux",xlabel="x [km]",ylabel="flux [W/m]")
-lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,          label="t+HH",   color=:black, linewidth=3)
-lines!(ax3, xc/1e3, Fx/1e3,                  label="tot",    linestyle=:dash, color=:grey,  linewidth=3)
-lines!(ax3, xc/1e3, Fxt/1e3,                 label="tidal",  color=:red,   linewidth=3)
-lines!(ax3, xc/1e3, Fxh/1e3,                 label="HH",     color=:green, linewidth=3)
-lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color=:black, linewidth=3)
-lines!(ax3, xc/1e3, (FKx+FAx)/1e3,           linestyle=:dash, color=:grey,  linewidth=3)
-lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,        label="up+uE", linestyle=:dash, color=:blue,  linewidth=3)
-lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,          linestyle=:dash, color=:red,   linewidth=3)
-lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,          linestyle=:dash, color=:green, linewidth=3)
+lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,           label="Fp t+HH",   color=:black, linewidth=3)   # pressure flux: tidal + HH
+lines!(ax3, xc/1e3, Fx/1e3,                  label="Fp tot",    linestyle=:dash, color=:grey,  linewidth=3)  # pressure flux: total
+lines!(ax3, xc/1e3, Fxt/1e3,                 label="Fp tidal",  color=:red,   linewidth=3)    # pressure flux: tidal
+lines!(ax3, xc/1e3, Fxh/1e3,                 label="Fp HH",     color=:green, linewidth=3)    # pressure flux: supertidal HH
+lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, label="FKE+APE t+HH",  linestyle=:dash, color=:black, linewidth=3)  # KE+APE advective flux: tidal + HH
+lines!(ax3, xc/1e3, (FKx+FAx)/1e3,           label="FKE+APE tot",    linestyle=:dash, color=:orange,  linewidth=3)  # KE+APE advective flux: total
+lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,        label="Fp+KE+APE tot", linestyle=:dash, color=:blue,  linewidth=3)  # total pressure + KE + APE flux
+lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,         label="FKE+APE tidal",  linestyle=:dash, color=:red,   linewidth=3)  # KE+APE advective flux: tidal
+lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,         label="FKE+APE HH",     linestyle=:dash, color=:green, linewidth=3)  # KE+APE advective flux: HH
 xlims!(ax3, 0, Ldom/1e3); ylims!(ax3, ylimf[1], ylimf[2])
-axislegend(ax3, position=:rt)
+axislegend(ax3, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 fig4
 if figflag==1; save(string(dirfig,"KE_flux_",fname_short2,".png"), fig4); end
 

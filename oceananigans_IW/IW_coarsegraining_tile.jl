@@ -1,5 +1,5 @@
 #= IW_coarsegraining_tile.jl
-Maarten Buijsman, USM DMS, 2026-7-30
+Maarten Buijsman, USM DMS, 2026-08-09
 Load model runs and perform coarsegraining diagnostics
 Tiled in x to avoid memory overflow for large domains (e.g. 200 m, 2000 km)
 =#
@@ -34,8 +34,10 @@ end
 
 include(string(pathname,"include_functions.jl"))
 
-# print figures
+# print and save flags
 figflag = 1
+saveflag = 1 
+
 const T2 = 12+25.2/60
 
 # run names --------------------------------
@@ -55,10 +57,10 @@ xlim = 700
 #runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 
 mainnm = 9
-#LATS   = [0.0, 2.5, 5.0]
-#runnms = [1,   2,   3]
-LATS   = collect(50.0:5.0:60.0)
-runnms = collect(12:1:14)
+#runnms  = collect(1:14) # constant N2 WOCE AMZ
+runnms  = collect(15:28) # varying  N2 MERCATOR
+#runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
+LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 
 xlim = 2000; # km
 
@@ -360,8 +362,10 @@ end
 Πxztot = Πxa.+Πza.+Πnha;
 
 fnameout = string("Etran_",fname_short2,".jld2")
-jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza, Πxztot);
-println(string(fnameout)," data saved ........ ")
+if saveflag==1
+    jldsave(string(dirout,fnameout); LAT, xc, Πnhxa, Πzxa, Πxxa, zc, Πnhza, Πzza, Πxza, Πxztot);
+    println(string(fnameout)," data saved ........ ")
+end
 
 end  # function run_coarsegraining
 

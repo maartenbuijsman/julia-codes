@@ -1,5 +1,5 @@
 #= include_functions.jl
-Maarten Buijsman, USM, 2025-8-8
+Maarten Buijsman, USM, 2026-08-07
 This file includes all function files.
 pathname is defined in the main file
 NOTE: instead, this file path can also be included 
@@ -15,6 +15,7 @@ using FFTW
 include(string(pathname,"butter_filters.jl"));                # band/low/highpass filter functions
 include(string(pathname,"gridding_functions.jl"));            # includes meshgrid
 include(string(pathname,"fft_spectra_vectorized.jl"));        # tested in using_DSP.jl
+include(string(pathname,"gaussfilt.jl"));                     # 1-D Gaussian smoothing of vectors
 include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testing_sturmL.jl
 
 # other

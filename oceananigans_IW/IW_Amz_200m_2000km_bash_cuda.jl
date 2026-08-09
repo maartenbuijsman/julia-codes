@@ -32,10 +32,11 @@ Example:
     julia IW_Amz_bash_cuda.jl 4 3 0.0 1 0.4 0.0
 
 N2 forcing source (set `N2source` below):
-    "amz1"       : original WOCE-based N2_amz1.jld2 (single fixed profile).
-    "zonalmean"  : Mercator-based N2_ZonalMeanAtl_lat<lat>.jld2, matched to
-                   this run's `lat` -- only exists at lat = 0, 2.5, 5,
-                   10, 15, ..., 60.
+    "amz1"           : original WOCE-based N2_amz1.jld2 (single fixed profile).
+    "zonalmean"      : Mercator-based N2_ZonalMeanAtl_lat<lat>.jld2, matched to
+                       this run's `lat` -- only exists at lat = 0, 2.5, 5,
+                       10, 15, ..., 60.
+    "zonalmeanfixed" : Mercator-based profile at fixed `latfix`, same for all runs.
 =#
 
 using Pkg
@@ -65,9 +66,12 @@ runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
 # files only exist at lat = 0,2.5,5,10,15,...,60; several existing
 # input_params/*.jl use other latitudes (e.g. 7.5, 12.5, 28.8), so this
 # defaults to "amz1" to preserve existing batch behavior everywhere
+# zonalmeanfixed = constant N2 everywhere
 
 #N2source = "amz1"        # "amz1" or "zonalmean"
-N2source = "zonalmean"   
+#N2source = "zonalmean"
+N2source = "zonalmeanfixed"  
+latfix = 2.5;
 
 if runmode == "batch"
 
@@ -157,14 +161,16 @@ if N2source == "amz1"
     fnamegrid = "N2_amz1.jld2"
 elseif N2source == "zonalmean"
     fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", lat)
+elseif N2source == "zonalmeanfixed"
+    fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", latfix)
 else
-    error("N2source must be \"amz1\" or \"zonalmean\", got: ", N2source)
+    error("N2source must be \"amz1\" or \"zonalmean\" or \"zonalmeanfixed\", got: ", N2source)
 end
 
 path_fname = string(dirin, fnamegrid);
 
 isfile(path_fname) || error("N2 forcing file not found: ", path_fname,
-      N2source == "zonalmean" ? "\n(zonalmean files only exist at lat = 0, 2.5, 5, 10, 15, ..., 60)" : "")
+      N2source in ("zonalmean","zonalmeanfixed") ? "\n(zonalmean files only exist at lat = 0, 2.5, 5, 10, 15, ..., 60)" : "")
 
 println("N2source = $N2source, fnamegrid = $fnamegrid --------------------------------")
 
