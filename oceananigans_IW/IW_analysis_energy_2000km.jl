@@ -42,11 +42,19 @@ const grav=9.81;
 #mainnms = fill(3, size(runnms))
 #LATS    = [0, 2.5, 5, 10, 15, 20, 25, 28.8, 30, 35, 40, 50]
 
-# constant N2, NH 200 m
+# constant N2, NH 4km test run with new forcing
+runnms  = collect(90:92)  #AMZ N2
+mainnms = fill(3, size(runnms))
+LATS    = [0, 20, 60]
+
+
+
+#= constant N2, NH 200 m
 runnms  = collect(1:14)  #AMZ N2
 #runnms  = collect(15:28)  #MERC N2, zonally chnaging
 mainnms = fill(9, size(runnms))
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
+=#
 
 
 fnum = string(mainnms[1],".",runnms[1],"-",runnms[end])

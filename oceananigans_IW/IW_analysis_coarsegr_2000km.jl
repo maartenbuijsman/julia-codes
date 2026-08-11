@@ -1,5 +1,5 @@
 #= IW_analysis_coarsegr.jl
-Maarten Buijsman, USM DMS, 2026-08-07
+Maarten Buijsman, USM DMS, 2026-08-10
 Load coarse graining results from various sims. and make figures
 =#
 
@@ -42,21 +42,33 @@ const grav=9.81;
 #mainnms = fill(3, size(runnms))
 #LATS    = [0, 2.5, 5, 10, 15, 20, 25, 28.8, 30, 35, 40, 50]
 
-# constant N2, NH 200 m
+#= constant N2, NH 200 m
 #runnms  = collect(1:14)  #AMZ N2
 runnms  = collect(15:28)  #MERC N2, zonally chnaging
 mainnms = fill(9, size(runnms))
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
+=#
+
+# D2 NH flux forcing, 4 km
+mainnm  = 10
+#runnms  = collect(1:14) # constant N2 WOCE AMZ
+runnms  = collect(1:13) # varying  N2 MERCATOR
+runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
 
-fnum = string(mainnms[1],".",runnms[1],"-",runnms[end])
+fnum = string(mainnm,".",runnms[1],"-",runnms[end])
 
-if     mainnms[1] == 3 && runnms[1] == 3; 
+if     mainnm == 3 && runnms[1] == 3; 
     titstr = string("Δx=4 km, const. N(z) (",fnum,")") 
-elseif mainnms[1] == 9 && runnms[1] == 1; 
+elseif mainnm == 9 && runnms[1] == 1; 
     titstr = string("Δx=200 m, const. N(z) (",fnum,")")    
-elseif mainnms[1] == 9 && runnms[1] == 15; 
+elseif mainnm == 9 && runnms[1] == 15; 
     titstr = string("Δx=200 m, Mercator N(z) (",fnum,")")    
+elseif mainnm == 10 && runnms[1] == 1; 
+    titstr = string("Δx=4 km, Mercator N(z) (",fnum,")")    
+elseif mainnm == 10 && runnms[1] == 14; 
+    titstr = string("Δx=4 km, const. 2.5N N(z) (",fnum,")")    
 end
 
 
@@ -69,7 +81,7 @@ KE, KEt, KEh, KEs, APE, APEt, APEh, APEs
 
 
 # pre-allocate 
-fnames0  = @sprintf("AMZexpt%02i.%02i", mainnms[1], runnms[1])
+fnames0  = @sprintf("AMZexpt%02i.%02i", mainnm, runnms[1])
 @load string(dirout, "energetics_", fnames0, ".jld2") xc
 FXT = zeros(length(runnms), length(xc))
 FXH = zeros(length(runnms), length(xc))
@@ -98,7 +110,7 @@ end
 =#
 
 # pre-allocate 
-fnames0  = @sprintf("AMZexpt%02i.%02i", mainnms[1], runnms[1])
+fnames0  = @sprintf("AMZexpt%02i.%02i", mainnm, runnms[1])
 @load string(dirout, "Etran_", fnames0, ".jld2") xc zc
 CGE = zeros(length(runnms), length(xc))
 CGEsum = copy(CGE)
@@ -107,7 +119,7 @@ dx = xc[2]-xc[1]
 Lsmooth = 1600  # Gaussian σ [m] Lsmooth = 400 ≈ 2 grid cells; kills 2Δx grid noise, keeps ≳1 km structure
 
 for i=1:length(runnms)
-    mainnm = mainnms[i]; runnm = runnms[i]; LAT = LATS[i];
+    runnm = runnms[i]; LAT = LATS[i];
 
     # filename
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
@@ -147,7 +159,7 @@ end
 
 
 ## heatmaps of CGE and its cumulative integral CGEsum vs latitude -----------------
-fcH     = 1e4;                                       # scale Π to 1e4 W/(kg m), as in panel (c)
+fcH     = 1e5;                                       # scale Π to 1e4 W/(kg m), as in panel (c)
 fc5H    = 1;                                          # CGEsum already in W/(kg m^2), as in panel (d)
 LdomH   = 2000e3;
 titstrH = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
@@ -160,7 +172,7 @@ axCGE  = Axis(figCGE[1, 1], title = string("(a) cross-scale energy transfer — 
     ylabel = "latitude [°]")
 hmCGE  = heatmap!(axCGE, xc/1e3, LATS, CGE'*fcH,
     colormap = Reverse(:RdBu_5), colorrange = (-cmaxH, cmaxH))
-Colorbar(figCGE[1, 2], hmCGE, label = "Π [1e4 W/kg m]")
+Colorbar(figCGE[1, 2], hmCGE, label = @sprintf("Π [%.0e W/kg m]", 1/fcH))
 axCGE.xticklabelsvisible = false                     # shared x-axis with panel below
 
 axCGEs = Axis(figCGE[2, 1], title = "(b) cumulative cross-scale energy transfer",

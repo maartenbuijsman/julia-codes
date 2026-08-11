@@ -1,7 +1,9 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-8 (2)
+Maarten Buijsman, USM DMS, 2026-8-10
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
+Oceananigans pressure is kinematic p_kin = p_true/rho0    
+buoyancy = -g*rho'/rho0
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -40,28 +42,13 @@ savefl  = 1  # save data
 figflag = 1  # print figures
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
+# tiles
+ntile   = 20
+ntile   = 10
+
 const T2 = 12+25.2/60
 const rho0=1020; 
 const grav=9.81; 
-
-# D2, mode 1 + 2 interactions
-#LATS   = [0.0, 0.0, 0.0];
-#runnms = [1,   2,   3]; mainnm = 6;   # nonhyd 4 km, centered
-#runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
-#runnms = [1,   2,   3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
-#runnms = [4,   5,   6]; mainnm = 7;   # nonhyd 200 m, weno v=1e-5
-#runnms = [7,   8,   9]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
-#runnms = [13,   14,   15]; mainnm = 7;   # nonhyd 200 m, centered v=1e-5
-#runnms = [1,   2,   3]; mainnm = 8;   # hyd, 4 km, 200 m, 200 m, weno
-#
-
-#runnms = [3]; mainnm = 7;   # nonhyd 200 m, centered v=1e-2
-
-#= D1
-mainnm = 5
-LATS   = [0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 20.0, 25.0, 30.0]
-runnms = [9,   10,  11,  12,  13,   14,   15,   16,   17,   18]  # is the same
-=#
 
 #= D2
 mainnm = 3
@@ -69,12 +56,25 @@ LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 =#
 
-# D2 NH
+# constant N2, NH 4km test run with new forcing
+#mainnm = 3
+#runnms  = collect(90:92)  #AMZ N2
+#LATS    = [0, 20, 60]
+
+#= D2 NH
 mainnm  = 9
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
 runnms  = collect(15:28) # varying  N2 MERCATOR
 #runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
+=#
+
+# D2 NH flux forcing
+mainnm  = 10
+#runnms  = collect(1:14) # constant N2 WOCE AMZ
+runnms  = collect(1:13) # varying  N2 MERCATOR
+runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
 # do the analysis in a function
 function run_analysis(runnm,LAT,savefl)
@@ -117,9 +117,9 @@ Nt = length(tday);
 # load N2 profile -----------------------------------------------------------
 if mainnm == 9 && runnm <= 14
     fnamegrid = "N2_amz1.jld2"
-elseif mainnm == 9 && runnm <= 28
+elseif (mainnm == 9 && runnm <= 28) || (mainnm == 10 && runnm <= 13)
     fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", LAT)
-elseif mainnm == 9 && runnm <= 42
+elseif (mainnm == 9 && runnm <= 42) || (mainnm == 10 && runnm <= 26)
     fnamegrid = "N2_ZonalMeanAtl_lat02.5.jld2"
 else
     fnamegrid = "N2_amz1.jld2"
@@ -187,9 +187,13 @@ kom, k2om = getkom(ω,LAT,nonhyd,Nm)
 epsomhy   = ((2*kom)^2 - k2om^2)/(2*kom)^2
 
 # reference density ----------------------------------------------------------
-breff   = cumtrapz(zfw, N2w);
+# compute reference density profile
+# b = sum N2 * dz = sum -g/rho0*drho/dz * dz
+# b = -g/rho0*rho_pert
+# rho_pert = -b*rho0/g 
+breff   = cumtrapz(zfw, N2w);                              # bottom up!
 intzc   = interpolate((zfw,), breff, Gridded(Linear()));
-rhorefc = -intzc.(zc) * rho0/grav;
+rhorefc = -intzc.(zc) * rho0/grav;                         # rho0 is not added!
 
 # time window for KE/APE averaging ------------------------------------------
 EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
@@ -237,7 +241,6 @@ A0nl     = 0.0
 fact     = 1/2*rho0
 
 # tile loop (nhalo=0: no x-gradients needed) ---------------------------------
-ntile   = 20
 nx_base = Nx ÷ ntile
 
 println("starting tile loop, ntile=",ntile)
@@ -262,12 +265,18 @@ for i_tile in 1:ntile
     uf_t = nothing; wf_t = nothing; GC.gc()
 
     # pressure perturbation (local in x: time-mean and depth-mean removal) ---
-    ptot_t   = (pHY_t .+ pNH_t) * rho0/grav;
+    ptot_t   = (pHY_t .+ pNH_t) * rho0;         # kinematic (m²/s²) → dynamic pressure [Pa]
     pHY_t = nothing; pNH_t = nothing; GC.gc()
+
+    # remove the time-mean for the time series selected
     ptota_t  = mean(ptot_t, dims=1);
     ptotp_t  = ptot_t .- ptota_t;
     ptot_t   = nothing;
+    
+    # compute the depth-mean pressure
     ptotpa_t = sum(ptotp_t .* dzz, dims=3) / H;
+
+    # compute the perturbation pressure
     pcp_t    = ptotp_t .- ptotpa_t;
     ptotp_t  = nothing; GC.gc()
 
@@ -412,7 +421,7 @@ hm.colorrange = (-100, 100)
 fig3
 
 # KE/APE/flux figures --------------------------------------------------------
-ylimE = [0 30]; ylimA = [0 30]; ylimf = [-1 8];
+ylimE = [0 12]; ylimA = [0 12]; ylimf = [-1 17];
 
 fig4 = Figure(size=(750,750))
 ax = Axis(fig4[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"),xlabel="x [km]",ylabel="KE [kJ/m2]")

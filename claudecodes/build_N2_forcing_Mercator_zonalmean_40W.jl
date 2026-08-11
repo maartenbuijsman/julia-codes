@@ -1,5 +1,5 @@
 # build_N2_forcing_Mercator_zonalmean_40W.jl
-# MCB/Claude, USM, 2026-8-4
+# MCB/Claude, USM, 2026-8-10
 #
 # Final N2 forcing profiles for IW_Amz_200m_2000km_bash_cuda.jl, based ONLY
 # on Mercator data (dropping WOCE -- Mercator's open-Atlantic zonal mean
@@ -198,7 +198,7 @@ end
 # ---------------------------------------------------------------------------
 # diagnostic plot: 3 latitude-group subplots, full depth + upper 400 m
 
-groups = [1:5, 6:10, 11:nlat]
+groups = [1:5, 6:11, 12:nlat]   # now 15 latitudes incl. 28.8N (PSI critical lat)
 grouptitles = ["0-15°N", "20-40°N", "45-60°N"]
 
 # per-subplot x-axis ranges matching N2_zonalmean_Atl_offshelf_monthly_3panels(_upper400m).png

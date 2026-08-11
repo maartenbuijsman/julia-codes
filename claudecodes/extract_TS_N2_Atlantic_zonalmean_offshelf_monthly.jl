@@ -1,5 +1,5 @@
 # extract_TS_N2_Atlantic_zonalmean_offshelf_monthly.jl
-# MCB/Claude, USM, 2026-8-5
+# MCB/Claude, USM, 2026-8-10
 #
 # Three-stage domain determination + N2 computation, per the discussed
 # recipe:
@@ -35,7 +35,7 @@ fnameout = "MERC_N2_zonalmean_Atl_offshelf_monthly.nc"
 lonsearch = (-95.0, 25.0)   # wide search window for Range 1
 loncenter = -40.0
 shelf_threshold = 500.0
-latsels = Float64.(vcat(0, 2.5, 5:5:60))
+latsels = Float64.(vcat(0, 2.5, 5:5:25, 28.8, 30:5:60))   # 28.8N = M2 PSI critical latitude
 nlat = length(latsels)
 nmonths = 12
 

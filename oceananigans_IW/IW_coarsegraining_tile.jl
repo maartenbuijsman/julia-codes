@@ -56,14 +56,23 @@ xlim = 700
 #LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
 #runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 
+#=
 mainnm = 9
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
 runnms  = collect(15:28) # varying  N2 MERCATOR
 #runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
+=#
+
+# D2 NH flux forcing, 4 km
+mainnm  = 10
+#runnms  = collect(1:14) # constant N2 WOCE AMZ
+#runnms  = collect(1:13) # varying  N2 MERCATOR
+runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
+
 
 xlim = 2000; # km
-
 ntile = 10   # number of x-tiles; increase if memory is still tight
 
 

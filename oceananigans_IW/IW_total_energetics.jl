@@ -68,10 +68,16 @@ LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
 runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
 =#
 
-# D2 NH
+#= D2 NH
 mainnm = 9
 LATS  = [0.0, 2.5, 5.0, 10.0]
 runnms = [1, 2, 3, 4]
+=#
+
+mainnm = 7
+runnms  = 4  #AMZ N2
+LATS    = 0
+
 # do the analysis in a function
 function run_analysis(runnm,LAT,savefl)
 # IS = 1; runnm = runnms[IS]; LAT = LATS[IS]
@@ -90,8 +96,8 @@ println(keys(ds))
 
 # only select data after the spinup time 
 # => i.e., time it takes before waves reach the eastern boundary
-#tspin = 4; #days  # for 700 km domain
-tspin = 10; #days  # for 2000 km domain
+tspin = 4; #days  # for 700 km domain
+#tspin = 10; #days  # for 2000 km domain
 
 # select Indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -130,7 +136,8 @@ Nt = length(tday);
 end
 
 # total pressure in N/m2
-ptot = (pHY.+pNH)*rho0/grav;
+ptot = (pHY.+pNH)*rho0;   
+#ptot = (pHY.+pNH)*rho0/grav; #incorrect!!
 #ptot = (pHY)*rho0/grav;
 #ptot = (pNH)*rho0/grav;    # NH pressure only
 
@@ -166,14 +173,15 @@ ax = Axis(fig1[1, 1],title = string(fname_short2,"; lat=",LAT,"; KE [m2/s2]"), x
 hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2 .+ vc[:,:,end].^2), colormap = Reverse(:Spectral), colorrange = clims); Colorbar(fig1[1,2], hm); 
 #hm = heatmap!(ax, xc/1e3, tday, transpose(uc[:,:,end].^2), colormap = Reverse(:Spectral)); Colorbar(fig1[1,2], hm); 
 fig1
+display(fig1)
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"KE_hovmuller_", fname_short2 ,".png"), fig1)
 end
 
-#= by-pass NRG calcs
+# by-pass NRG calcs
 
-return
+#return
 #stop()
 
 # load N2 profile -----------------------------------------------------------
@@ -682,16 +690,16 @@ xlims!(ax2, 0, Ldom/1e3)
 ylims!(ax2, ylimA[1], ylimA[2])
 
 ax3 = Axis(fig1[3, 1],title = "flux", xlabel = "x [km]", ylabel = "flux [W/m]")
-lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3, label = "t+HH", color = :black, linewidth = 3)
-lines!(ax3, xc/1e3, Fx/1e3,  label = "tot", linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, Fxt/1e3, label = "tidal", color = :red, linewidth = 3)
-lines!(ax3, xc/1e3, Fxh/1e3, label = "HH", color = :green, linewidth = 3)
+lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3, label = "Fp t+HH", color = :black, linewidth = 3)
+lines!(ax3, xc/1e3, Fx/1e3,  label = "Fp tot", linestyle=:dash, color = :grey, linewidth = 3)
+lines!(ax3, xc/1e3, Fxt/1e3, label = "Fp tidal", color = :red, linewidth = 3)
+lines!(ax3, xc/1e3, Fxh/1e3, label = "Fp HH", color = :green, linewidth = 3)
 #lines!(ax3, xc/1e3, Fxs/1e3, label = "sub", color = :yellow, linewidth = 2)
 
 # advective flux
 lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, linestyle=:dash, color = :black, linewidth = 3)
 lines!(ax3, xc/1e3, (FKx+FAx)/1e3,  linestyle=:dash, color = :grey, linewidth = 3)
-lines!(ax3, xc/1e3, (Fx + FKx+FAx)/1e3,  label = "up+uE",  linestyle=:dash, color = :blue, linewidth = 3)
+lines!(ax3, xc/1e3, (Fx + FKx+FAx)/1e3,  label = "Fp+FA",  color = :blue, linewidth = 3)
 lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3, linestyle=:dash, color = :red, linewidth = 3)
 lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
 #
@@ -705,9 +713,10 @@ lines!(ax3, xc/1e3, (FAxh)/1e3,  linestyle=:dash, color = :green, linewidth = 3)
 =#
 
 xlims!(ax3, 0, Ldom/1e3)
-ylims!(ax3, ylimf[1], ylimf[2])
+#ylims!(ax3, ylimf[1], ylimf[2])
 axislegend(ax3, position = :rt)
 fig1
+display(fig1)
 
 # Save the figure as a PNG file
 #if figflag==1; save(string(dirfig,"KE_flux_", fname_short2 ,"_NHONLY_v4.png"), fig)
@@ -721,7 +730,7 @@ println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m"
 println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 
 
-=# #by-pass NRG calcs
+# by-pass NRG calcs
 
 # compute some ffts of surface velocity ======================================================
 
@@ -804,6 +813,7 @@ fcpd = coriolis(LAT)/(2*pi)*24*3600
 #lines!(vec([fcpd fcpd]),vec([minimum(log10.(KEoma)) maximum(log10.(KEoma))]), linestyle=:dash, color = :red, linewidth = 2)
 lines!(axb, vec([fcpd fcpd]), [10.0^Plims[1], 10.0^Plims[2]], linestyle=:dash, color = :red, linewidth = 2)
 fig1
+display(fig1)
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig1)
@@ -872,6 +882,7 @@ fnamein = string(dirout,"energetics_AMZ4_00.0_hvis_12d_U1_0.40_U2_0.0.jld2")
 lines!(ax1, freq, log10.(KEoma./KEommax), linestyle=:solid, color = :red, linewidth = 3,label="200 m")
 axislegend(ax1, position = :lb)
 fig1
+display(fig1)
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"fft_KE_hyd_nonhyd.png"), fig1)
@@ -902,6 +913,7 @@ ax = Axis(fig[1, 1],title = "N(z) Amazon", xlabel = "N [rad/s]", ylabel = "z [m]
 lines!(ax, sqrt.(N2w), zfw, color = :red, linewidth = 3)
 ylims!(ax, -1000,0)
 fig
+display(fig)
 
 # Save the figure as a PNG file
 if figflag==1; save(string(dirfig,"N2_AMZ.png"), fig)
