@@ -72,7 +72,8 @@ runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
 #N2source = "amz1"        
 N2source = "zonalmean"
 #N2source = "zonalmeanfixed"
-latfix = 2.5;
+#latfix = 2.5;
+latfix = 50.0;
 
 # forcing metric: how the two per-mode targets are interpreted
 #   "flux"  : energy flux F [W/m]  -> constant-flux-vs-latitude (a=sqrt(2F/(rho0*Cg*∫Ueig2²)))
@@ -139,9 +140,9 @@ TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 
 #high resolution: 100/200 m
 L   = 2_000_000;                   # domain length
-#DX  = 200;                        # 200 m production grid (Nx = 10000)
-#DX  = 100;
-DX  = 4000;                        # 10. series
+DX  = 200;                         # 11. series 200 m production grid (Nx = 10000)
+#DX  = 100;                        # 
+#DX  = 4000;                       # 10. series
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
 

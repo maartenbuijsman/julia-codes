@@ -29,7 +29,7 @@ end
 include(string(pathname,"include_functions.jl"))
 
 # print figures
-saveflag = 0
+figflag = 1
 
 const T2 = 12+25.2/60
 const rho0=1020; 
@@ -43,11 +43,9 @@ const grav=9.81;
 #LATS    = [0, 2.5, 5, 10, 15, 20, 25, 28.8, 30, 35, 40, 50]
 
 # constant N2, NH 4km test run with new forcing
-runnms  = collect(90:92)  #AMZ N2
-mainnms = fill(3, size(runnms))
-LATS    = [0, 20, 60]
-
-
+#runnms  = collect(90:92)  #AMZ N2
+#mainnms = fill(3, size(runnms))
+#LATS    = [0, 20, 60]
 
 #= constant N2, NH 200 m
 runnms  = collect(1:14)  #AMZ N2
@@ -57,14 +55,27 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 =#
 
 
-fnum = string(mainnms[1],".",runnms[1],"-",runnms[end])
+# D2 NH flux forcing, 4 km
+mainnm  = 10
+#runnms  = collect(1:13) # varying  N2 MERCATOR
+#runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+runnms  = collect(27:39) # varying  N2 MERCATOR
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
-if     mainnms[1] == 3 && runnms[1] == 3; 
+
+fnum = string(mainnm,".",runnms[1],"-",runnms[end])
+
+if     mainnm == 3 && runnms[1] == 3; 
     titstr = string("Δx=4 km, const. N(z) (",fnum,")") 
-elseif mainnms[1] == 9 && runnms[1] == 1; 
+elseif mainnm == 9 && runnms[1] == 1; 
     titstr = string("Δx=200 m, const. N(z) (",fnum,")")    
-elseif mainnms[1] == 9 && runnms[1] == 15; 
+elseif mainnm == 9 && runnms[1] == 15; 
     titstr = string("Δx=200 m, Mercator N(z) (",fnum,")")    
+elseif mainnm == 10 && runnms[1] == 1 || runnms[1] == 27; 
+    titstr = string("Δx=4 km, Mercator N(z) (",fnum,")")    
+elseif mainnm == 10 && runnms[1] == 14 || runnms[1] == 40; 
+    titstr = string("Δx=4 km, const. 2.5N N(z) (",fnum,")")    
 end
 
 
@@ -79,7 +90,7 @@ KE, KEt, KEh, KEs, APE, APEt, APEh, APEs
 =#
 
 # pre-allocate matrices (runs × x)
-fnames0  = @sprintf("AMZexpt%02i.%02i", mainnms[1], runnms[1])
+fnames0  = @sprintf("AMZexpt%02i.%02i", mainnm, runnms[1])
 @load string(dirout, "energetics_", fnames0, ".jld2") xc freq
 KEr  = zeros(length(runnms), length(xc))   # total KE
 KEtr = zeros(length(runnms), length(xc))   # tidal-band KE
@@ -89,7 +100,7 @@ KEOMmax = zeros(length(runnms))                 # max KE(ω) per run (for later 
 
 
 for i=1:length(runnms)
-    mainnm = mainnms[i]; runnm = runnms[i]; LAT = LATS[i];
+    runnm = runnms[i]; LAT = LATS[i];
 
     # filename
     fnames = @sprintf("AMZexpt%02i.%02i",mainnm,runnm) 
@@ -133,7 +144,7 @@ xlims!(axKE2, 0, LdomH/1e3)
 xlims!(axKE3, 0, LdomH/1e3)
 display(figKE)
 
-if saveflag==1; save(string(dirfig,"KE_KEt_KEh_heatmap_",titstrH,".png"), figKE)
+if figflag==1; save(string(dirfig,"KE_KEt_KEh_heatmap_",titstrH,".png"), figKE)
 end
 
 
@@ -167,7 +178,7 @@ xlims!(axKEn2, 0, LdomH/1e3)
 xlims!(axKEn3, 0, LdomH/1e3)
 display(figKEn)
 
-if saveflag==1; save(string(dirfig,"KE_norm_maxKEt_heatmap_",titstrN,".png"), figKEn)
+if figflag==1; save(string(dirfig,"KE_norm_maxKEt_heatmap_",titstrN,".png"), figKEn)
 end
 
 
@@ -190,7 +201,7 @@ Colorbar(figF[1, 2], colormap = colorsF, limits = (0.5, length(LATS) + 0.5),
     ticks = (1:length(LATS), string.(LATS)), label = "latitude [°]")
 display(figF)
 
-if saveflag==1; save(string(dirfig,"KEspec_freq_",titstrF,".png"), figF)
+if figflag==1; save(string(dirfig,"KEspec_freq_",titstrF,".png"), figF)
 end
 
 
@@ -198,7 +209,8 @@ end
 titstrFn = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 KEOMn = KEOM ./ KEOMmax          # normalize each run by its own max KE(ω) (peaks at 1)
 Ifr   = findall(freq .> 0)       # drop 0 cpd for log x-axis
-Zn    = max.((KEOMn[:, Ifr])', 1e-6)   # (freq × lat), floored for log colour scale
+#Zn    = max.((KEOMn[:, Ifr])', 1e-6)   # (freq × lat), floored for log colour scale
+Zn    = (KEOMn[:, Ifr])'        # (freq × lat), floored for log colour scale
 
 figFn = Figure(size=(750,500))
 axFn  = Axis(figFn[1, 1], xscale = log10,
@@ -206,12 +218,13 @@ axFn  = Axis(figFn[1, 1], xscale = log10,
     title = string("normalized KE frequency spectra — ",titstr),
     xlabel = "frequency [cpd]", ylabel = "latitude [°]")
 hmFn = heatmap!(axFn, freq[Ifr], LATS, Zn,
-    colormap = :thermal, colorscale = log10, colorrange = (1e-4, 1))
+    colormap =:thermal, colorscale = log10, colorrange = (1e-5, 1))
+#    colormap = cgrad([:black, :purple, :red, :orange, :yellow, :white]), colorscale = log10, colorrange = (1e-6, 1))
 Colorbar(figFn[1, 2], hmFn, label = "KE(ω) / max")
 xlims!(axFn, 0.3, 48)
 display(figFn)
 
-if saveflag==1; save(string(dirfig,"KEspec_heatmap_lat_freq_",titstrFn,".png"), figFn)
+if figflag==1; save(string(dirfig,"KEspec_heatmap_lat_freq_",titstrFn,".png"), figFn)
 end
 
 
@@ -297,7 +310,7 @@ display(fig1)
 # Save the figure as a PNG file
 titstrc = replace(string(titstra,"_",titstrb), " " => "_", "(" => "", ")" => "")
 
-if saveflag==1; save(string(dirfig,"fft_KEsur_",titstrc,".png"), fig1)
+if figflag==1; save(string(dirfig,"fft_KEsur_",titstrc,".png"), fig1)
 end
 
 
@@ -416,7 +429,7 @@ axislegend(position = :rb)
 xlims!(ax, 0, 500)
 fig
 
-if saveflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
+if figflag==1; save(string(dirfig,"PI_cumsum.png"), fig)
 end
 
 #=
@@ -493,5 +506,5 @@ axislegend(axa, position = :rt)
 fig1
 
 
-if saveflag==1; save(string(dirfig,"max_min_ave_PI_lat.png"), fig1)
+if figflag==1; save(string(dirfig,"max_min_ave_PI_lat.png"), fig1)
 end

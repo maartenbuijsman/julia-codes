@@ -60,11 +60,12 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 # D2 NH flux forcing
 mainnm  = 10
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
-#runnms  = collect(1:13) # varying  N2 MERCATOR
-runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+#runnms  = collect(27:39) # varying  N2 MERCATOR
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+runnms  = collect(53:65) # constant N2 MERCATOR 50N
 LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
-runnms=26; LATS=50
+#runnms=26; LATS=50
 
 # N2 forcing source (MUST match how each run was generated in
 # IW_Amz_200m_2000km_bash_cuda.jl, so the reference density is consistent):
@@ -74,7 +75,8 @@ runnms=26; LATS=50
 
 #N2source = "zonalmean"
 N2source = "zonalmeanfixed"
-latfix   = 2.5            # only used for "zonalmeanfixed"
+#latfix   = 2.5            # only used for "zonalmeanfixed"
+latfix   = 50            # only used for "zonalmeanfixed"
 
 # snapshot / plotting options ----------------------------------------------
 snap_which   = :last                       # :last => last output; or Integer index into post-spinup times

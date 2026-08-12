@@ -72,8 +72,9 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 # D2 NH flux forcing
 mainnm  = 10
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
-runnms  = collect(1:13) # varying  N2 MERCATOR
-runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+#runnms  = collect(27:39) # varying  N2 MERCATOR
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+runnms  = collect(53:65) # constant N2 MERCATOR 50N
 LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
 # do the analysis in a function
@@ -93,6 +94,14 @@ println(keys(ds))
 
 # only select data after the spinup time
 tspin = 10; #days  # for 2000 km domain
+
+# set E and flux lims for figures
+if mainnm == 9 && runnm <= 14
+elseif (mainnm == 10 && runnm <= 26)
+    Elim = [0, 12]; Flim = [0, 17];
+elseif (mainnm == 10 && runnm >= 27 && runnm <= 65)
+    Elim = [0, 22]; Flim = [0, 26];
+end
 
 # select indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -117,10 +126,12 @@ Nt = length(tday);
 # load N2 profile -----------------------------------------------------------
 if mainnm == 9 && runnm <= 14
     fnamegrid = "N2_amz1.jld2"
-elseif (mainnm == 9 && runnm <= 28) || (mainnm == 10 && runnm <= 13)
+elseif (mainnm == 9 && runnm <= 28) || (mainnm == 10 && runnm <= 13) || (mainnm == 10 && runnm >= 27 && runnm <= 39)
     fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", LAT)
-elseif (mainnm == 9 && runnm <= 42) || (mainnm == 10 && runnm <= 26)
+elseif (mainnm == 9 && runnm <= 42) || (mainnm == 10 && runnm <= 26) || (mainnm == 10 && runnm >= 40 && runnm <= 52)
     fnamegrid = "N2_ZonalMeanAtl_lat02.5.jld2"
+elseif (mainnm == 10 && runnm >= 53 && runnm <= 65)
+    fnamegrid = "N2_ZonalMeanAtl_lat50.0.jld2"
 else
     fnamegrid = "N2_amz1.jld2"
 end
@@ -133,7 +144,6 @@ ax1 = Axis(fig[1,1], title=fnamegrid, xlabel="N² (s⁻²)", ylabel="z [m]")
 lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 fig
-display(fig)
 
 # epsilon calculations -------------------------------------------------------
 function getomres(ω,LAT,nonhyd,Nm)
@@ -421,7 +431,7 @@ hm.colorrange = (-100, 100)
 fig3
 
 # KE/APE/flux figures --------------------------------------------------------
-ylimE = [0 12]; ylimA = [0 12]; ylimf = [-1 17];
+# yaxis lims are determined above
 
 fig4 = Figure(size=(750,750))
 ax = Axis(fig4[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"),xlabel="x [km]",ylabel="KE [kJ/m2]")
@@ -430,7 +440,7 @@ lines!(ax, xc/1e3, KE/1e3,  linestyle=:dash,  color=:grey,   linewidth=3)   #,  
 lines!(ax, xc/1e3, KEt/1e3, color=:red,    linewidth=3)                     #,  label="tidal"
 lines!(ax, xc/1e3, KEh/1e3, color=:green,  linewidth=3)                     #,  label="HH"
 lines!(ax, xc/1e3, KEs/1e3,  label="sub",   color=:yellow, linewidth=2)
-xlims!(ax, 0, Ldom/1e3); ylims!(ax, ylimE[1], ylimE[2])
+xlims!(ax, 0, Ldom/1e3); ylims!(ax, Elim[1], Elim[2])
 axislegend(ax, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 
 ax2 = Axis(fig4[2,1],title="APE",xlabel="x [km]",ylabel="APE [kJ/m2]")
@@ -439,7 +449,7 @@ lines!(ax2, xc/1e3, APE/1e3,  linestyle=:dash, color=:grey,  linewidth=3)    #, 
 lines!(ax2, xc/1e3, APEt/1e3, color=:red,   linewidth=3)                     #,  label="tidal"
 lines!(ax2, xc/1e3, APEh/1e3, color=:green, linewidth=3)                     #,  label="HH"
 lines!(ax2, xc/1e3, APElin/1e3,label="tot lin",  color=:grey,  linewidth=1)
-xlims!(ax2, 0, Ldom/1e3); ylims!(ax2, ylimA[1], ylimA[2])
+xlims!(ax2, 0, Ldom/1e3); ylims!(ax2, Elim[1], Elim[2])
 axislegend(ax2, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 
 ax3 = Axis(fig4[3,1],title="flux",xlabel="x [km]",ylabel="flux [W/m]")
@@ -452,9 +462,10 @@ lines!(ax3, xc/1e3, (FKx+FAx)/1e3,           label="FKE+APE tot",    linestyle=:
 lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,        label="Fp+KE+APE tot", linestyle=:dash, color=:blue,  linewidth=3)  # total pressure + KE + APE flux
 lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,         label="FKE+APE tidal",  linestyle=:dash, color=:red,   linewidth=3)  # KE+APE advective flux: tidal
 lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,         label="FKE+APE HH",     linestyle=:dash, color=:green, linewidth=3)  # KE+APE advective flux: HH
-xlims!(ax3, 0, Ldom/1e3); ylims!(ax3, ylimf[1], ylimf[2])
+xlims!(ax3, 0, Ldom/1e3); ylims!(ax3,  Flim[1], Flim[2])
 axislegend(ax3, position=:rt, labelsize=8, rowgap=0, framevisible=false)
 fig4
+display(fig4)
 if figflag==1; save(string(dirfig,"KE_flux_",fname_short2,".png"), fig4); end
 
 println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")

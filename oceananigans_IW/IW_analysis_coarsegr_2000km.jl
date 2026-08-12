@@ -3,6 +3,9 @@ Maarten Buijsman, USM DMS, 2026-08-10
 Load coarse graining results from various sims. and make figures
 =#
 
+# TO DO:
+# normalize CGE/KE!!
+
 println("number of threads is ",Threads.nthreads())
 
 using Pkg, NCDatasets, Printf, CairoMakie, Statistics, 
@@ -52,8 +55,11 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 # D2 NH flux forcing, 4 km
 mainnm  = 10
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
-runnms  = collect(1:13) # varying  N2 MERCATOR
-runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+runnms  = collect(1:13) # varying  N2 MERCATOR        F=15kW/m
+#runnms  = collect(14:26) # constant N2 MERCATOR 2.5N  F=15kW/m
+runnms  = collect(27:39) # varying  N2 MERCATOR       F=25kW/m
+runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N   F=25kW/m
 LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
 
@@ -65,10 +71,12 @@ elseif mainnm == 9 && runnms[1] == 1;
     titstr = string("Δx=200 m, const. N(z) (",fnum,")")    
 elseif mainnm == 9 && runnms[1] == 15; 
     titstr = string("Δx=200 m, Mercator N(z) (",fnum,")")    
-elseif mainnm == 10 && runnms[1] == 1; 
+elseif mainnm == 10 && runnms[1] == 1 || runnms[1] == 27; 
     titstr = string("Δx=4 km, Mercator N(z) (",fnum,")")    
-elseif mainnm == 10 && runnms[1] == 14; 
+elseif mainnm == 10 && runnms[1] == 14 || runnms[1] == 40; 
     titstr = string("Δx=4 km, const. 2.5N N(z) (",fnum,")")    
+elseif mainnm == 10 && runnms[1] == 53; 
+    titstr = string("Δx=4 km, const. 50N N(z) (",fnum,")")        
 end
 
 
@@ -165,7 +173,8 @@ LdomH   = 2000e3;
 titstrH = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 #cmaxH   = maximum(abs.(CGE))*fcH                     # symmetric range about 0
 cmaxH   = 1                    # symmetric range about 0
-cmaxsH  = maximum(abs.(CGEsum))*fc5H                  # symmetric range about 0
+#cmaxsH  = maximum(abs.(CGEsum))*fc5H                  # symmetric range about 0
+cmaxsH  = 10*fc5H 
 
 figCGE = Figure(size=(700,850))
 axCGE  = Axis(figCGE[1, 1], title = string("(a) cross-scale energy transfer — ",titstr),
@@ -188,6 +197,7 @@ display(figCGE)
 if figflag==1; save(string(dirfig,"CGE_CGEsum_heatmap_",titstrH,".png"), figCGE)
 end
 
+println("CGE min/max = ", @sprintf("%.2e", minimum(CGE)), " / ", @sprintf("%.2e", maximum(CGE)))
 
 ## line plots of CGE and cumulative CGEsum vs x, one line per latitude ----------
 fcC     = 1e4;                                          # scale Π to 1e4 W/(kg m), as in panel (c)
