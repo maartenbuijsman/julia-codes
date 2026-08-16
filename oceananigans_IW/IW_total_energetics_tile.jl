@@ -1,8 +1,8 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-10
+Maarten Buijsman, USM DMS, 2026-8-15
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
-Oceananigans pressure is kinematic p_kin = p_true/rho0    
+Oceananigans pressure is kinematic p_kin = p_true/rho0
 buoyancy = -g*rho'/rho0
 =#
 
@@ -33,9 +33,11 @@ else
     dirfig = string(pth0,"figs/");
     dirout = string(pth0,"diagout/");
     dirforce = string(pth0,"IW/forcingfiles/");
+    dirparams = "/home/mbui/Documents/julia-codes/oceananigans_IW/input_params/";
 end
 
 include(string(pathname,"include_functions.jl"))
+include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # Flags --------------------------
 savefl  = 1  # save data
@@ -44,38 +46,26 @@ oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreads
 
 # tiles
 ntile   = 20
-ntile   = 10
+#ntile   = 10
 
 const T2 = 12+25.2/60
 const rho0=1020; 
 const grav=9.81; 
 
-#= D2
-mainnm = 3
-LATS  = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
-runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
-=#
-
-# constant N2, NH 4km test run with new forcing
-#mainnm = 3
-#runnms  = collect(90:92)  #AMZ N2
-#LATS    = [0, 20, 60]
-
-#= D2 NH
-mainnm  = 9
-#runnms  = collect(1:14) # constant N2 WOCE AMZ
-runnms  = collect(15:28) # varying  N2 MERCATOR
-#runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
-LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
-=#
+# run-ID selection: only mainnm + runnms need to be prescribed here; LAT and
+# the N2 stratification profile are looked up from run_master.jl, so run-ID
+# and latitude can never drift out of sync. runnms need not be a full block --
+# any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 10
-#runnms  = collect(1:14) # constant N2 WOCE AMZ
+mainnm  = 11
+#runnms  = collect(1:14)  # constant N2 WOCE AMZ
 #runnms  = collect(27:39) # varying  N2 MERCATOR
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-runnms  = collect(53:65) # constant N2 MERCATOR 50N
-LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
+runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N
+
+runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
+LATS = [r.lat for r in runs]
 
 # do the analysis in a function
 function run_analysis(runnm,LAT,savefl)
@@ -88,6 +78,9 @@ filename = string(dirsim,fnames,".nc")
 
 println(fname_short2,"; lat=",LAT," -------------------")
 
+# look up this run's metadata (lat/Flux/DX/N2 source) from the master table
+row = get_runs(mainnm, [runnm])[1]
+
 # open nc file and keep open for tiled reads
 ds = NCDataset(filename,"r");
 println(keys(ds))
@@ -95,13 +88,8 @@ println(keys(ds))
 # only select data after the spinup time
 tspin = 10; #days  # for 2000 km domain
 
-# set E and flux lims for figures
-if mainnm == 9 && runnm <= 14
-elseif (mainnm == 10 && runnm <= 26)
-    Elim = [0, 12]; Flim = [0, 17];
-elseif (mainnm == 10 && runnm >= 27 && runnm <= 65)
-    Elim = [0, 22]; Flim = [0, 26];
-end
+# set E and flux lims for figures, keyed off this run's forcing flux
+Elim, Flim = elim_flim(row)
 
 # select indices after spinup
 tday0 = ds["time"][:]/24/3600;
@@ -124,17 +112,7 @@ Nx = length(xc);
 Nt = length(tday);
 
 # load N2 profile -----------------------------------------------------------
-if mainnm == 9 && runnm <= 14
-    fnamegrid = "N2_amz1.jld2"
-elseif (mainnm == 9 && runnm <= 28) || (mainnm == 10 && runnm <= 13) || (mainnm == 10 && runnm >= 27 && runnm <= 39)
-    fnamegrid = @sprintf("N2_ZonalMeanAtl_lat%04.1f.jld2", LAT)
-elseif (mainnm == 9 && runnm <= 42) || (mainnm == 10 && runnm <= 26) || (mainnm == 10 && runnm >= 40 && runnm <= 52)
-    fnamegrid = "N2_ZonalMeanAtl_lat02.5.jld2"
-elseif (mainnm == 10 && runnm >= 53 && runnm <= 65)
-    fnamegrid = "N2_ZonalMeanAtl_lat50.0.jld2"
-else
-    fnamegrid = "N2_amz1.jld2"
-end
+fnamegrid = n2_filename(row)
 path_fname = string(dirforce,fnamegrid);
 @load path_fname N2w zfw
 N2c = N2w[1:end-1]/2 + N2w[2:end]/2;
@@ -145,7 +123,8 @@ lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 fig
 
-# epsilon calculations -------------------------------------------------------
+# calculation of the resonance parameter epsilon -------------------------------------------------------
+# 4om2 - om(2k)2 / 4om2
 function getomres(ω,LAT,nonhyd,Nm)
     nk = 4;
     fcor   = coriolis(LAT);
@@ -161,14 +140,17 @@ function getomres(ω,LAT,nonhyd,Nm)
         omr = intzc.(kr);
         return omr
     end
+
+    # using 2k wavelength find the associated frequency
     kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
     kr  = 2*kn[Nm]
-    omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
-    om2 = collect(range(0.75*omr, 1.25*omr, nk))
+    omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)     # first iteration
+    om2 = collect(range(0.75*omr, 1.25*omr, nk))            # second iteration
     omr = itom(zfw, N2w, fcor, om2, nonhyd, nk, kr, Nm)
     return omr
 end
 
+# get k from prescribing omega
 function getkom(ω,LAT,nonhyd,Nm)
     fcor   = coriolis(LAT);
     kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
@@ -178,6 +160,7 @@ function getkom(ω,LAT,nonhyd,Nm)
     return kom, k2om
 end
 
+# obtain the hydrostatic and nonhydrostatic epsilons
 ω      = 2π / (T2*3600)
 nonhyd = 1; Nm = 1;
 
@@ -188,6 +171,9 @@ nonhyd = 0;
 omr   = getomres(ω,LAT,nonhyd,Nm)
 epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
 
+# epsilon for k -----------------------------
+# ((2k)2 - k(2om))/(2k)2
+# based on omega resonance: om+om=2om
 nonhyd=1;
 kom, k2om = getkom(ω,LAT,nonhyd,Nm)
 epsomnh   = ((2*kom)^2 - k2om^2)/(2*kom)^2
@@ -395,13 +381,18 @@ end
 close(ds)
 
 # post-tile scalar computations ----------------------------------------------
+
+# compute non-dimensional parameters from Sutherland 2022
 I1  = argmin(abs.(zc .- -100))
 I2  = argmin(abs.(zc .- -300))
 dnl = (zc[I1] - zc[I2]) / log(N2c[I1]/N2c[I2])
 
+# nonlinearity parameter alpha/epsilon
 alpnl        = A0nl/dnl
 alpepshy     = alpnl/epshy
 alpepsnh     = alpnl/epsnh
+
+# beat period of energy exchange
 Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)
 Tbeathy_days = 2π/(epshy*ω)/(24*3600)
 

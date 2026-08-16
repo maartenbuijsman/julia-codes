@@ -1,5 +1,5 @@
 #= IW_coarsegraining_tile.jl
-Maarten Buijsman, USM DMS, 2026-08-09
+Maarten Buijsman, USM DMS, 2026-8-15
 Load model runs and perform coarsegraining diagnostics
 Tiled in x to avoid memory overflow for large domains (e.g. 200 m, 2000 km)
 =#
@@ -30,15 +30,20 @@ else
     dirfig = string(pth0,"figs/");
     dirout = string(pth0,"diagout/");
     dirforce = string(pth0,"IW/forcingfiles/");
+    dirparams = "/home/mbui/Documents/julia-codes/oceananigans_IW/input_params/";
 end
 
 include(string(pathname,"include_functions.jl"))
+include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # print and save flags
 figflag = 1
 saveflag = 1 
 
 const T2 = 12+25.2/60
+
+# length of domain
+xlim = 2000
 
 # run names --------------------------------
 # D2, mode 1 + 2 interactions
@@ -48,8 +53,6 @@ const T2 = 12+25.2/60
 #runnms = [1,   2,   3]; mainnm = 7;
 #runnms = [4,   5,   6]; mainnm = 7;
 #runnms = [13, 14, 15]; mainnm = 7;
-
-xlim = 700
 
 # function of latitude
 #mainnm = 3
@@ -64,17 +67,24 @@ runnms  = collect(15:28) # varying  N2 MERCATOR
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 =#
 
-# D2 NH flux forcing, 4 km
-mainnm  = 10
+# run-ID selection: only mainnm + runnms need to be prescribed here; LAT is
+# looked up from run_master.jl, so run-ID and latitude can never drift out of
+# sync. runnms need not be a full block -- any subset of run-IDs already
+# present in RUN_TABLE works.
+
+# D2 NH flux forcing, 200 m
+mainnm  = 11
 #runnms  = collect(27:39) # varying  N2 MERCATOR
 #runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-runnms  = collect(53:65) # constant N2 MERCATOR 50N
-LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
+runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N
 
+runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
+LATS = [r.lat for r in runs]
+
+# inputs
 xlim = 2000; # km
 ntile = 10   # number of x-tiles; increase if memory is still tight
-
 
 # coarsegraining function (tiled in x) -----------------------------
 function run_coarsegraining(runnm, LAT)

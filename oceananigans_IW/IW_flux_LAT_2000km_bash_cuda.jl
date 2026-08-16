@@ -70,10 +70,10 @@ runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
 # zonalmeanfixed = constant N2 everywhere
 
 #N2source = "amz1"        
-N2source = "zonalmean"
-#N2source = "zonalmeanfixed"
-#latfix = 2.5;
-latfix = 50.0;
+#N2source = "zonalmean"
+N2source = "zonalmeanfixed"
+latfix = 2.5;
+#latfix = 50.0;
 
 # forcing metric: how the two per-mode targets are interpreted
 #   "flux"  : energy flux F [W/m]  -> constant-flux-vs-latitude (a=sqrt(2F/(rho0*Cg*∫Ueig2²)))

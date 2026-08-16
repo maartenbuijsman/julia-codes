@@ -1,5 +1,5 @@
 #= IW_analysis_energy_2000km.jl
-Maarten Buijsman, USM DMS, 2026-08-07
+Maarten Buijsman, USM DMS, 2026-8-15
 Load energy and fft results from various sims. and make figures
 =#
 
@@ -24,9 +24,11 @@ else
     dirout = string(pth0,"diagout/");
     dirforce = string(pth0,"IW/forcingfiles/");
     dirEIG = string(pth0,"IW/forcingfiles/");
+    dirparams = "/home/mbui/Documents/julia-codes/oceananigans_IW/input_params/";
 end
 
 include(string(pathname,"include_functions.jl"))
+include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # print figures
 figflag = 1
@@ -54,6 +56,12 @@ mainnms = fill(9, size(runnms))
 LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 =#
 
+# run-ID selection: only mainnm + runnms need to be prescribed here; LAT (and
+# the Δx/N2-source info used for titstr below) are looked up from
+# run_master.jl, so run-ID and latitude can never drift out of sync. runnms
+# need not be a full block -- any subset of run-IDs already in RUN_TABLE works.
+# NOTE: previously runnms was reassigned twice here (only the last,
+# collect(27:39), ever took effect) -- kept as a commented alternative.
 
 # D2 NH flux forcing, 4 km
 mainnm  = 10
@@ -61,22 +69,27 @@ mainnm  = 10
 #runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
 runnms  = collect(27:39) # varying  N2 MERCATOR
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-LATS    = vcat(collect(0:2.5:5), collect(10:5:25), 28.8, collect(30:5:50))
 
+runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
+LATS = [r.lat for r in runs]
 
 fnum = string(mainnm,".",runnms[1],"-",runnms[end])
 
-if     mainnm == 3 && runnms[1] == 3; 
-    titstr = string("Δx=4 km, const. N(z) (",fnum,")") 
-elseif mainnm == 9 && runnms[1] == 1; 
-    titstr = string("Δx=200 m, const. N(z) (",fnum,")")    
-elseif mainnm == 9 && runnms[1] == 15; 
-    titstr = string("Δx=200 m, Mercator N(z) (",fnum,")")    
-elseif mainnm == 10 && runnms[1] == 1 || runnms[1] == 27; 
-    titstr = string("Δx=4 km, Mercator N(z) (",fnum,")")    
-elseif mainnm == 10 && runnms[1] == 14 || runnms[1] == 40; 
-    titstr = string("Δx=4 km, const. 2.5N N(z) (",fnum,")")    
+# descriptive plot title, built from this run block's Δx/N2 metadata instead
+# of a hardcoded mainnm/runnm elseif chain (the old chain had a Julia operator-
+# precedence bug: "mainnm==10 && runnms[1]==1 || runnms[1]==27" parses as
+# "(mainnm==10 && runnms[1]==1) || (runnms[1]==27)", so it matched ANY
+# mainnm==10 run regardless of runnms[1])
+row1  = runs[1]
+dxstr = row1.DX >= 1000 ? @sprintf("%.0f km", row1.DX/1000) : @sprintf("%.0f m", row1.DX)
+n2str = if row1.N2source == "zonalmean"
+    "Mercator N(z)"
+elseif row1.N2source == "zonalmeanfixed"
+    @sprintf("const. %.1fN N(z)", row1.latfix)
+else # "amz1"
+    "const. N(z)"
 end
+titstr = string("Δx=", dxstr, ", ", n2str, " (", fnum, ")")
 
 
 #= energetics file contents (loaded per run below) --------------------------

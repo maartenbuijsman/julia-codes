@@ -1,5 +1,5 @@
 #= IW_total_energetics.jl
-Maarten Buijsman, USM DMS, 2025-12-22
+Maarten Buijsman, USM DMS, 2026-8-15
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 =#
@@ -31,9 +31,11 @@ else
     dirfig = string(pth0,"figs/");
     dirout = string(pth0,"diagout/");
     dirforce = string(pth0,"IW/forcingfiles/");
+    dirparams = "/home/mbui/Documents/julia-codes/oceananigans_IW/input_params/";
 end
 
 include(string(pathname,"include_functions.jl"))
+include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # print figures
 savefl  = 0
@@ -74,9 +76,15 @@ LATS  = [0.0, 2.5, 5.0, 10.0]
 runnms = [1, 2, 3, 4]
 =#
 
-mainnm = 7
-runnms  = 4  #AMZ N2
-LATS    = 0
+# run-ID selection: only mainnm + runnms need to be prescribed here; LAT and
+# the N2 stratification profile are looked up from run_master.jl, so run-ID
+# and latitude can never drift out of sync. runnms need not be a full block --
+
+mainnm  = 10
+runnms  = collect(53:65) # constant N2 MERCATOR 50N
+
+runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
+LATS = [r.lat for r in runs]
 
 # do the analysis in a function
 function run_analysis(runnm,LAT,savefl)
@@ -185,8 +193,10 @@ end
 #stop()
 
 # load N2 profile -----------------------------------------------------------
-# load profile created by AMZ_stratification_profile.jl
-fnamegrid = "N2_amz1.jld2";
+# looked up from run_master.jl (varying Mercator zonal-mean N2, or a fixed-lat
+# profile, depending on how this run's block was forced)
+row = get_runs(mainnm, [runnm])[1]
+fnamegrid = n2_filename(row)
 path_fname = string(dirforce,fnamegrid);
 
 # variables loaded
