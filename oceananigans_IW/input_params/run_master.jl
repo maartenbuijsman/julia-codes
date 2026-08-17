@@ -43,7 +43,7 @@ append!(RUN_TABLE, expand_block(11, collect(1:13),  LAT13, fill(15e3,13), 200,  
 append!(RUN_TABLE, expand_block(11, collect(14:26), LAT13, fill(15e3,13), 200,  "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(11, collect(27:39), LAT13, fill(25e3,13), 200,  "zonalmean",      99))
 append!(RUN_TABLE, expand_block(11, collect(40:52), LAT13, fill(25e3,13), 200,  "zonalmeanfixed", 2.5))
-append!(RUN_TABLE, expand_block(11, collect(53:65), LAT13, fill(25e3,13), 4000, "zonalmeanfixed", 50.0))
+append!(RUN_TABLE, expand_block(11, collect(53:65), LAT13, fill(25e3,13), 200,  "zonalmeanfixed", 50.0))
 
 # mainnm 10 (4000 m D2 NH flux forcing) ---------------------------------------
 append!(RUN_TABLE, expand_block(10, collect(1:13),  LAT13, fill(15e3,13), 4000, "zonalmean",      99))

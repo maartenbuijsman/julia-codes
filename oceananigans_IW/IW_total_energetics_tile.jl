@@ -1,9 +1,10 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-15
+Maarten Buijsman, USM DMS, 2026-8-16
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
 buoyancy = -g*rho'/rho0
+Non-dimensional parameters/time scales moved to IW_nondim_params.jl
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -40,8 +41,8 @@ include(string(pathname,"include_functions.jl"))
 include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # Flags --------------------------
-savefl  = 1  # save data
-figflag = 1  # print figures
+savefl  = 0  # save data
+figflag = 0  # print figures
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 # tiles
@@ -63,6 +64,10 @@ mainnm  = 11
 #runnms  = collect(27:39) # varying  N2 MERCATOR
 runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N
+
+#test
+mainnm  = 10
+runnms  = 1
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -123,64 +128,8 @@ lines!(ax1,N2c, zc)
 ylims!(ax1, -500, 0)
 fig
 
-# calculation of the resonance parameter epsilon -------------------------------------------------------
-# 4om2 - om(2k)2 / 4om2
-function getomres(ω,LAT,nonhyd,Nm)
-    nk = 4;
-    fcor   = coriolis(LAT);
-    omi = collect(range(ω, nk*ω, nk))
-    function itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
-        ki  = zeros(nk,)
-        for i=1:nk
-            kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
-                sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, omi[i], nonhyd);
-                ki[i] = kn[Nm]
-        end
-        intzc   = interpolate((ki,), omi, Gridded(Linear()));
-        omr = intzc.(kr);
-        return omr
-    end
-
-    # using 2k wavelength find the associated frequency
-    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
-    kr  = 2*kn[Nm]
-    omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)     # first iteration
-    om2 = collect(range(0.75*omr, 1.25*omr, nk))            # second iteration
-    omr = itom(zfw, N2w, fcor, om2, nonhyd, nk, kr, Nm)
-    return omr
-end
-
-# get k from prescribing omega
-function getkom(ω,LAT,nonhyd,Nm)
-    fcor   = coriolis(LAT);
-    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
-    kom  = kn[Nm]
-    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, 2ω, nonhyd);
-    k2om = kn[Nm]
-    return kom, k2om
-end
-
-# obtain the hydrostatic and nonhydrostatic epsilons
-ω      = 2π / (T2*3600)
-nonhyd = 1; Nm = 1;
-
-omr   = getomres(ω,LAT,nonhyd,Nm)
-epsnh = ((2*ω)^2 - omr^2)/(2*ω)^2
-
-nonhyd = 0;
-omr   = getomres(ω,LAT,nonhyd,Nm)
-epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
-
-# epsilon for k -----------------------------
-# ((2k)2 - k(2om))/(2k)2
-# based on omega resonance: om+om=2om
-nonhyd=1;
-kom, k2om = getkom(ω,LAT,nonhyd,Nm)
-epsomnh   = ((2*kom)^2 - k2om^2)/(2*kom)^2
-
-nonhyd=0;
-kom, k2om = getkom(ω,LAT,nonhyd,Nm)
-epsomhy   = ((2*kom)^2 - k2om^2)/(2*kom)^2
+# resonance parameter epsilon, nondim parameters, and A0nl/timescales moved to
+# IW_nondim_params.jl (run it separately; it saves nondim_AMZexptXX.YY.jld2)
 
 # reference density ----------------------------------------------------------
 # compute reference density profile
@@ -203,10 +152,6 @@ imid = Nlen÷2   # midpoint index within Iday-length arrays
 Nf    = 8;
 Tcut1 = 18/24       #D2+HH
 Tcut2 = (T2+T2/2)/2/24  #day; HH M2-M4
-if mainnm == 5
-    Tcut1 = 30/24
-    Tcut2 = 20/24
-end
 
 # helpers defined once (z-only, broadcasted over tiles) ----------------------
 dzz   = reshape(dz,1,1,:);
@@ -233,7 +178,6 @@ FKx   = zeros(Nx); FKxt  = zeros(Nx); FKxh  = zeros(Nx); FKxs  = zeros(Nx)
 FAx   = zeros(Nx); FAxt  = zeros(Nx); FAxh  = zeros(Nx); FAxs  = zeros(Nx)
 uca_full = zeros(Nx, Nz)
 Zzt_mid  = zeros(Nx, Nz)
-A0nl     = 0.0
 fact     = 1/2*rho0
 
 # tile loop (nhalo=0: no x-gradients needed) ---------------------------------
@@ -348,7 +292,6 @@ for i_tile in 1:ntile
     APEt[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
     FAxt[ix_a:ix_b]  = dropdims(mean(sum(ut_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
     Zzt_mid[ix_a:ix_b,:] = Zzt_t[imid,:,:]   # snapshot at mid-time
-    A0nl = max(A0nl, maximum(Zzt_t[max(1,imid-100):min(Nlen,imid+100),:,:]))
     Zzt_t = nothing
 
     APEz_t, Zz_t = APEKFeq2(rh_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
@@ -381,20 +324,7 @@ end
 close(ds)
 
 # post-tile scalar computations ----------------------------------------------
-
-# compute non-dimensional parameters from Sutherland 2022
-I1  = argmin(abs.(zc .- -100))
-I2  = argmin(abs.(zc .- -300))
-dnl = (zc[I1] - zc[I2]) / log(N2c[I1]/N2c[I2])
-
-# nonlinearity parameter alpha/epsilon
-alpnl        = A0nl/dnl
-alpepshy     = alpnl/epshy
-alpepsnh     = alpnl/epsnh
-
-# beat period of energy exchange
-Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)
-Tbeathy_days = 2π/(epshy*ω)/(24*3600)
+# (nondim parameters dnl/alpnl/Tbeat moved to IW_nondim_params.jl)
 
 # hovmuller (using surface velocities loaded before tile loop) ---------------
 fig1 = Figure(size=(600,600))
@@ -420,6 +350,9 @@ hm = heatmap!(axa, xc/1e3, zc, Zzt_mid, colormap=Reverse(:Spectral))
 Colorbar(fig3[1,2], hm)
 hm.colorrange = (-100, 100)
 fig3
+#display(fig3)
+println("max D2 displacement is ", maximum(filter(!isnan, Zzt_mid)))
+println("min D2 displacement is ", minimum(filter(!isnan, Zzt_mid)))
 
 # KE/APE/flux figures --------------------------------------------------------
 # yaxis lims are determined above
@@ -511,8 +444,6 @@ if figflag==1; save(string(dirfig,"fft_usur_",fname_short2,".png"), fig5); end
 if savefl == 1
     fnameout = string("energetics_",fname_short2,".jld2")
     jldsave(string(dirout,fnameout);
-        dnl, A0nl, alpnl, alpepshy, alpepsnh, Tbeatnh_days, Tbeathy_days,
-        epsnh, epshy, epsomnh, epsomhy,
         xc, freq, KEoma, KEommax, Fx, Fxt, Fxh, Fxs,
         FAx, FAxt, FAxh, FAxs, FKx, FKxt, FKxh, FKxs,
         KE, KEt, KEh, KEs, APE, APEt, APEh, APEs);
