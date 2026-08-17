@@ -70,8 +70,8 @@ runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
 # zonalmeanfixed = constant N2 everywhere
 
 #N2source = "amz1"        
-#N2source = "zonalmean"
-N2source = "zonalmeanfixed"
+N2source = "zonalmean"
+#N2source = "zonalmeanfixed"
 latfix = 2.5;
 #latfix = 50.0;
 
