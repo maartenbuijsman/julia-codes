@@ -62,13 +62,14 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 # last, collect(40:52), ever took effect) -- kept as commented alternatives.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 10
+mainnm  = 11
 #runnms  = collect(1:14) # constant N2 WOCE AMZ
 #runnms  = collect(1:13) # varying  N2 MERCATOR        F=15kW/m
 #runnms  = collect(14:26) # constant N2 MERCATOR 2.5N  F=15kW/m
-#runnms  = collect(27:39) # varying  N2 MERCATOR       F=25kW/m
-runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
+runnms  = collect(27:39) # varying  N2 MERCATOR       F=25kW/m
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N   F=25kW/m
+#runnms  = collect(66:78) # constant N2 MERCATOR        F=50kW/m
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]

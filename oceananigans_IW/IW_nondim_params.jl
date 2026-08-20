@@ -73,9 +73,10 @@ const xA0               = gausW_center + A0_offset_sigma*gausW_width   # 112 km
 # any subset of run-IDs already present in RUN_TABLE works.
 mainnm  = 11
 #runnms  = collect(1:13)   # varying  N2 MERCATOR
-runnms  = collect(27:39) # varying  N2 MERCATOR
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N
+runnms  = collect(27:39) # varying  N2 MERCATOR, 25 kW/m
+runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+runnms  = collect(53:65) # constant N2 MERCATOR 50N
+#runnms  = collect(66:78) # varying  N2 MERCATOR, 50 kW/m
 
 #test
 #mainnm  = 10
@@ -156,6 +157,16 @@ epsnh = ((2*ω)^2 - omr^2)/(2*ω)^2
 nonhyd = 0;
 omr   = getomres(ω,LAT,nonhyd,Nm)
 epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
+# at LAT=0 (f=0) the hydrostatic dispersion relation is exactly linear
+# (non-dispersive), so epshy is analytically exactly 0 there -- not just
+# "close to 0". getomres only reaches that value through two nested linear
+# interpolation passes though, so omr and 2ω are computed via different
+# arithmetic paths and don't bit-for-bit cancel: they can differ by 1 ULP,
+# leaving a ~1e-16-scale residual whose SIGN is essentially arbitrary. When
+# it lands negative, 1/epshy becomes a huge finite negative number (not Inf),
+# which breaks any log-scale plot of 1/epshy and isn't caught by an isinf()
+# guard. Fix it at the source instead of masking the symptom downstream.
+if LAT == 0.0; epshy = 0.0; end
 
 # epsilon based on k -----------------------------
 # ((2k)2 - k(2om))/(2k)2
@@ -329,25 +340,35 @@ end
 
 dnl = z1 - z2
 
-#= old method, kept for reference -- fixed z=-100/-300 m secant, assumed the
-WOCE AMZ profile shape (not appropriate for the Mercator profiles, whose
-pycnocline depth shifts with latitude)
-I1_old  = argmin(abs.(zc .- -100))
-I2_old  = argmin(abs.(zc .- -300))
+# old method, kept live for comparison against the new 1/e-crossing dnl --
+# I1_old now sits at the depth of peak N2 (same starting point as z1 above,
+# instead of the original fixed z=-100 m), I2_old stays fixed at z=-300 m
+# (the original WOCE-AMZ-shaped assumption); dnl_old is the old log-ratio
+# secant between those two points.
+zdeep = -300
+I1_old  = argmax(N2c)
+I2_old  = argmin(abs.(zc .- zdeep))
 dnl_old = (zc[I1_old] - zc[I2_old]) / log(N2c[I1_old]/N2c[I2_old])
-=#
 
 # N2 profile + the fitted exponential decay used for dnl (dashed) ----------
 N2exp = N2_deep .+ dN2[I1s] .* exp.(-(z1 .- zsub) ./ dnl)   # model over the fitted range [zsub[1], z1]
+
+# old method's exponential fit, for comparison -- no background subtraction
+# (the old secant just assumes N2(z) = N2(z1_old)*exp((z-z1_old)/dnl_old)),
+# shown only over [z2_old, z1_old], the interval it was actually derived from
+z_oldrange = range(zc[I2_old], zc[I1_old], length=50)
+N2exp_old  = N2c[I1_old] .* exp.((z_oldrange .- zc[I1_old]) ./ dnl_old)
 
 figN2 = Figure()
 ax1 = Axis(figN2[1,1], title=fnamegrid, xlabel="N² (s⁻²)", ylabel="z [m]")
 lines!(ax1, N2c, zc, label="N²")
 lines!(ax1, N2exp, zsub, linestyle=:dash, color=:red, label="exp fit (dnl)")
+lines!(ax1, N2exp_old, z_oldrange, linestyle=:dashdot, color=:green, label="exp fit (dnl_old)")
 ylims!(ax1, -2000, 0)
 axislegend(ax1, position=:rb)
 figN2
 #display(figN2)
+#return
 
 # nonlinearity parameter alpha/epsilon
 # at LAT=0 (f=0) the hydrostatic dispersion relation is frequency-independent,
@@ -378,6 +399,12 @@ alpepsnh_meas     = alpnl_meas/epsnh
 isinf(alpepshy_meas) && (alpepshy_meas = NaN)
 isinf(alpepsnh_meas) && (alpepsnh_meas = NaN)
 
+# same ratio using dnl_old instead of dnl -- omega-based, nonhydrostatic only,
+# to compare the old vs. new dnl method against each other directly
+alpnl_old    = A0nlana/dnl_old
+alpepsnh_old = alpnl_old/epsnh
+isinf(alpepsnh_old) && (alpepsnh_old = NaN)
+
 # beat period of energy exchange
 Tbeatnh_days = 2π/(epsnh*ω)/(24*3600)
 Tbeathy_days = 2π/(epshy*ω)/(24*3600)
@@ -391,7 +418,7 @@ if savefl == 1
     jldsave(string(dirout,fnameout);
         LAT, xA0, dnl, A0nlana, A0nl, alpnl, alpepshy, alpepsnh, alpepshy_k, alpepsnh_k,
         alpnl_meas, alpepshy_meas, alpepsnh_meas, Tbeatnh_days, Tbeathy_days,
-        epsnh, epshy, epsnh_k, epshy_k, OS);
+        epsnh, epshy, epsnh_k, epshy_k, OS, dnl_old, alpnl_old, alpepsnh_old);
     println(string(fnameout)," data saved ........ ")
 end
 
@@ -429,10 +456,12 @@ epshy_kP      = zeros(length(runnms))
 TbeatnhP_days = zeros(length(runnms))
 TbeathyP_days = zeros(length(runnms))
 OSP           = zeros(length(runnms))
+dnl_oldP      = zeros(length(runnms))
+alpepsnh_oldP = zeros(length(runnms))
 
 for (i, runnm) in enumerate(runnms)
     fnames = @sprintf("AMZexpt%02i.%02i", mainnm, runnm)
-    @load string(dirout,"nondim_",fnames,".jld2") dnl A0nl A0nlana alpnl alpepshy alpepsnh alpepshy_k alpepsnh_k epsnh epshy epsnh_k epshy_k Tbeatnh_days Tbeathy_days OS
+    @load string(dirout,"nondim_",fnames,".jld2") dnl A0nl A0nlana alpnl alpepshy alpepsnh alpepshy_k alpepsnh_k epsnh epshy epsnh_k epshy_k Tbeatnh_days Tbeathy_days OS dnl_old alpepsnh_old
     dnlP[i]          = dnl
     A0nlP[i]         = A0nl
     A0nlanaP[i]      = A0nlana
@@ -448,15 +477,20 @@ for (i, runnm) in enumerate(runnms)
     TbeatnhP_days[i] = Tbeatnh_days
     TbeathyP_days[i] = Tbeathy_days
     OSP[i]           = OS
+    dnl_oldP[i]      = dnl_old
+    alpepsnh_oldP[i] = alpepsnh_old
 end
 
 fnum = string(mainnm,".",runnms[1],"-",runnms[end])
 
 figLAT = Figure(size=(1100,1200))
 
-# (1,1) dnl & A0 combined -- same units [m], so one panel
+# (1,1) dnl & A0 combined -- same units [m], so one panel; dnl_old (fixed
+# z=-300 m secant, but I1_old now at max N2 like the new method) shown for
+# comparison
 ax11 = Axis(figLAT[1,1], title=string("dnl & A0 vs latitude (",fnum,")"), xlabel="latitude [°]", ylabel="[m]")
 lines!(ax11, LATS, dnlP,     label="dnl",                color=:blue,  linewidth=2)
+lines!(ax11, LATS, dnl_oldP, label="dnl_old",            color=:blue,  linewidth=2, linestyle=:dot)
 lines!(ax11, LATS, A0nlP,    label="A0nl (measured)",    color=:black, linewidth=2)
 lines!(ax11, LATS, A0nlanaP, label="A0nlana (analytic)", color=:red,   linewidth=2, linestyle=:dash)
 axislegend(ax11, position=:rt)
@@ -473,7 +507,11 @@ axislegend(ax12, position=:rt)
 # 1/epsilon (∝ the PSI/harmonic beat timescale) spans a wide range, hence
 # log y-axis; Inf (from epsilon≈0, e.g. epshy at LAT=0) -> NaN so it doesn't
 # wreck the autoscale.
-nan_guard(x) = (v = copy(x); v[isinf.(v)] .= NaN; v)
+# catches Inf/NaN AND ordinary non-positive values -- epsilon can cross zero
+# (e.g. runnms=53:65, where the N2 profile is fixed at the lat=50 shape but
+# evaluated across all simulated latitudes), so 1/epsilon can land on a large
+# *finite* negative number, not just Inf, which log10(y-scale) can't handle
+nan_guard(x) = (v = copy(x); v[.!isfinite.(v) .| (v .<= 0)] .= NaN; v)
 inv_epshyP   = nan_guard(1 ./ epshyP)
 inv_epsnhP   = nan_guard(1 ./ epsnhP)
 inv_epshy_kP = nan_guard(1 ./ (-epshy_kP))
@@ -492,12 +530,14 @@ lines!(ax22, LATS, alpnlP, color=:black, linewidth=2)
 
 # (3,1) alpha/epsilon from the analytic A0 (the only alpha/epsilon panel --
 # theory tracks the measured A0nl well, so no separate measured-A0 panel);
-# omega-based and k(2om)-based epsilon both shown for comparison
+# omega-based and k(2om)-based epsilon both shown for comparison, plus the
+# omega/nonhydrostatic case using dnl_old instead of dnl (old vs. new dnl)
 ax31 = Axis(figLAT[3,1], title="alpha/epsilon vs latitude (analytic A0)", xlabel="latitude [°]", ylabel="alpha/epsilon")
-lines!(ax31, LATS, alpepshyP,   label="ω, hydrostatic",    color=:red,  linewidth=4, linestyle=:dash)
-lines!(ax31, LATS, alpepsnhP,   label="ω, nonhydrostatic", color=:red, linewidth=4, linestyle=:solid)
-lines!(ax31, LATS, alpepshy_kP, label="k, hydrostatic",    color=:dodgerblue, linewidth=2, linestyle=:dash)
-lines!(ax31, LATS, alpepsnh_kP, label="k, nonhydrostatic", color=:dodgerblue,    linewidth=2, linestyle=:solid)
+lines!(ax31, LATS, alpepshyP,      label="ω, hydrostatic",           color=:red,  linewidth=4, linestyle=:dash)
+lines!(ax31, LATS, alpepsnhP,      label="ω, nonhydrostatic",        color=:red, linewidth=4, linestyle=:solid)
+lines!(ax31, LATS, alpepshy_kP,    label="k, hydrostatic",           color=:dodgerblue, linewidth=2, linestyle=:dash)
+lines!(ax31, LATS, alpepsnh_kP,    label="k, nonhydrostatic",        color=:dodgerblue,    linewidth=2, linestyle=:solid)
+lines!(ax31, LATS, alpepsnh_oldP,  label="ω, nonhydrostatic (old dnl)", color=:green, linewidth=2, linestyle=:dot)
 axislegend(ax31, position=:rt)
 ylims!(ax31, 0, 75)
 

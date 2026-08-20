@@ -76,8 +76,9 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 mainnm  = 11
 #runnms  = collect(27:39) # varying  N2 MERCATOR
 #runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
-runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N
+runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]

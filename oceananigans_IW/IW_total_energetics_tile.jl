@@ -41,8 +41,8 @@ include(string(pathname,"include_functions.jl"))
 include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # Flags --------------------------
-savefl  = 0  # save data
-figflag = 0  # print figures
+savefl  = 1  # save data
+figflag = 1  # print figures
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 # tiles
@@ -62,12 +62,13 @@ const grav=9.81;
 mainnm  = 11
 #runnms  = collect(1:14)  # constant N2 WOCE AMZ
 #runnms  = collect(27:39) # varying  N2 MERCATOR
-runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N
+runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW
 
 #test
-mainnm  = 10
-runnms  = 1
+#mainnm  = 10
+#runnms  = 1
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
