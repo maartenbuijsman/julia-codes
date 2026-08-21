@@ -1,5 +1,5 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-16
+Maarten Buijsman, USM DMS, 2026-8-20
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
@@ -59,16 +59,16 @@ const grav=9.81;
 # any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 11
+mainnm  = 10
 #runnms  = collect(1:14)  # constant N2 WOCE AMZ
-#runnms  = collect(27:39) # varying  N2 MERCATOR
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N
-runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW
+runnms  = collect(27:39) # varying  N2 MERCATOR      25kW/m
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N 25kW/m
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N  25kW/m 
+#runnms  = collect(66:78) # varying  N2 MERCATOR;      50kW/m
 
 #test
-#mainnm  = 10
-#runnms  = 1
+#mainnm  = 11
+#runnms  = 66
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -154,6 +154,10 @@ Nf    = 8;
 Tcut1 = 18/24       #D2+HH
 Tcut2 = (T2+T2/2)/2/24  #day; HH M2-M4
 
+# filter coefficients (Tcut1/Tcut2/dt/Nf are fixed for the whole run, design once)
+b_high = digitalfilter(Highpass(1/Tcut2), Butterworth(Nf); fs=1/dt)
+b_low  = digitalfilter(Lowpass(1/Tcut1),  Butterworth(Nf); fs=1/dt)
+
 # helpers defined once (z-only, broadcasted over tiles) ----------------------
 dzz   = reshape(dz,1,1,:);
 N2cc  = reshape(N2c,1,1,:);
@@ -167,7 +171,7 @@ rrr_shape  = reshape(rhorefc,1,1,:);
 println("loading surface velocities...")
 uf_surf_tmp = permutedims(ds["u"][:, end, Isel], (2,1));        # (Nt, Nx+1)
 uc_surf = uf_surf_tmp[:,1:end-1]/2 .+ uf_surf_tmp[:,2:end]/2;  # (Nt, Nx)
-uf_surf_tmp = nothing; GC.gc()
+uf_surf_tmp = nothing
 vc_surf = permutedims(ds["v"][:, end, Isel], (2,1));  # (Nt, Nx)
 
 # pre-allocate full-domain output arrays (1D: Nx; 2D: Nx×Nz) ----------------
@@ -184,6 +188,15 @@ fact     = 1/2*rho0
 # tile loop (nhalo=0: no x-gradients needed) ---------------------------------
 nx_base = Nx ÷ ntile
 
+# per-tile phase timers (diagnostics for locating the runtime bottleneck)
+tim_io    = zeros(ntile)
+tim_prep  = zeros(ntile)
+tim_filth = zeros(ntile)
+tim_filtl = zeros(ntile)
+tim_ke    = zeros(ntile)
+tim_ape   = zeros(ntile)
+tim_press = zeros(ntile)
+
 println("starting tile loop, ntile=",ntile)
 for i_tile in 1:ntile
     ix_a = (i_tile-1)*nx_base + 1
@@ -193,66 +206,97 @@ for i_tile in 1:ntile
 
     # load tile data ---------------------------------------------------------
     # u on x-faces: need one extra face at ix_b+1 to center to ix_b
-    uf_t  = permutedims(ds["u"][ix_a:ix_b+1, :, Isel], (3,1,2));   # (Nt, nx_t+1, Nz)
-    vc_t  = permutedims(ds["v"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
-    wf_t  = permutedims(ds["w"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz+1)
-    bc_t  = permutedims(ds["b"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
-    pHY_t = permutedims(ds["pHY"][ix_a:ix_b, :, Isel], (3,1,2));
-    pNH_t = permutedims(ds["pNHS"][ix_a:ix_b,:, Isel], (3,1,2));
+    tim_io[i_tile] = @elapsed begin
+        uf_t  = permutedims(ds["u"][ix_a:ix_b+1, :, Isel], (3,1,2));   # (Nt, nx_t+1, Nz)
+        vc_t  = permutedims(ds["v"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
+        wf_t  = permutedims(ds["w"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz+1)
+        bc_t  = permutedims(ds["b"][ix_a:ix_b,   :, Isel], (3,1,2));   # (Nt, nx_t,   Nz)
+        pHY_t = permutedims(ds["pHY"][ix_a:ix_b, :, Isel], (3,1,2));
+        pNH_t = permutedims(ds["pNHS"][ix_a:ix_b,:, Isel], (3,1,2));
+    end
 
-    # cell-center velocities
-    uc_t = uf_t[:,1:end-1,:]/2 .+ uf_t[:,2:end,:]/2;  # (Nt, nx_t, Nz)
-    wc_t = wf_t[:,:,1:end-1]/2 .+ wf_t[:,:,2:end]/2;  # (Nt, nx_t, Nz)
-    uf_t = nothing; wf_t = nothing; GC.gc()
+    tim_prep[i_tile] = @elapsed begin
+        Nt_here = size(bc_t,1)
+        uc_t   = zeros(eltype(uf_t),  Nt_here, nx_t, Nz)
+        wc_t   = zeros(eltype(wf_t),  Nt_here, nx_t, Nz)
+        pcp_t  = zeros(eltype(pHY_t), Nt_here, nx_t, Nz)
+        rhop_t = zeros(Float64,       Nt_here, nx_t, Nz)
 
-    # pressure perturbation (local in x: time-mean and depth-mean removal) ---
-    ptot_t   = (pHY_t .+ pNH_t) * rho0;         # kinematic (m²/s²) → dynamic pressure [Pa]
-    pHY_t = nothing; pNH_t = nothing; GC.gc()
+        # x-chunked across threads: each column is independent (no x-gradients needed)
+        nxchunks = Threads.nthreads()
+        bounds = round.(Int, range(0, nx_t, length=nxchunks+1))
+        Threads.@threads for c in 1:nxchunks
+            rng = (bounds[c]+1):bounds[c+1]
+            isempty(rng) && continue
+            gx = ix_a .+ rng .- 1
 
-    # remove the time-mean for the time series selected
-    ptota_t  = mean(ptot_t, dims=1);
-    ptotp_t  = ptot_t .- ptota_t;
-    ptot_t   = nothing;
-    
-    # compute the depth-mean pressure
-    ptotpa_t = sum(ptotp_t .* dzz, dims=3) / H;
+            # cell-center velocities
+            uc_t[:,rng,:] = uf_t[:,rng,:]/2 .+ uf_t[:,rng.+1,:]/2
+            wc_t[:,rng,:] = wf_t[:,rng,1:end-1]/2 .+ wf_t[:,rng,2:end]/2
 
-    # compute the perturbation pressure
-    pcp_t    = ptotp_t .- ptotpa_t;
-    ptotp_t  = nothing; GC.gc()
+            # pressure perturbation (local in x: time-mean and depth-mean removal) ---
+            ptot_c   = (pHY_t[:,rng,:] .+ pNH_t[:,rng,:]) * rho0;   # kinematic (m²/s²) → dynamic pressure [Pa]
+            ptota_c  = mean(ptot_c, dims=1);
+            ptotp_c  = ptot_c .- ptota_c;
+            ptotpa_c = sum(ptotp_c .* dzz, dims=3) / H;
+            pcp_t[:,rng,:] = ptotp_c .- ptotpa_c
 
-    # density
-    rhop_t = -bc_t * rho0/grav .+ rrr_shape;
+            # density
+            rhop_t[:,rng,:] = -bc_t[:,rng,:] * rho0/grav .+ rrr_shape;
 
-    # track time-mean flow
-    uca_full[ix_a:ix_b,:] = dropdims(mean(uc_t, dims=1), dims=1);
+            # track time-mean flow
+            uca_full[gx,:] = dropdims(mean(uc_t[:,rng,:], dims=1), dims=1);
+        end
+
+        uf_t = nothing; wf_t = nothing; pHY_t = nothing; pNH_t = nothing
+    end
 
     # filter: high-pass (supertidal) -----------------------------------------
-    passflg = "high";
     uh_t = zeros(size(uc_t)); vh_t = zeros(size(vc_t))
     wh_t = zeros(size(wc_t)); ph_t = zeros(size(pcp_t)); bh_t = zeros(size(bc_t))
-    Threads.@threads for ix = 1:nx_t
-        for iz = 1:Nz
-            uh_t[:,ix,iz] = lowhighpass_butter(uc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
-            vh_t[:,ix,iz] = lowhighpass_butter(vc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
-            wh_t[:,ix,iz] = lowhighpass_butter(wc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
-            ph_t[:,ix,iz] = lowhighpass_butter(pcp_t[:,ix,iz], Tcut2, dt, Nf, passflg)
-            bh_t[:,ix,iz] = lowhighpass_butter(bc_t[:,ix,iz], Tcut2, dt, Nf, passflg)
+    tim_filth[i_tile] = @elapsed begin
+        ncols = nx_t*Nz
+        nchunks = Threads.nthreads()
+        bounds = round.(Int, range(0, ncols, length=nchunks+1))
+        uc_flat  = reshape(uc_t,  Nt_here, ncols); vc_flat = reshape(vc_t, Nt_here, ncols)
+        wc_flat  = reshape(wc_t,  Nt_here, ncols); pcp_flat = reshape(pcp_t, Nt_here, ncols)
+        bc_flat  = reshape(bc_t,  Nt_here, ncols)
+        uh_flat  = reshape(uh_t,  Nt_here, ncols); vh_flat = reshape(vh_t, Nt_here, ncols)
+        wh_flat  = reshape(wh_t,  Nt_here, ncols); ph_flat = reshape(ph_t, Nt_here, ncols)
+        bh_flat  = reshape(bh_t,  Nt_here, ncols)
+        Threads.@threads for c in 1:nchunks
+            rng = (bounds[c]+1):bounds[c+1]
+            isempty(rng) && continue
+            uh_flat[:,rng] = filtfilt(b_high, uc_flat[:,rng])
+            vh_flat[:,rng] = filtfilt(b_high, vc_flat[:,rng])
+            wh_flat[:,rng] = filtfilt(b_high, wc_flat[:,rng])
+            ph_flat[:,rng] = filtfilt(b_high, pcp_flat[:,rng])
+            bh_flat[:,rng] = filtfilt(b_high, bc_flat[:,rng])
         end
     end
     rh_t = -bh_t * rho0/grav;
 
     # filter: low-pass (subtidal) --------------------------------------------
-    passflg = "low";
     us_t = zeros(size(uc_t)); vs_t = zeros(size(vc_t))
     ws_t = zeros(size(wc_t)); ps_t = zeros(size(pcp_t)); bs_t = zeros(size(bc_t))
-    Threads.@threads for ix = 1:nx_t
-        for iz = 1:Nz
-            us_t[:,ix,iz] = lowhighpass_butter(uc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
-            vs_t[:,ix,iz] = lowhighpass_butter(vc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
-            ws_t[:,ix,iz] = lowhighpass_butter(wc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
-            ps_t[:,ix,iz] = lowhighpass_butter(pcp_t[:,ix,iz], Tcut1, dt, Nf, passflg)
-            bs_t[:,ix,iz] = lowhighpass_butter(bc_t[:,ix,iz], Tcut1, dt, Nf, passflg)
+    tim_filtl[i_tile] = @elapsed begin
+        ncols = nx_t*Nz
+        nchunks = Threads.nthreads()
+        bounds = round.(Int, range(0, ncols, length=nchunks+1))
+        uc_flat  = reshape(uc_t,  Nt_here, ncols); vc_flat = reshape(vc_t, Nt_here, ncols)
+        wc_flat  = reshape(wc_t,  Nt_here, ncols); pcp_flat = reshape(pcp_t, Nt_here, ncols)
+        bc_flat  = reshape(bc_t,  Nt_here, ncols)
+        us_flat  = reshape(us_t,  Nt_here, ncols); vs_flat = reshape(vs_t, Nt_here, ncols)
+        ws_flat  = reshape(ws_t,  Nt_here, ncols); ps_flat = reshape(ps_t, Nt_here, ncols)
+        bs_flat  = reshape(bs_t,  Nt_here, ncols)
+        Threads.@threads for c in 1:nchunks
+            rng = (bounds[c]+1):bounds[c+1]
+            isempty(rng) && continue
+            us_flat[:,rng] = filtfilt(b_low, uc_flat[:,rng])
+            vs_flat[:,rng] = filtfilt(b_low, vc_flat[:,rng])
+            ws_flat[:,rng] = filtfilt(b_low, wc_flat[:,rng])
+            ps_flat[:,rng] = filtfilt(b_low, pcp_flat[:,rng])
+            bs_flat[:,rng] = filtfilt(b_low, bc_flat[:,rng])
         end
     end
     rs_t = -bs_t * rho0/grav;
@@ -266,53 +310,79 @@ for i_tile in 1:ntile
     rt_t = -bt_t * rho0/grav;
 
     # KE and advective KE flux -----------------------------------------------
-    KEz_t = uc_t[Iday,:,:].^2 .+ vc_t[Iday,:,:].^2 .+ wc_t[Iday,:,:].^2
-    KE[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FKx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+    tim_ke[i_tile] = @elapsed begin
+        nxchunks = Threads.nthreads()
+        bounds = round.(Int, range(0, nx_t, length=nxchunks+1))
+        Threads.@threads for c in 1:nxchunks
+            rng = (bounds[c]+1):bounds[c+1]
+            isempty(rng) && continue
+            gx = ix_a .+ rng .- 1
 
-    KEz_t = ut_t[Iday,:,:].^2 .+ vt_t[Iday,:,:].^2 .+ wt_t[Iday,:,:].^2
-    KEt[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FKxt[ix_a:ix_b] = dropdims(mean(sum(ut_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+            KEz = uc_t[Iday,rng,:].^2 .+ vc_t[Iday,rng,:].^2 .+ wc_t[Iday,rng,:].^2
+            KE[gx]  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1),dims=(1,3))
+            FKx[gx] = fact*dropdims(mean(sum(uc_t[Iday,rng,:].*KEz.*dzz,dims=3),dims=1),dims=(1,3))
 
-    KEz_t = uh_t[Iday,:,:].^2 .+ vh_t[Iday,:,:].^2 .+ wh_t[Iday,:,:].^2
-    KEh[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FKxh[ix_a:ix_b] = dropdims(mean(sum(uh_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+            KEz = ut_t[Iday,rng,:].^2 .+ vt_t[Iday,rng,:].^2 .+ wt_t[Iday,rng,:].^2
+            KEt[gx]  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1),dims=(1,3))
+            FKxt[gx] = fact*dropdims(mean(sum(ut_t[Iday,rng,:].*KEz.*dzz,dims=3),dims=1),dims=(1,3))
 
-    KEz_t = us_t[Iday,:,:].^2 .+ vs_t[Iday,:,:].^2 .+ ws_t[Iday,:,:].^2
-    KEs[ix_a:ix_b]  = fact*dropdims(mean(sum(KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FKxs[ix_a:ix_b] = dropdims(mean(sum(us_t[Iday,:,:].*KEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    KEz_t = nothing; GC.gc()
+            KEz = uh_t[Iday,rng,:].^2 .+ vh_t[Iday,rng,:].^2 .+ wh_t[Iday,rng,:].^2
+            KEh[gx]  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1),dims=(1,3))
+            FKxh[gx] = fact*dropdims(mean(sum(uh_t[Iday,rng,:].*KEz.*dzz,dims=3),dims=1),dims=(1,3))
+
+            KEz = us_t[Iday,rng,:].^2 .+ vs_t[Iday,rng,:].^2 .+ ws_t[Iday,rng,:].^2
+            KEs[gx]  = fact*dropdims(mean(sum(KEz.*dzz,dims=3),dims=1),dims=(1,3))
+            FKxs[gx] = fact*dropdims(mean(sum(us_t[Iday,rng,:].*KEz.*dzz,dims=3),dims=1),dims=(1,3))
+        end
+    end
 
     # APE (Kang & Fringer 2010 eq2) and advective APE flux ------------------
-    APEz_t, Zz_t = APEKFeq2(rhop_t[Iday,:,:], rhorefc, zc, grav, thresh)
-    APE[ix_a:ix_b] = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FAx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    Zz_t = nothing
+    tim_ape[i_tile] = @elapsed begin
+        APEz_t, Zz_t = APEKFeq2(rhop_t[Iday,:,:], rhorefc, zc, grav, thresh)
+        APE[ix_a:ix_b] = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        FAx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        Zz_t = nothing
 
-    APEz_t, Zzt_t = APEKFeq2(rt_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
-    APEt[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FAxt[ix_a:ix_b]  = dropdims(mean(sum(ut_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    Zzt_mid[ix_a:ix_b,:] = Zzt_t[imid,:,:]   # snapshot at mid-time
-    Zzt_t = nothing
+        APEz_t, Zzt_t = APEKFeq2(rt_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+        APEt[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        FAxt[ix_a:ix_b]  = dropdims(mean(sum(ut_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        Zzt_mid[ix_a:ix_b,:] = Zzt_t[imid,:,:]   # snapshot at mid-time
+        Zzt_t = nothing
 
-    APEz_t, Zz_t = APEKFeq2(rh_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
-    APEh[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FAxh[ix_a:ix_b]  = dropdims(mean(sum(uh_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    Zz_t = nothing
+        APEz_t, Zz_t = APEKFeq2(rh_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+        APEh[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        FAxh[ix_a:ix_b]  = dropdims(mean(sum(uh_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        Zz_t = nothing
 
-    APEz_t, Zz_t = APEKFeq2(rs_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
-    APEs[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    FAxs[ix_a:ix_b]  = dropdims(mean(sum(us_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
-    APEz_t = nothing; Zz_t = nothing; GC.gc()
+        APEz_t, Zz_t = APEKFeq2(rs_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
+        APEs[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        FAxs[ix_a:ix_b]  = dropdims(mean(sum(us_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
+        APEz_t = nothing; Zz_t = nothing
 
-    # linear APE
-    APElin[ix_a:ix_b] = dropdims(mean(sum((bc_t[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1),dims=(1,3))
+        # linear APE
+        APElin[ix_a:ix_b] = dropdims(mean(sum((bc_t[Iday,:,Ikp].^2).*factA[:,:,Ikp].*dzz[:,:,Ikp],dims=3),dims=1),dims=(1,3))
+    end
 
     # pressure flux ----------------------------------------------------------
-    Fx[ix_a:ix_b]  = dropdims(mean(sum(uc_t[Iday,:,:].*pcp_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
-    Fxt[ix_a:ix_b] = dropdims(mean(sum(ut_t[Iday,:,:].*pt_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
-    Fxh[ix_a:ix_b] = dropdims(mean(sum(uh_t[Iday,:,:].*ph_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
-    Fxs[ix_a:ix_b] = dropdims(mean(sum(us_t[Iday,:,:].*ps_t[Iday,:,:].*dzz,dims=3),dims=1),dims=(1,3))
+    tim_press[i_tile] = @elapsed begin
+        nxchunks = Threads.nthreads()
+        bounds = round.(Int, range(0, nx_t, length=nxchunks+1))
+        Threads.@threads for c in 1:nxchunks
+            rng = (bounds[c]+1):bounds[c+1]
+            isempty(rng) && continue
+            gx = ix_a .+ rng .- 1
+
+            Fx[gx]  = dropdims(mean(sum(uc_t[Iday,rng,:].*pcp_t[Iday,rng,:].*dzz,dims=3),dims=1),dims=(1,3))
+            Fxt[gx] = dropdims(mean(sum(ut_t[Iday,rng,:].*pt_t[Iday,rng,:].*dzz,dims=3),dims=1),dims=(1,3))
+            Fxh[gx] = dropdims(mean(sum(uh_t[Iday,rng,:].*ph_t[Iday,rng,:].*dzz,dims=3),dims=1),dims=(1,3))
+            Fxs[gx] = dropdims(mean(sum(us_t[Iday,rng,:].*ps_t[Iday,rng,:].*dzz,dims=3),dims=1),dims=(1,3))
+        end
+    end
+
+    println("    io=",round(tim_io[i_tile],digits=1)," prep=",round(tim_prep[i_tile],digits=1),
+            " filt_high=",round(tim_filth[i_tile],digits=1)," filt_low=",round(tim_filtl[i_tile],digits=1),
+            " KE=",round(tim_ke[i_tile],digits=1)," APE=",round(tim_ape[i_tile],digits=1),
+            " press=",round(tim_press[i_tile],digits=1)," s")
 
     # clear tile memory
     uc_t=nothing; vc_t=nothing; wc_t=nothing; bc_t=nothing; pcp_t=nothing; rhop_t=nothing
@@ -323,6 +393,11 @@ for i_tile in 1:ntile
 end
 
 close(ds)
+
+println("phase totals across all tiles [s]: io=",round(sum(tim_io),digits=1),
+        " prep=",round(sum(tim_prep),digits=1)," filt_high=",round(sum(tim_filth),digits=1),
+        " filt_low=",round(sum(tim_filtl),digits=1)," KE=",round(sum(tim_ke),digits=1),
+        " APE=",round(sum(tim_ape),digits=1)," press=",round(sum(tim_press),digits=1))
 
 # post-tile scalar computations ----------------------------------------------
 # (nondim parameters dnl/alpnl/Tbeat moved to IW_nondim_params.jl)
@@ -403,9 +478,9 @@ i=1;
 period, freq, pp = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
 poweru = zeros(length(period),Nx);
 powerv = zeros(length(period),Nx);
-for i in 1:Nx
-    period, freq, poweru[:,i] = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
-    period, freq, powerv[:,i] = fft_spectra(tday[Iday], vc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
+Threads.@threads for i in 1:Nx
+    _, _, poweru[:,i] = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
+    _, _, powerv[:,i] = fft_spectra(tday[Iday], vc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
 end
 
 println("max freq: ",freq[end]," cpd")
