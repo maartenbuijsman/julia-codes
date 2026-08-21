@@ -1,5 +1,5 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-20
+Maarten Buijsman, USM DMS, 2026-8-21
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
@@ -59,15 +59,15 @@ const grav=9.81;
 # any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 10
+mainnm  = 11
 #runnms  = collect(1:14)  # constant N2 WOCE AMZ
-runnms  = collect(27:39) # varying  N2 MERCATOR      25kW/m
+#runnms  = collect(27:39) # varying  N2 MERCATOR      25kW/m
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N 25kW/m
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N  25kW/m 
 #runnms  = collect(66:78) # varying  N2 MERCATOR;      50kW/m
 
 #test
-#mainnm  = 11
+#mainnm  = 10
 #runnms  = 66
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
@@ -338,22 +338,26 @@ for i_tile in 1:ntile
 
     # APE (Kang & Fringer 2010 eq2) and advective APE flux ------------------
     tim_ape[i_tile] = @elapsed begin
+        # total
         APEz_t, Zz_t = APEKFeq2(rhop_t[Iday,:,:], rhorefc, zc, grav, thresh)
         APE[ix_a:ix_b] = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         FAx[ix_a:ix_b] = dropdims(mean(sum(uc_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         Zz_t = nothing
 
+        # tidal, D2
         APEz_t, Zzt_t = APEKFeq2(rt_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
         APEt[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         FAxt[ix_a:ix_b]  = dropdims(mean(sum(ut_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         Zzt_mid[ix_a:ix_b,:] = Zzt_t[imid,:,:]   # snapshot at mid-time
         Zzt_t = nothing
 
+        # HH
         APEz_t, Zz_t = APEKFeq2(rh_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
         APEh[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         FAxh[ix_a:ix_b]  = dropdims(mean(sum(uh_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         Zz_t = nothing
 
+        # subtidal
         APEz_t, Zz_t = APEKFeq2(rs_t[Iday,:,:] .+ rrr_shape, rhorefc, zc, grav, thresh)
         APEs[ix_a:ix_b]  = dropdims(mean(sum(APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
         FAxs[ix_a:ix_b]  = dropdims(mean(sum(us_t[Iday,:,:].*APEz_t.*dzz,dims=3),dims=1),dims=(1,3))
@@ -435,35 +439,37 @@ println("min D2 displacement is ", minimum(filter(!isnan, Zzt_mid)))
 
 fig4 = Figure(size=(750,750))
 ax = Axis(fig4[1,1],title=string(fname_short2,"; lat=",LAT,"; KE [kJ/m2]"),xlabel="x [km]",ylabel="KE [kJ/m2]")
-lines!(ax, xc/1e3, (KEt+KEh)/1e3, color=:black, linewidth=3)                #,  label="t+HH" 
-lines!(ax, xc/1e3, KE/1e3,  linestyle=:dash,  color=:grey,   linewidth=3)   #,  label="tot"
-lines!(ax, xc/1e3, KEt/1e3, color=:red,    linewidth=3)                     #,  label="tidal"
-lines!(ax, xc/1e3, KEh/1e3, color=:green,  linewidth=3)                     #,  label="HH"
-lines!(ax, xc/1e3, KEs/1e3,  label="sub",   color=:yellow, linewidth=2)
+lines!(ax, xc/1e3, KE/1e3,        label="tot",                    color=:orange, linewidth=7, alpha=1)
+lines!(ax, xc/1e3, (KEt+KEh)/1e3, label="D2+HH",                  color=:black,  linewidth=3)                    
+lines!(ax, xc/1e3, KEt/1e3,       label="D2",                     color=:red,    linewidth=3)  
+lines!(ax, xc/1e3, KEh/1e3,       label="HH",                     color=:green,  linewidth=3)  
+lines!(ax, xc/1e3, KEs/1e3,       label="sub",                    color=:purple, linewidth=3)
 xlims!(ax, 0, Ldom/1e3); ylims!(ax, Elim[1], Elim[2])
-axislegend(ax, position=:rt, labelsize=8, rowgap=0, framevisible=false)
+axislegend(ax, position=:rt, labelsize=9, rowgap=0) #, framevisible=false)
 
 ax2 = Axis(fig4[2,1],title="APE",xlabel="x [km]",ylabel="APE [kJ/m2]")
-lines!(ax2, xc/1e3, (APEt+APEh)/1e3, color=:black, linewidth=3)              #,  label="t+HH"
-lines!(ax2, xc/1e3, APE/1e3,  linestyle=:dash, color=:grey,  linewidth=3)    #,  label="tot"
-lines!(ax2, xc/1e3, APEt/1e3, color=:red,   linewidth=3)                     #,  label="tidal"
-lines!(ax2, xc/1e3, APEh/1e3, color=:green, linewidth=3)                     #,  label="HH"
-lines!(ax2, xc/1e3, APElin/1e3,label="tot lin",  color=:grey,  linewidth=1)
+lines!(ax2, xc/1e3, APE/1e3,                                      color=:orange,linewidth=7, alpha=1)    #,  label="tot"
+lines!(ax2, xc/1e3, (APEt+APEh)/1e3,                              color=:black, linewidth=3)    #,  label="t+HH"
+lines!(ax2, xc/1e3, APEt/1e3,                                     color=:red,   linewidth=3)    #,  label="tidal"
+lines!(ax2, xc/1e3, APEh/1e3,                                     color=:green, linewidth=3)    #,  label="HH"
+lines!(ax2, xc/1e3, APElin/1e3,   label="tot lin",linestyle=:dash,color=:cyan,  linewidth=1)
+lines!(ax, xc/1e3,  APEs/1e3,                                     color=:purple,linewidth=3)
 xlims!(ax2, 0, Ldom/1e3); ylims!(ax2, Elim[1], Elim[2])
-axislegend(ax2, position=:rt, labelsize=8, rowgap=0, framevisible=false)
+axislegend(ax2, position=:rt, labelsize=9, rowgap=0)
 
-ax3 = Axis(fig4[3,1],title="flux",xlabel="x [km]",ylabel="flux [W/m]")
-lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,           label="Fp t+HH",   color=:black, linewidth=3)   # pressure flux: tidal + HH
-lines!(ax3, xc/1e3, Fx/1e3,                  label="Fp tot",    linestyle=:dash, color=:grey,  linewidth=3)  # pressure flux: total
-lines!(ax3, xc/1e3, Fxt/1e3,                 label="Fp tidal",  color=:red,   linewidth=3)    # pressure flux: tidal
-lines!(ax3, xc/1e3, Fxh/1e3,                 label="Fp HH",     color=:green, linewidth=3)    # pressure flux: supertidal HH
-lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3, label="FKE+APE t+HH",  linestyle=:dash, color=:black, linewidth=3)  # KE+APE advective flux: tidal + HH
-lines!(ax3, xc/1e3, (FKx+FAx)/1e3,           label="FKE+APE tot",    linestyle=:dash, color=:orange,  linewidth=3)  # KE+APE advective flux: total
-lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,        label="Fp+KE+APE tot", linestyle=:dash, color=:blue,  linewidth=3)  # total pressure + KE + APE flux
-lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,         label="FKE+APE tidal",  linestyle=:dash, color=:red,   linewidth=3)  # KE+APE advective flux: tidal
-lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,         label="FKE+APE HH",     linestyle=:dash, color=:green, linewidth=3)  # KE+APE advective flux: HH
+ax3 = Axis(fig4[3,1],title="pressure (solid) and advective flux",xlabel="x [km]",ylabel="flux [kW/m]")
+lines!(ax3, xc/1e3, Fx/1e3,                                                           color=:orange,linewidth=7, alpha=1)  # pressure flux: total
+lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,                                                    color=:black, linewidth=3)  # pressure flux: tidal + HH
+lines!(ax3, xc/1e3, Fxt/1e3,                                                          color=:red,   linewidth=3)  # pressure flux: tidal
+lines!(ax3, xc/1e3, Fxh/1e3,                                                          color=:green, linewidth=3)  # pressure flux: supertidal HH
+lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3,label="Fadv   D2+HH",linestyle=:dashdot,color=:black, linewidth=3)  # KE+APE advective flux: tidal + HH
+lines!(ax3, xc/1e3, (FKx+FAx)/1e3,            label="Fadv   tot",  linestyle=:dashdot,color=:orange,linewidth=3)  # KE+APE advective flux: total
+lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,          label="Fadv   D2",   linestyle=:dashdot,color=:red,   linewidth=3)  # KE+APE advective flux: tidal
+lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,          label="Fadv   HH",   linestyle=:dashdot,color=:green, linewidth=3)  # KE+APE advective flux: HH
+lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,         label="Fp+adv tot",  linestyle=:dash,   color=:blue,  linewidth=3)  # total pressure + KE + APE flux
 xlims!(ax3, 0, Ldom/1e3); ylims!(ax3,  Flim[1], Flim[2])
-axislegend(ax3, position=:rt, labelsize=8, rowgap=0, framevisible=false)
+
+axislegend(ax3, position=:rt, labelsize=9, rowgap=0)
 fig4
 display(fig4)
 if figflag==1; save(string(dirfig,"KE_flux_",fname_short2,".png"), fig4); end

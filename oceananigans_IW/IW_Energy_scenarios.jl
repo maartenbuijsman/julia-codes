@@ -53,7 +53,7 @@ latfix    = 2.5                                    # for "zonalmeanfixed"
 # scenario targets
 usurf_target = 0.40     # m/s     scenario 1 (fixed surface velocity)
 KE_target    = 12.5e3   # J/m2    scenario 2 (fixed depth-integrated KE)
-F_target     = 15.0e3   # W/m     scenario 3 (fixed energy flux E*Cg)
+F_target     = 50e3   # W/m     scenario 3 (fixed energy flux E*Cg)
 
 Nm     = 1              # mode number
 nonhyd = 1

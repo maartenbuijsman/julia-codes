@@ -140,9 +140,9 @@ TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 
 #high resolution: 100/200 m
 L   = 2_000_000;                   # domain length
-#DX  = 200;                         # 11. series 200 m production grid (Nx = 10000)
+DX  = 200;                         # 11. series 200 m production grid (Nx = 10000)
 #DX  = 100;                        # 
-DX  = 4000;                       # 10. series
+#DX  = 4000;                       # 10. series
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
 

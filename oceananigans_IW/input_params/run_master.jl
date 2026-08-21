@@ -39,20 +39,20 @@ RUN_TABLE = RunInfo[]
 const LAT13 = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 45.0, 50.0]
 
 # mainnm 11 (200 m / 4000 m D2 NH flux forcing) -------------------------------
-append!(RUN_TABLE, expand_block(11, collect(1:13),  LAT13, fill(15e3,13), 200,  "zonalmean",      99))
-append!(RUN_TABLE, expand_block(11, collect(14:26), LAT13, fill(15e3,13), 200,  "zonalmeanfixed", 2.5))
+append!(RUN_TABLE, expand_block(11, collect(1:13),  LAT13, fill(12.5e3,13), 200,  "zonalmean",      99))
+append!(RUN_TABLE, expand_block(11, collect(14:26), LAT13, fill(12.5e3,13), 200,  "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(11, collect(27:39), LAT13, fill(25e3,13), 200,  "zonalmean",      99))
 append!(RUN_TABLE, expand_block(11, collect(40:52), LAT13, fill(25e3,13), 200,  "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(11, collect(53:65), LAT13, fill(25e3,13), 200,  "zonalmeanfixed", 50.0))
 append!(RUN_TABLE, expand_block(11, collect(66:78), LAT13, fill(50e3,13), 200,  "zonalmean",      99))
 
 # mainnm 10 (4000 m D2 NH flux forcing) ---------------------------------------
-append!(RUN_TABLE, expand_block(10, collect(1:13),  LAT13, fill(15e3,13), 4000, "zonalmean",      99))
-append!(RUN_TABLE, expand_block(10, collect(14:26), LAT13, fill(15e3,13), 4000, "zonalmeanfixed", 2.5))
+append!(RUN_TABLE, expand_block(10, collect(1:13),  LAT13, fill(12.5e3,13), 4000, "zonalmean",      99))
+append!(RUN_TABLE, expand_block(10, collect(14:26), LAT13, fill(12.5e3,13), 4000, "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(10, collect(27:39), LAT13, fill(25e3,13), 4000, "zonalmean",      99))
 append!(RUN_TABLE, expand_block(10, collect(40:52), LAT13, fill(25e3,13), 4000, "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(10, collect(53:65), LAT13, fill(25e3,13), 4000, "zonalmeanfixed", 50.0))
-append!(RUN_TABLE, expand_block(11, collect(66:78), LAT13, fill(50e3,13), 4000,  "zonalmean",      99))
+append!(RUN_TABLE, expand_block(10, collect(66:78), LAT13, fill(50e3,13), 4000,  "zonalmean",      99))
 
 # --- lookup helpers -----------------------------------------------------------
 
@@ -86,10 +86,10 @@ end
 # KE/APE/flux plot y-limits, keyed off the run's forcing flux magnitude
 function elim_flim(row::RunInfo)
     if row.Flux <= 15e3
-        return [0, 4], [0, 17]  
+        return [0, 10], [0, 17]  
     elseif row.Flux > 15e3 && row.Flux <= 25e3 
-        return [0, 6], [0, 26]
+        return [0, 20], [0, 26]
     else
-        return [0, 12], [0, 52]
+        return [0, 40], [0, 52]
     end
 end

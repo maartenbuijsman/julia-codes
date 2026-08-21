@@ -45,40 +45,13 @@ const T2 = 12+25.2/60
 # length of domain
 xlim = 2000
 
-# run names --------------------------------
-# D2, mode 1 + 2 interactions
-#LATS   = [0.0, 0.0, 0.0];
-#runnms = [1,   2,   3]; mainnm = 6;
-#runnms = [4,   5,   6]; mainnm = 6;    # nonhyd 4 km, weno, v=1e-2
-#runnms = [1,   2,   3]; mainnm = 7;
-#runnms = [4,   5,   6]; mainnm = 7;
-#runnms = [13, 14, 15]; mainnm = 7;
-
-# function of latitude
-#mainnm = 3
-#LATS   = [0.0, 2.5, 5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 50.0]
-#runnms = [3,   4,   5,   6,    7,    8,    9,    10,   11,   12,   13,   14]
-
-#=
-mainnm = 9
-#runnms  = collect(1:14) # constant N2 WOCE AMZ
-runnms  = collect(15:28) # varying  N2 MERCATOR
-#runnms  = collect(29:42) # constant N2 MERCATOR 2.5N
-LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
-=#
-
-# run-ID selection: only mainnm + runnms need to be prescribed here; LAT is
-# looked up from run_master.jl, so run-ID and latitude can never drift out of
-# sync. runnms need not be a full block -- any subset of run-IDs already
-# present in RUN_TABLE works.
-
 # D2 NH flux forcing, 200 m
-mainnm  = 11
-#runnms  = collect(27:39) # varying  N2 MERCATOR
+mainnm  = 10
 #runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N
-runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW
+#runnms  = collect(27:39) # varying  N2 MERCATOR        25 kW/m 
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N   25 kW/m 
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N    25 kW/m 
+runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW   50 kW/m 
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
