@@ -1,10 +1,15 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-21
+Maarten Buijsman, USM DMS, 2026-8-23
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
 buoyancy = -g*rho'/rho0
 Non-dimensional parameters/time scales moved to IW_nondim_params.jl
+Run in background:
+nohup stdbuf -oL -eL julia -t auto /home/mbui/Documents/julia-codes/oceananigans_IW/IW_total_energetics_tile.jl \
+    > /home/mbui/ModelOutput/diagout/energetics11_run.log 2>&1 &
+  disown
+
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -43,6 +48,7 @@ include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename
 # Flags --------------------------
 savefl  = 1  # save data
 figflag = 1  # print figures
+dispflag = 0  # display figures on screen (slow/unnecessary for background batch runs)
 oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 # tiles
@@ -59,12 +65,15 @@ const grav=9.81;
 # any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 11
+mainnm  = 10
 #runnms  = collect(1:14)  # constant N2 WOCE AMZ
 #runnms  = collect(27:39) # varying  N2 MERCATOR      25kW/m
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N 25kW/m
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N  25kW/m 
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N  25kW/m
 #runnms  = collect(66:78) # varying  N2 MERCATOR;      50kW/m
+
+# run a lot
+runnms  = collect(1:13)
 
 #test
 #mainnm  = 10
@@ -250,6 +259,12 @@ for i_tile in 1:ntile
 
         uf_t = nothing; wf_t = nothing; pHY_t = nothing; pNH_t = nothing
     end
+    # single mid-tile reclaim of the raw (nx_t+1-face-sized) input arrays before
+    # the filter stage allocates ~15 more same-sized arrays -- middle ground
+    # between the old 7-GC.gc()/tile version and the current 1-GC.gc()/tile
+    # version, to cap peak per-tile RSS under memory pressure without paying
+    # for a full GC after every intermediate array again
+    GC.gc()
 
     # filter: high-pass (supertidal) -----------------------------------------
     uh_t = zeros(size(uc_t)); vh_t = zeros(size(vc_t))
@@ -462,8 +477,8 @@ lines!(ax3, xc/1e3, Fx/1e3,                                                     
 lines!(ax3, xc/1e3, (Fxt+Fxh)/1e3,                                                    color=:black, linewidth=3)  # pressure flux: tidal + HH
 lines!(ax3, xc/1e3, Fxt/1e3,                                                          color=:red,   linewidth=3)  # pressure flux: tidal
 lines!(ax3, xc/1e3, Fxh/1e3,                                                          color=:green, linewidth=3)  # pressure flux: supertidal HH
-lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3,label="Fadv   D2+HH",linestyle=:dashdot,color=:black, linewidth=3)  # KE+APE advective flux: tidal + HH
 lines!(ax3, xc/1e3, (FKx+FAx)/1e3,            label="Fadv   tot",  linestyle=:dashdot,color=:orange,linewidth=3)  # KE+APE advective flux: total
+lines!(ax3, xc/1e3, (FKxt+FAxt+FKxh+FAxh)/1e3,label="Fadv   D2+HH",linestyle=:dashdot,color=:black, linewidth=3)  # KE+APE advective flux: tidal + HH
 lines!(ax3, xc/1e3, (FKxt+FAxt)/1e3,          label="Fadv   D2",   linestyle=:dashdot,color=:red,   linewidth=3)  # KE+APE advective flux: tidal
 lines!(ax3, xc/1e3, (FKxh+FAxh)/1e3,          label="Fadv   HH",   linestyle=:dashdot,color=:green, linewidth=3)  # KE+APE advective flux: HH
 lines!(ax3, xc/1e3, (Fx+FKx+FAx)/1e3,         label="Fp+adv tot",  linestyle=:dash,   color=:blue,  linewidth=3)  # total pressure + KE + APE flux
@@ -471,7 +486,7 @@ xlims!(ax3, 0, Ldom/1e3); ylims!(ax3,  Flim[1], Flim[2])
 
 axislegend(ax3, position=:rt, labelsize=9, rowgap=0)
 fig4
-display(fig4)
+if dispflag==1; display(fig4); end
 if figflag==1; save(string(dirfig,"KE_flux_",fname_short2,".png"), fig4); end
 
 println(fnames,"; max total flux is ",@sprintf("%5.2f",maximum(Fxt/1e3))," kW/m")

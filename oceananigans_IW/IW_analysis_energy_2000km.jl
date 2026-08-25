@@ -39,23 +39,6 @@ const grav=9.81;
 
 # run names --------------------------------
 
-# constant N2, NH 4km
-#runnms  = collect(3:14)  #AMZ N2
-#mainnms = fill(3, size(runnms))
-#LATS    = [0, 2.5, 5, 10, 15, 20, 25, 28.8, 30, 35, 40, 50]
-
-# constant N2, NH 4km test run with new forcing
-#runnms  = collect(90:92)  #AMZ N2
-#mainnms = fill(3, size(runnms))
-#LATS    = [0, 20, 60]
-
-#= constant N2, NH 200 m
-runnms  = collect(1:14)  #AMZ N2
-#runnms  = collect(15:28)  #MERC N2, zonally chnaging
-mainnms = fill(9, size(runnms))
-LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
-=#
-
 # run-ID selection: only mainnm + runnms need to be prescribed here; LAT (and
 # the Δx/N2-source info used for titstr below) are looked up from
 # run_master.jl, so run-ID and latitude can never drift out of sync. runnms
@@ -64,11 +47,13 @@ LATS    = vcat(collect(0:2.5:5), collect(10:5:60))
 # collect(27:39), ever took effect) -- kept as a commented alternative.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 10
-#runnms  = collect(1:13) # varying  N2 MERCATOR
-#runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
-runnms  = collect(27:39) # varying  N2 MERCATOR
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N
+mainnm  = 11
+###runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+runnms  = collect(1:13) # varying  N2 MERCATOR               F=12.5 kW/m
+#runnms  = collect(27:39) # varying  N2 MERCATOR              F=25   kW/m
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N        F=25   kW/m 
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N         F=25   kW/m 
+#runnms  = collect(66:78) # constant N2 MERCATOR             F=50   kW/m 
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]

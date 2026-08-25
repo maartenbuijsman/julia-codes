@@ -13,7 +13,7 @@
 
 mainnm = 10
 
-# 13 runs; constant mode-1 flux = 15 kW/m, mode-2 off (flux=0). runnm = 1:13.
+# 13 runs; constant mode-1 flux = 12.5 kW/m, mode-2 off (flux=0). runnm = 1:13.
 # latitudes include 28.8 (M2 PSI critical latitude).
 lat   = [ 0.0,  2.5,  5.0, 10.0, 15.0, 20.0, 25.0, 28.8, 30.0, 35.0, 40.0, 45.0, 50.0]
 runnm = collect(1:13)

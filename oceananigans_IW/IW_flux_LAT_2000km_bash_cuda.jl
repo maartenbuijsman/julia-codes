@@ -1,5 +1,5 @@
 #= IW_flux_LAT_2000km_bash_cuda.jl
-Maarten Buijsman, USM DMS, 2026-8-10  (nudging generator, generated with Claude Code)
+Maarten Buijsman, USM DMS, 2026-8-23  (nudging generator, generated with Claude Code)
     for mode 1 M2, dx=200m, 2000km, 20days
     IW generation by RELAXATION (nudging) of u toward the analytic mode over the
     Gaussian source patch. Forcing amplitude set from an energy metric per mode:
@@ -140,9 +140,9 @@ TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 
 #high resolution: 100/200 m
 L   = 2_000_000;                   # domain length
-DX  = 200;                         # 11. series 200 m production grid (Nx = 10000)
-#DX  = 100;                        # 
-#DX  = 4000;                       # 10. series
+#DX  = 200;                        # 11. series 200 m production grid (Nx = 10000)
+#DX  = 100;                        #
+DX  = 4000;                        # 10. series
 max_Δt = 2minutes  
 Δt     = 15seconds   # nonhyd
 

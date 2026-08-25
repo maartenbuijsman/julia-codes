@@ -1,7 +1,9 @@
 #= IW_coarsegraining_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-15
+Maarten Buijsman, USM DMS, 2026-8-23
 Load model runs and perform coarsegraining diagnostics
 Tiled in x to avoid memory overflow for large domains (e.g. 200 m, 2000 km)
+    tmux new -s energetics11
+    julia -t auto /home/mbui/Documents/julia-codes/oceananigans_IW/IW_coarsegraining_tile.jl
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -47,11 +49,15 @@ xlim = 2000
 
 # D2 NH flux forcing, 200 m
 mainnm  = 10
-#runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
+runnms  = collect(1:13) # constant N2 MERCATOR 2.5N
 #runnms  = collect(27:39) # varying  N2 MERCATOR        25 kW/m 
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N   25 kW/m 
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N    25 kW/m 
-runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW   50 kW/m 
+#runnms  = collect(66:78) # varying  N2 MERCATOR; 75kW   50 kW/m 
+
+# run all
+#runnms = vcat(1:13, 27:78)
+
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
