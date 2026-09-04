@@ -1,5 +1,5 @@
 #= run_master.jl
-Maarten Buijsman, USM DMS, 2026-8-15
+Maarten Buijsman, USM DMS, 2026-9-3
 Master lookup table for the AMZ Oceananigans internal-wave (mainnm/runnm) runs.
 One row (RunInfo) per individual run: latitude, mode-1 forcing flux, nominal
 grid spacing, and which N2 stratification profile IW_flux_LAT_2000km_bash_cuda.jl
@@ -53,6 +53,15 @@ append!(RUN_TABLE, expand_block(10, collect(27:39), LAT13, fill(25e3,13), 4000, 
 append!(RUN_TABLE, expand_block(10, collect(40:52), LAT13, fill(25e3,13), 4000, "zonalmeanfixed", 2.5))
 append!(RUN_TABLE, expand_block(10, collect(53:65), LAT13, fill(25e3,13), 4000, "zonalmeanfixed", 50.0))
 append!(RUN_TABLE, expand_block(10, collect(66:78), LAT13, fill(50e3,13), 4000,  "zonalmean",      99))
+
+# mainnm 12 (4000 m, Garrett-Munk-spectrum-initialized D2 NH flux forcing) ----
+# IW_GM_flux_LAT_2000km_bash_cuda.jl; runnm 27:39 matches the 10-series
+# "varying N2, 25kW/m" numbering convention (params_12.jl)
+append!(RUN_TABLE, expand_block(12, collect(27:39), LAT13, fill(25e3,13), 4000, "zonalmean", 99))
+
+# mainnm 13 (200 m, Garrett-Munk-spectrum-initialized D2 NH flux forcing) -----
+# same as mainnm 12 but DX=200m (11-series grid); params_13.jl
+append!(RUN_TABLE, expand_block(13, collect(27:39), LAT13, fill(25e3,13), 200, "zonalmean", 99))
 
 # --- lookup helpers -----------------------------------------------------------
 

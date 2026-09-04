@@ -1,5 +1,5 @@
 #= IW_analysis_energy_2000km.jl
-Maarten Buijsman, USM DMS, 2026-8-15
+Maarten Buijsman, USM DMS, 2026-8-25
 Load energy and fft results from various sims. and make figures
 =#
 
@@ -31,7 +31,7 @@ include(string(pathname,"include_functions.jl"))
 include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # print figures
-figflag = 1
+figflag = 0
 
 const T2 = 12+25.2/60
 const rho0=1020; 
@@ -47,13 +47,12 @@ const grav=9.81;
 # collect(27:39), ever took effect) -- kept as a commented alternative.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 11
-###runnms  = collect(14:26) # constant N2 MERCATOR 2.5N
-runnms  = collect(1:13) # varying  N2 MERCATOR               F=12.5 kW/m
+mainnm  = 10
+runnms  = collect(1:12) # varying  N2 MERCATOR             F=12.5 kW/m
 #runnms  = collect(27:39) # varying  N2 MERCATOR              F=25   kW/m
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N        F=25   kW/m 
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N         F=25   kW/m 
-#runnms  = collect(66:78) # constant N2 MERCATOR             F=50   kW/m 
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N        F=25   kW/m
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N         F=25   kW/m
+#runnms  = collect(66:78) # constant N2 MERCATOR             F=50   kW/m
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -118,7 +117,6 @@ end
 
 ## heatmaps of KE (total, tidal, supertidal) vs latitude -----------------
 LdomH   = 2000e3;
-titstrH = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 cmapKE  = :thermal
 fcKE    = 1e-3               # J/m² -> kJ/m² (KE depth-integrated: kg/m³·m²/s²·m = J/m²)
 
@@ -142,12 +140,11 @@ xlims!(axKE2, 0, LdomH/1e3)
 xlims!(axKE3, 0, LdomH/1e3)
 display(figKE)
 
-if figflag==1; save(string(dirfig,"KE_KEt_KEh_heatmap_",titstrH,".png"), figKE)
+if figflag==1; save(string(dirfig,"KE_KEt_KEh_",fnum,".png"), figKE)
 end
 
 
 ## heatmaps of KE normalized by per-run max tidal KE (M2 input) [%] -----------------
-titstrN = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 cmapKEn = :thermal
 
 Isrc   = findall(xc .<= 100e3)              # source window: first 100 km
@@ -176,12 +173,197 @@ xlims!(axKEn2, 0, LdomH/1e3)
 xlims!(axKEn3, 0, LdomH/1e3)
 display(figKEn)
 
-if figflag==1; save(string(dirfig,"KE_norm_maxKEt_heatmap_",titstrN,".png"), figKEn)
+if figflag==1; save(string(dirfig,"KE_norm_",fnum,".png"), figKEn)
+end
+
+
+## tidal KE vs x, one line per latitude (run 74 plotted twice as thick) ----------
+colorsL = cgrad(:darktest, length(LATS), categorical = true)
+dxE      = xc[2]-xc[1]
+LsmoothE = 1600  # Gaussian σ [m], same convention as IW_analysis_coarsegr_2000km.jl:
+                 # kills 2Δx grid noise (which otherwise gets misread as a local extremum)
+
+# trace y eastward from istart and return the index of the lowest point reached
+# before y climbs back up by more than relthresh above that running minimum --
+# i.e. the first *genuine* local minimum, not just the first upward tick (small
+# ripples riding on the overall decay would otherwise be mistaken for the min)
+function first_true_min(xc, y, istart; xbound = 1800e3, relthresh = 0.02)
+    runmin = y[istart]; runidx = istart
+    for j in istart+1:length(xc)
+        xc[j] > xbound && break
+        if y[j] < runmin
+            runmin = y[j]; runidx = j
+        elseif y[j] > runmin * (1 + relthresh)
+            break
+        end
+    end
+    return runidx
+end
+
+# literal 1/e crossing between imax and imin, background-subtracted using the
+# value AT imin as the background (same convention as dnl in IW_nondim_params.jl,
+# but there the background is a deep-ocean N2 window average; here it's just the
+# first true minimum itself, since that already IS the run's own local background).
+# Linear interpolation between grid points gives the crossing location, exactly
+# like the z2 interpolation in the dnl calculation.
+function efold_crossing(xc, y, imax, imin)
+    ybg = y[imin]
+    xs  = xc[imax:imin]; ys = y[imax:imin]
+    dy  = ys .- ybg
+    target = dy[1] / ℯ
+    Icross = findfirst(dy .< target)
+    if Icross === nothing || Icross == 1
+        return xc[imin]   # never drops below target before reaching the minimum itself
+    else
+        return xs[Icross-1] + (target - dy[Icross-1]) / (dy[Icross] - dy[Icross-1]) * (xs[Icross] - xs[Icross-1])
+    end
+end
+
+# same idea as efold_crossing, but against a GIVEN background level (e.g. zero)
+# instead of the run's own first minimum, searched all the way out to xbound.
+# Returns (xcross, fellback) -- fellback=true means KEt never actually dropped
+# to 1/e of its excess-over-background within the domain, so xcross is only a
+# lower bound (pinned at xbound), same fallback convention as dnl's @warn case.
+function efold_crossing_bg(xc, y, imax, ybg; xbound = 1800e3)
+    Iend = findlast(xc .<= xbound)
+    xs = xc[imax:Iend]; ys = y[imax:Iend]
+    dy = ys .- ybg
+    target = dy[1] / ℯ
+    Icross = findfirst(dy .< target)
+    if Icross === nothing || Icross == 1
+        return xs[end], true
+    else
+        xcross = xs[Icross-1] + (target - dy[Icross-1]) / (dy[Icross] - dy[Icross-1]) * (xs[Icross] - xs[Icross-1])
+        return xcross, false
+    end
+end
+
+# first max in the nudging area (gaussian center 80 km to center+2σ, σ=16 km) and
+# the subsequent first minimum east of it, per run -------------------------------
+gausW_center = 80e3; gausW_width = 16e3
+IxNudge = findall(gausW_center .<= xc .<= gausW_center + 2*gausW_width)
+xMaxN    = zeros(length(runnms)); KEtMaxN  = zeros(length(runnms))
+xMinN    = zeros(length(runnms)); KEtMinN  = zeros(length(runnms))
+xEfoldN  = zeros(length(runnms)); KEtEfoldN = zeros(length(runnms))   # where KEt first drops to KEtmax/e
+fellbackN = falses(length(runnms))                                    # true = never reached KEtmax/e by x=1800 km
+
+for i = 1:length(runnms)
+    KEti = dxE < 500 ? gaussfilt(xc, KEtr[i,:], LsmoothE) : KEtr[i,:]
+    imax = IxNudge[argmax(KEti[IxNudge])]
+    imin = first_true_min(xc, KEti, imax)
+
+    xMaxN[i] = xc[imax]; KEtMaxN[i] = KEti[imax]
+    xMinN[i] = xc[imin]; KEtMinN[i] = KEti[imin]
+
+    xcross0, fb = efold_crossing_bg(xc, KEti, imax, 0.0)
+    xEfoldN[i] = xcross0; KEtEfoldN[i] = KEtMaxN[i]/ℯ; fellbackN[i] = fb
+end
+
+figL = Figure(size=(700,500))
+axL  = Axis(figL[1, 1], title = string("tidal KE — ",titstr),
+    xlabel = "x [km]", ylabel = "KEt")
+for i = 1:length(LATS)
+    lw = runnms[i] == 74 ? 4 : 2                            # run 74 twice as thick
+    lines!(axL, xc/1e3, KEtr[i,:], color = colorsL[i], linewidth = lw)
+end
+scatter!(axL, xMaxN/1e3, KEtMaxN, color = [colorsL[i] for i in 1:length(LATS)],
+    marker = :circle, markersize = 12, strokecolor = :black, strokewidth = 1)
+scatter!(axL, xMinN/1e3, KEtMinN, color = [colorsL[i] for i in 1:length(LATS)],
+    marker = :utriangle, markersize = 14, strokecolor = :black, strokewidth = 1)
+scatter!(axL, xEfoldN[.!fellbackN]/1e3, KEtEfoldN[.!fellbackN],
+    color = [colorsL[i] for i in 1:length(LATS)][.!fellbackN],
+    marker = :diamond, markersize = 14, strokecolor = :black, strokewidth = 1)
+scatter!(axL, xEfoldN[fellbackN]/1e3, KEtEfoldN[fellbackN],
+    color = [colorsL[i] for i in 1:length(LATS)][fellbackN],
+    marker = :diamond, markersize = 14, strokecolor = :red, strokewidth = 2)
+scatter!(axL, [NaN], [NaN], marker = :circle, color = :white, strokecolor = :black,
+    strokewidth = 1, markersize = 12, label = "1st max (nudging area)")
+scatter!(axL, [NaN], [NaN], marker = :utriangle, color = :white, strokecolor = :black,
+    strokewidth = 1, markersize = 14, label = "1st min after that")
+scatter!(axL, [NaN], [NaN], marker = :diamond, color = :white, strokecolor = :black,
+    strokewidth = 1, markersize = 14, label = "KEt = KEtmax/e")
+scatter!(axL, [NaN], [NaN], marker = :diamond, color = :white, strokecolor = :red,
+    strokewidth = 2, markersize = 14, label = "KEtmax/e lower bound (never reached by x=1800 km)")
+#axislegend(axL, position = :rt)
+xlims!(axL, 0, LdomH/1e3)
+Colorbar(figL[1, 2], colormap = colorsL, limits = (0.5, length(LATS) + 0.5),
+    ticks = (1:length(LATS), string.(LATS)), label = "latitude [°]")
+display(figL)
+
+if figflag==1; save(string(dirfig,"KEt_lines_",fnum,".png"), figL)
+end
+
+
+## e-folding decay time scale of tidal KE: from its peak near x=100 km to the first
+## true local minimum east of it (KEt generally re-increases past that minimum, so
+## only the first one is used). Three length-scale definitions are compared:
+##   old (secant):     (x_min-x_max) / ln(KEt_max/KEt_min) -- assumes pure exponential
+##                      decay all the way to the min, so it's really an implied/average
+##                      decay length, not a literal e-fold distance.
+##   new (bg=min):      background-subtract using KEt_min itself as the background,
+##                      then interpolate for the x where the excess actually crosses
+##                      1/e of its value at the peak -- same convention as the dnl
+##                      calculation in IW_nondim_params.jl, just with the "background"
+##                      being the run's own first minimum instead of a window average.
+##                      This measures decay RELATIVE TO whatever nearby trough happens
+##                      to exist, so near the critical latitude (trough barely below
+##                      the peak) it reads as fast decay -- an artifact, not physics.
+##   zero (bg=0):       same 1/e-crossing idea, but against an absolute background of
+##                      zero, searched out to x=1800 km. This measures true decay
+##                      toward zero, which is what wave-wave/PSI interactions should
+##                      control. Runs that never reach 1/e of the peak within the
+##                      domain (near/above the critical latitude) are flagged
+##                      "fellback": the domain-edge value is only a LOWER BOUND.
+## All three LENGTH scales are converted to TIME scales by dividing by the per-run
+## mode-1 group speed Cgn[1], read from the EIG_*.jld2 eigenmode files (m/s) -------
+IxPk     = findall(50e3 .<= xc .<= 150e3)     # search window for the near-100-km peak
+Lefold_old  = zeros(length(runnms))           # secant decay length scale [m]
+Lefold_new  = zeros(length(runnms))           # 1/e-crossing (bg=min) decay length scale [m]
+Lefold_zero = zeros(length(runnms))           # 1/e-crossing (bg=0) decay length scale [m]
+fellback    = falses(length(runnms))          # true where Lefold_zero is only a lower bound
+Cg1         = zeros(length(runnms))           # mode-1 group speed [m/s]
+
+for i = 1:length(runnms)
+    KEti = dxE < 500 ? gaussfilt(xc, KEtr[i,:], LsmoothE) : KEtr[i,:]
+    imax = IxPk[argmax(KEti[IxPk])]
+    imin = first_true_min(xc, KEti, imax)
+
+    Lefold_old[i] = (xc[imin] - xc[imax]) / log(KEti[imax]/KEti[imin])       # [m]
+    Lefold_new[i] = efold_crossing(xc, KEti, imax, imin) - xc[imax]         # [m]
+
+    xcross0, fb = efold_crossing_bg(xc, KEti, imax, 0.0)
+    Lefold_zero[i] = xcross0 - xc[imax]                                     # [m]
+    fellback[i] = fb
+
+    fnameEIG = @sprintf("EIG_AMZexpt%02i.%02i_LAT_%04.1f.jld2", mainnm, runnms[i], LATS[i])
+    @load string(dirEIG, fnameEIG) Cgn
+    Cg1[i] = Cgn[1]
+end
+
+Tefold_old  = Lefold_old  ./ Cg1 ./ 86400   # [days]
+Tefold_new  = Lefold_new  ./ Cg1 ./ 86400   # [days]
+Tefold_zero = Lefold_zero ./ Cg1 ./ 86400   # [days]
+
+figLe = Figure(size=(600,400))
+axLe  = Axis(figLe[1, 1], title = string("tidal KE e-folding decay time scale — ",titstr),
+    xlabel = "latitude [°]", ylabel = "e-folding time scale [days]")
+lines!(axLe, LATS, Tefold_old, color = :gray, linestyle = :dash, linewidth = 2, label = "secant (old)")
+scatter!(axLe, LATS, Tefold_old, color = :gray)
+lines!(axLe, LATS, Tefold_new, color = :black, linewidth = 2, label = "1/e crossing, bg=min (new)")
+scatter!(axLe, LATS, Tefold_new, color = :black)
+lines!(axLe, LATS, Tefold_zero, color = :red, linewidth = 2, label = "1/e crossing, bg=0")
+scatter!(axLe, LATS[.!fellback], Tefold_zero[.!fellback], color = :red, marker = :circle, markersize = 10)
+scatter!(axLe, LATS[fellback], Tefold_zero[fellback], color = :red, marker = :utriangle, markersize = 14)
+scatter!(axLe, [NaN], [NaN], color = :red, marker = :utriangle, markersize = 14,
+    label = "bg=0, lower bound (never reached 1/e by x=1800 km)")
+axislegend(axLe, position = :lt)
+display(figLe)
+
+if figflag==1; save(string(dirfig,"KEt_efold_",fnum,".png"), figLe)
 end
 
 
 ## FFT coefficients: KE(ω) frequency spectra, one line per run ------------------
-titstrF = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 colorsF = cgrad(:darktest, length(LATS), categorical = true)
 
 figF = Figure(size=(700,500))
@@ -199,12 +381,11 @@ Colorbar(figF[1, 2], colormap = colorsF, limits = (0.5, length(LATS) + 0.5),
     ticks = (1:length(LATS), string.(LATS)), label = "latitude [°]")
 display(figF)
 
-if figflag==1; save(string(dirfig,"KEspec_freq_",titstrF,".png"), figF)
+if figflag==1; save(string(dirfig,"KEspec_freq_",fnum,".png"), figF)
 end
 
 
 ## heatmap of normalized KE(ω) spectra: latitude vs frequency -------------------
-titstrFn = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 KEOMn = KEOM ./ KEOMmax          # normalize each run by its own max KE(ω) (peaks at 1)
 Ifr   = findall(freq .> 0)       # drop 0 cpd for log x-axis
 #Zn    = max.((KEOMn[:, Ifr])', 1e-6)   # (freq × lat), floored for log colour scale
@@ -222,7 +403,7 @@ Colorbar(figFn[1, 2], hmFn, label = "KE(ω) / max")
 xlims!(axFn, 0.3, 48)
 display(figFn)
 
-if figflag==1; save(string(dirfig,"KEspec_heatmap_lat_freq_",titstrFn,".png"), figFn)
+if figflag==1; save(string(dirfig,"KEspec_",fnum,".png"), figFn)
 end
 
 

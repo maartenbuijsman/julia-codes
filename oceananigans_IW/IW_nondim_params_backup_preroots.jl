@@ -1,5 +1,5 @@
 #= IW_nondim_params.jl
-Maarten Buijsman, USM DMS, 2026-8-29
+Maarten Buijsman, USM DMS, 2026-8-28
 Non-dimensional parameters and time scales for the D2 internal-tide PSI/resonance
 problem (Sutherland & Dhaliwal 2022): resonance parameter epsilon (frequency- and
 wavenumber-based, hydrostatic and nonhydrostatic), the nonlinearity length scale
@@ -26,7 +26,6 @@ using CairoMakie
 using JLD2
 using Interpolations
 using Trapz
-using Roots
 
 WIN = 0;
 
@@ -102,24 +101,29 @@ zc  = (zfw[1:end-1] .+ zfw[2:end]) ./ 2;   # cell centers -- matches the model's
 # calculation of the resonance parameter epsilon -------------------------------------------------------
 # ω is a function of k (as in Sutherland papers)
 # 4om2 - om(2k)2 / 4om2
-#
-# getomres solves for the frequency omr at which the mode-1 wavenumber equals
-# 2*k(ω) (the forcing-frequency wavenumber doubled) -- i.e. it finds the
-# companion frequency for the 2k resonance condition. Replaced 2026-8-29 with
-# a proper root-find (Roots.jl's find_zero) instead of the old two-pass coarse
-# linear interpolation (4 points, then a second pass refined around the first
-# estimate): that old version carried a real, latitude-dependent error versus
-# the true root -- worst at low latitude where epsilon itself is small (up to
-# ~2.7% relative error at lat=0), settling to a ~0.1-0.3% bias at higher
-# latitudes. find_zero converges to residual ~1e-18 (machine precision) at a
-# modest added cost (~18 wavenumber evaluations vs 8, ~0.35 s/call). Old
-# version kept in IW_nondim_params_backup_preroots.jl for comparison.
 function getomres(ω,LAT,nonhyd,Nm)
-    fcor = coriolis(LAT);
-    kn1, = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
-    k1 = kn1[Nm]
-    g(w) = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, w, nonhyd)[1][Nm] - 2*k1
-    return find_zero(g, 2*ω)
+    nk = 4;
+    fcor   = coriolis(LAT);
+    omi = collect(range(ω, nk*ω, nk))
+    function itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)
+        ki  = zeros(nk,)
+        for i=1:nk
+            kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 =
+                sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, omi[i], nonhyd);
+                ki[i] = kn[Nm]
+        end
+        intzc   = interpolate((ki,), omi, Gridded(Linear()));
+        omr = intzc.(kr);
+        return omr
+    end
+
+    # using 2k wavelength find the associated frequency
+    kn, Ln, Cn, Cgn, Cen, Weig, Ueig, Ueig2 = sturm_liouville_noneqDZ_norm(zfw, N2w, fcor, ω, nonhyd);
+    kr  = 2*kn[Nm]
+    omr = itom(zfw, N2w, fcor, omi, nonhyd, nk, kr, Nm)     # first iteration
+    om2 = collect(range(0.75*omr, 1.25*omr, nk))            # second iteration
+    omr = itom(zfw, N2w, fcor, om2, nonhyd, nk, kr, Nm)
+    return omr
 end
 
 # k is a function of ω ---------------
@@ -157,22 +161,15 @@ epshy = ((2*ω)^2 - omr^2)/(2*ω)^2
 if LAT == 0.0; epshy = 0.0; end
 
 # epsilon based on k -----------------------------
-# (k(2om)2 - (2k)2) / (2k)2 -- terms flipped from the naive (2k)^2-k2^2 order
-# (2026-8-29) so epsnh_k/epshy_k come out POSITIVE directly, like the ω-based
-# epsnh/epshy already are. The old (2k)^2-k2^2 order came out negative here,
-# which had been patched downstream with an explicit "-epsnh_k"/"-epshy_k" at
-# every use site (alpha/epsilon, 1/epsilon, the epsilon figure, Tbeat_k) --
-# six-plus separate negations instead of one fix at the source.
+# ((2k)2 - k(2om))/(2k)2
 # based on omega resonance: om+om=2om
 nonhyd=1;
 k_k, k2_k = getkres(ω,LAT,nonhyd,Nm)
-k_k_nh, k2_k_nh = k_k, k2_k   # kept for the Lbeat_k calc below
-epsnh_k   = (k2_k^2 - (2*k_k)^2)/(2*k_k)^2
+epsnh_k   = ((2*k_k)^2 - k2_k^2)/(2*k_k)^2
 
 nonhyd=0;
 k_k, k2_k = getkres(ω,LAT,nonhyd,Nm)
-k_k_hy, k2_k_hy = k_k, k2_k
-epshy_k   = (k2_k^2 - (2*k_k)^2)/(2*k_k)^2
+epshy_k   = ((2*k_k)^2 - k2_k^2)/(2*k_k)^2
 
 # get A0nl analytically ----------------------------
 DX = row.DX     # this run's grid spacing
@@ -317,10 +314,10 @@ isinf(alpepsnh) && (alpepsnh = NaN)
 # same ratio using the k(2om)-based epsilon instead of the omega-based one --
 # physically the more appropriate detuning for compound-tide harmonics like
 # M4/M6 (frequency is exact by construction from the periodic forcing; the
-# wavenumber match is what's actually detuned). epsnh_k/epshy_k are already
-# positive (flipped at the source above), so no sign-flip needed here anymore.
-alpepshy_k   = alpnl/epshy_k
-alpepsnh_k   = alpnl/epsnh_k
+# wavenumber match is what's actually detuned). Sign-flipped to match the
+# omega-based convention, same as the epsilon-vs-latitude panel.
+alpepshy_k   = alpnl/(-epshy_k)
+alpepsnh_k   = alpnl/(-epsnh_k)
 isinf(alpepshy_k) && (alpepshy_k = NaN)
 isinf(alpepsnh_k) && (alpepsnh_k = NaN)
 
@@ -347,23 +344,6 @@ Tbeathy_days = 2π/(epshy*ω)/(24*3600)
 # into a beat DISTANCE
 Cg1 = Cgn[Im]
 
-# beat LENGTH scale from the k-based mismatch directly -- replaces the faulty
-# Tbeat_k (2026-8-29): k and k2 are already spatial (wavenumber) quantities,
-# so 2π/|k2-2k| is already a length, no group speed conversion needed at all
-# (the old Tbeat_k wrongly treated epsnh_k/epshy_k like the ω-based epsilon,
-# needing 2π/(eps*ω) then ×Cg1 to become a distance -- a category error, not
-# just a sign bug). Two versions:
-#   Lbeat_precise = 2π/|k2-2k|        -- exact wavenumber-mismatch beat length
-#   Lbeat_linear  = λ1/epsilon_k      -- small-mismatch linearization; for
-#     k2 near 2k (mismatch δ=2k-k2 small), epsilon_k=(k2²-(2k)²)/(2k)² ≈ -2δ/(2k) = -δ/k,
-#     so |epsilon_k| ≈ δ/k = δ*λ1/(2π), giving 2π/|δ| ≈ λ1/|epsilon_k| --
-#     confirms the two formulas agree when the mismatch is small, diverge when
-#     it isn't (that gap IS the point of keeping both).
-Lbeat_precise_nh = 2π / abs(k2_k_nh - 2*k_k_nh)
-Lbeat_precise_hy = 2π / abs(k2_k_hy - 2*k_k_hy)
-Lbeat_linear_nh  = (2π/k_k_nh) / abs(epsnh_k)
-Lbeat_linear_hy  = (2π/k_k_hy) / abs(epshy_k)
-
 println(fnames,"; A0nlana=",@sprintf("%.1f",A0nlana)," m; A0nl=",@sprintf("%.1f",A0nl)," m; alpepshy=",@sprintf("%.3f",alpepshy),
     "; alpepsnh=",@sprintf("%.3f",alpepsnh))
 
@@ -373,8 +353,7 @@ if savefl == 1
     jldsave(string(dirout,fnameout);
         LAT, xA0, dnl, A0nlana, A0nl, alpnl, alpepshy, alpepsnh, alpepshy_k, alpepsnh_k,
         alpnl_meas, alpepshy_meas, alpepsnh_meas, Tbeatnh_days, Tbeathy_days,
-        epsnh, epshy, epsnh_k, epshy_k, OS, dnl_old, alpnl_old, alpepsnh_old, Cg1,
-        Lbeat_precise_nh, Lbeat_precise_hy, Lbeat_linear_nh, Lbeat_linear_hy);
+        epsnh, epshy, epsnh_k, epshy_k, OS, dnl_old, alpnl_old, alpepsnh_old, Cg1);
     println(string(fnameout)," data saved ........ ")
 end
 
@@ -415,14 +394,10 @@ OSP           = zeros(length(runnms))
 dnl_oldP      = zeros(length(runnms))
 alpepsnh_oldP = zeros(length(runnms))
 Cg1P          = zeros(length(runnms))   # mode-1 group speed [m/s]
-Lbeat_precise_nhP = zeros(length(runnms))   # [m], see run_analysis for derivation
-Lbeat_precise_hyP = zeros(length(runnms))
-Lbeat_linear_nhP  = zeros(length(runnms))
-Lbeat_linear_hyP  = zeros(length(runnms))
 
 for (i, runnm) in enumerate(runnms)
     fnames = @sprintf("AMZexpt%02i.%02i", mainnm, runnm)
-    @load string(dirout,"nondim_",fnames,".jld2") dnl A0nl A0nlana alpnl alpepshy alpepsnh alpepshy_k alpepsnh_k epsnh epshy epsnh_k epshy_k Tbeatnh_days Tbeathy_days OS dnl_old alpepsnh_old Cg1 Lbeat_precise_nh Lbeat_precise_hy Lbeat_linear_nh Lbeat_linear_hy
+    @load string(dirout,"nondim_",fnames,".jld2") dnl A0nl A0nlana alpnl alpepshy alpepsnh alpepshy_k alpepsnh_k epsnh epshy epsnh_k epshy_k Tbeatnh_days Tbeathy_days OS dnl_old alpepsnh_old Cg1
     dnlP[i]          = dnl
     A0nlP[i]         = A0nl
     A0nlanaP[i]      = A0nlana
@@ -441,10 +416,6 @@ for (i, runnm) in enumerate(runnms)
     dnl_oldP[i]      = dnl_old
     alpepsnh_oldP[i] = alpepsnh_old
     Cg1P[i]          = Cg1
-    Lbeat_precise_nhP[i] = Lbeat_precise_nh
-    Lbeat_precise_hyP[i] = Lbeat_precise_hy
-    Lbeat_linear_nhP[i]  = Lbeat_linear_nh
-    Lbeat_linear_hyP[i]  = Lbeat_linear_hy
 end
 
 fnum = string(mainnm,".",runnms[1],"-",runnms[end])
@@ -467,20 +438,22 @@ lines!(ax11, LATS, A0nlP,    label="A0nl (measured)",    color=:black, linewidth
 lines!(ax11, LATS, A0nlanaP, label="A0nlana (analytic)", color=:red,   linewidth=2, linestyle=:dash)
 axislegend(ax11, position=:rt)
 
-# (1,2) wave-wave interaction beat period -- ω-based only (as saved by
-# run_analysis). The k-based Tbeat that used to be plotted here was wrong
-# (category error: treated the already-spatial k-mismatch like the ω-based
-# epsilon, needing ×Cg1 to become a distance -- see Lbeat_precise/Lbeat_linear
-# in run_analysis and the (3,2) panel below, which replace it directly as
-# LENGTHS instead of forcing it through a bogus "period").
+# (1,2) wave-wave interaction beat period -- ω-based (as saved by run_analysis)
+# plus k-based, computed here from epsnh_kP/epshy_kP with the same sign flip
+# and Tbeat formula (2π/(eps*ω)) used for the ω-based ones
+Tbeatnh_kP_days = nan_guard(2π ./ ((-epsnh_kP) .* ω) ./ (24*3600))
+Tbeathy_kP_days = nan_guard(2π ./ ((-epshy_kP) .* ω) ./ (24*3600))
+
 ax12 = Axis(figLAT[1,2], title="wave-wave beat period vs latitude", xlabel="latitude [°]", ylabel="Tbeat [days]")
 lines!(ax12, LATS, TbeatnhP_days,   label="ω, nonhydrostatic", color=:red,        linewidth=3)
 #lines!(ax12, LATS, TbeathyP_days,   label="ω, hydrostatic",    color=:red,        linewidth=2, linestyle=:dash)
+lines!(ax12, LATS, Tbeatnh_kP_days, label="k, nonhydrostatic", color=:dodgerblue, linewidth=3)
+#lines!(ax12, LATS, Tbeathy_kP_days, label="k, hydrostatic",    color=:dodgerblue, linewidth=2, linestyle=:dash)
 axislegend(ax12, position=:rt)
 
-# (2,1) 1/epsilon, ω-based and k-based combined. epsnh_k/epshy_k are already
-# positive (flipped at the source in run_analysis, 2026-8-29), so no sign-flip
-# needed here anymore.
+# (2,1) 1/epsilon, ω-based and k-based combined -- the k-based epsilon uses
+# the opposite sign convention, so flip it here (plot only, the saved
+# epsnh_k/epshy_k keep their raw computed sign) to compare directly.
 # 1/epsilon (∝ the PSI/harmonic beat timescale) spans a wide range, hence
 # log y-axis; Inf (from epsilon≈0, e.g. epshy at LAT=0) -> NaN so it doesn't
 # wreck the autoscale.
@@ -490,8 +463,8 @@ axislegend(ax12, position=:rt)
 # *finite* negative number, not just Inf, which log10(y-scale) can't handle
 inv_epshyP   = nan_guard(1 ./ epshyP)
 inv_epsnhP   = nan_guard(1 ./ epsnhP)
-inv_epshy_kP = nan_guard(1 ./ epshy_kP)
-inv_epsnh_kP = nan_guard(1 ./ epsnh_kP)
+inv_epshy_kP = nan_guard(1 ./ (-epshy_kP))
+inv_epsnh_kP = nan_guard(1 ./ (-epsnh_kP))
 
 ax21 = Axis(figLAT[2,1], title="1/epsilon vs latitude (ω- and k-based)", xlabel="latitude [°]", ylabel="1/epsilon", yscale=log10)
 lines!(ax21, LATS, inv_epshyP,   label="ω, hydrostatic",    color=:red,    linewidth=4, linestyle=:dash)
@@ -504,8 +477,8 @@ axislegend(ax21, position=:rt)
 # as the 1/epsilon panel above -- exploratory only, not saved to disk
 epshyP_g   = nan_guard(epshyP)
 epsnhP_g   = nan_guard(epsnhP)
-epshy_kP_g = nan_guard(epshy_kP)
-epsnh_kP_g = nan_guard(epsnh_kP)
+epshy_kP_g = nan_guard(-epshy_kP)
+epsnh_kP_g = nan_guard(-epsnh_kP)
 
 fig = Figure(size=(600,450))
 axeps = Axis(fig[1,1], title="epsilon vs latitude (ω- and k-based)", xlabel="latitude [°]", ylabel="epsilon")
@@ -541,15 +514,13 @@ ax32 = Axis(figLAT[3,2], title="Ostrovsky number vs latitude", xlabel="latitude 
 lines!(ax32, LATS, OSP, color=:black, linewidth=2)
 =#
 
-# (3,2) beat distance: ω-based = Tbeat * mode-1 group speed Cg1P (Cg1P is a
-# property of the N2 profile, not of which epsilon convention set the beat
-# period); k-based = Lbeat_precise/Lbeat_linear from run_analysis directly
-# (already lengths, no Cg1 needed -- see the derivation there and the
-# (1,2)-panel comment above for why the old Tbeat_k*Cg1 approach was wrong)
+# (3,2) beat distance = Tbeat * mode-1 group speed Cg1P (same Cg1P for all
+# four, since group speed is a property of the N2 profile, not of which
+# epsilon convention set the beat period)
 BeatDistnh_km   = TbeatnhP_days   .* 86400 .* Cg1P ./ 1e3
 BeatDisthy_km   = TbeathyP_days   .* 86400 .* Cg1P ./ 1e3
-Lbeat_precise_nh_km = Lbeat_precise_nhP ./ 1e3
-Lbeat_linear_nh_km  = Lbeat_linear_nhP ./ 1e3
+BeatDistnh_kkm  = Tbeatnh_kP_days .* 86400 .* Cg1P ./ 1e3
+BeatDisthy_kkm  = Tbeathy_kP_days .* 86400 .* Cg1P ./ 1e3
 
 # measured beat distance from the simulated KEt(x) profiles, for comparison
 # with the analytical Tbeat*Cg1 above. Produced by
@@ -570,10 +541,10 @@ nmeas = count(!isnan, BeatDistMeas_km)
 nmeas == 0 && @warn "no beatdist_*.jld2 found for mainnm=$mainnm runnms=$(runnms[1]):$(runnms[end]) -- run claudecodes/IW_KEt_beat_distance.jl for this block first"
 
 ax32 = Axis(figLAT[3,2], title="beat distance vs latitude", xlabel="latitude [°]", ylabel="beat distance [km]")
-lines!(ax32, LATS, BeatDistnh_km,       label="ω, Tbeat×Cg (nonhydrostatic)", color=:red,        linewidth=3)
-#lines!(ax32, LATS, BeatDisthy_km,       label="ω, Tbeat×Cg (hydrostatic)",    color=:red,        linewidth=2, linestyle=:dash)
-lines!(ax32, LATS, Lbeat_precise_nh_km, label="k, precise 2π/|k2-2k|",        color=:dodgerblue, linewidth=3)
-lines!(ax32, LATS, Lbeat_linear_nh_km,  label="k, linearized λ1/|εk|",        color=:dodgerblue, linewidth=2, linestyle=:dash)
+lines!(ax32, LATS, BeatDistnh_km,  label="ω, nonhydrostatic", color=:red,        linewidth=3)
+#lines!(ax32, LATS, BeatDisthy_km,  label="ω, hydrostatic",    color=:red,        linewidth=2, linestyle=:dash)
+lines!(ax32, LATS, BeatDistnh_kkm, label="k, nonhydrostatic", color=:dodgerblue, linewidth=3)
+#lines!(ax32, LATS, BeatDisthy_kkm, label="k, hydrostatic",    color=:dodgerblue, linewidth=2, linestyle=:dash)
 lines!(ax32, LATS, BeatDistMeas_km, label="measured (KEt)", color=:black, linewidth=2)
 scatter!(ax32, LATS, BeatDistMeas_km, color=:black, markersize=8)
 axislegend(ax32, position=:rt)

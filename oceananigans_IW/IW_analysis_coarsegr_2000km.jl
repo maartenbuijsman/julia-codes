@@ -1,5 +1,5 @@
 #= IW_analysis_coarsegr.jl
-Maarten Buijsman, USM DMS, 2026-8-15
+Maarten Buijsman, USM DMS, 2026-8-25
 Load coarse graining results from various sims. and make figures
 =#
 
@@ -50,13 +50,12 @@ const grav=9.81;
 # last, collect(40:52), ever took effect) -- kept as commented alternatives.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 11
-####runnms  = collect(14:26) # constant N2 MERCATOR 2.5N  F=15kW/m
+mainnm  = 10
 runnms  = collect(1:13) # varying  N2 MERCATOR        F=12.5kW/m
-runnms  = collect(27:39) # varying  N2 MERCATOR        F=25kW/m
-runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
-runnms  = collect(53:65) # constant N2 MERCATOR 50N   F=25kW/m
-runnms  = collect(66:78) # constant N2 MERCATOR        F=50kW/m
+#runnms  = collect(27:39) # varying  N2 MERCATOR       F=25kW/m
+#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
+#runnms  = collect(53:65) # constant N2 MERCATOR 50N   F=25kW/m
+#runnms  = collect(66:78) # constant N2 MERCATOR        F=50kW/m
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -170,7 +169,6 @@ end
 fcH     = 1e5;                                       # scale Π to 1e4 W/(kg m), as in panel (c)
 fc5H    = 1;                                          # CGEsum already in W/(kg m^2), as in panel (d)
 LdomH   = 2000e3;
-titstrH = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 #cmaxH   = maximum(abs.(CGE))*fcH                     # symmetric range about 0
 cmaxH   = 1                    # symmetric range about 0
 #cmaxsH  = maximum(abs.(CGEsum))*fc5H                  # symmetric range about 0
@@ -194,7 +192,7 @@ xlims!(axCGE,  0, LdomH/1e3)
 xlims!(axCGEs, 0, LdomH/1e3)
 display(figCGE)
 
-if figflag==1; save(string(dirfig,"CGE_CGEsum_heatmap_",titstrH,".png"), figCGE)
+if figflag==1; save(string(dirfig,"CGE_CGEsum_",fnum,".png"), figCGE)
 end
 
 println("CGE min/max = ", @sprintf("%.2e", minimum(CGE)), " / ", @sprintf("%.2e", maximum(CGE)))
@@ -202,7 +200,6 @@ println("CGE min/max = ", @sprintf("%.2e", minimum(CGE)), " / ", @sprintf("%.2e"
 ## line plots of CGE and cumulative CGEsum vs x, one line per latitude ----------
 fcC     = 1e4;                                          # scale Π to 1e4 W/(kg m), as in panel (c)
 LdomC   = 2000e3;
-titstrC = strip(replace(replace(titstr, "Δ" => "d"), r"[^A-Za-z0-9._-]+" => "_"), '_')   # filename-safe
 colorsC = cgrad(:darktest, length(LATS), categorical = true)   # distinct color per run
 
 figCL = Figure(size=(700,800))
@@ -223,7 +220,7 @@ Colorbar(figCL[1:2, 2], colormap = colorsC, limits = (0.5, length(LATS) + 0.5),
     ticks = (1:length(LATS), string.(LATS)), label = "latitude [°]")
 display(figCL)
 
-if figflag==1; save(string(dirfig,"CGE_CGEsum_lines_lat_",titstrC,".png"), figCL)
+if figflag==1; save(string(dirfig,"CGE_CGEsum_lines_",fnum,".png"), figCL)
 end
 
 

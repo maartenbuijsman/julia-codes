@@ -1,15 +1,11 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-8-23
+Maarten Buijsman, USM DMS, 2026-9-4
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
 buoyancy = -g*rho'/rho0
-Non-dimensional parameters/time scales moved to IW_nondim_params.jl
-Run in background:
-nohup stdbuf -oL -eL julia -t auto /home/mbui/Documents/julia-codes/oceananigans_IW/IW_total_energetics_tile.jl \
-    > /home/mbui/ModelOutput/diagout/energetics11_run.log 2>&1 &
-  disown
-
+average over hardcoded 12 tidal cycles for all lats up to 45N
+50N cg is too low and therefore energy has barely reached the end at 20 days
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -49,13 +45,12 @@ include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename
 savefl  = 1  # save data
 figflag = 1  # print figures
 dispflag = 0  # display figures on screen (slow/unnecessary for background batch runs)
-oldnm   = 0  # before changing to numbered runs; https://docs.google.com/spreadsheets/d/1Qdaa95_I1ESBgkNMpJ9l8Vjzy4fuHMl2n6oIUELLi_A/edit?usp=sharing
 
 # tiles
 ntile   = 20
 #ntile   = 10
 
-const T2 = 12+25.2/60
+const T2 = 12+25.2/60  #hours
 const rho0=1020; 
 const grav=9.81; 
 
@@ -65,19 +60,8 @@ const grav=9.81;
 # any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 10
-#runnms  = collect(1:14)  # constant N2 WOCE AMZ
-#runnms  = collect(27:39) # varying  N2 MERCATOR      25kW/m
-#runnms  = collect(40:52) # constant N2 MERCATOR 2.5N 25kW/m
-#runnms  = collect(53:65) # constant N2 MERCATOR 50N  25kW/m
-#runnms  = collect(66:78) # varying  N2 MERCATOR;      50kW/m
-
-# run a lot
-runnms  = collect(1:13)
-
-#test
-#mainnm  = 10
-#runnms  = 66
+mainnm  = 13   # GM-spectrum-initialized; 4 km grid, then toggled to 13 (200 m) by run_diag_12_13.sh
+runnms  = collect(27:39) # varying N2 MERCATOR, F=25kW/m, GM u,v init
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -151,12 +135,23 @@ intzc   = interpolate((zfw,), breff, Gridded(Linear()));
 rhorefc = -intzc.(zc) * rho0/grav;                         # rho0 is not added!
 
 # time window for KE/APE averaging ------------------------------------------
-EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
-numcycles = floor((t2-t1)/(T2/24))
-t2   = t1+numcycles*(T2/24)
+if LAT <= 35
+    EXCL = 2; t1 = tday[1]+EXCL*T2/24; t2 = tday[end]-EXCL*T2/24;
+    numcycles = floor((t2-t1)/(T2/24))
+    t2   = t1+numcycles*(T2/24)
+else # 40, 45 
+    # new
+    EXCL = 2; numcycles = 11;
+    t2 = tday[end]-EXCL*T2/24
+    t1 = t2 - numcycles*T2/24 # around 13 days
+end
 Iday = findall(item -> item >= t1 && item<= t2, tday)
 Nlen = length(Iday)
 imid = Nlen÷2   # midpoint index within Iday-length arrays
+
+# time window for fft ------------------------------------------
+Idayf = findall(item -> item >= tday[1] && item<= tday[end], tday)
+
 
 # filter settings ------------------------------------------------------------
 Nf    = 8;
@@ -496,12 +491,12 @@ println(fnames,"; max D2+HH flux is ",@sprintf("%5.2f",maximum(Fx/1e3))," kW/m")
 tukeycf=0.2; numwin=1; linfit=true; prewhit=false;
 
 i=1;
-period, freq, pp = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
+period, freq, pp = fft_spectra(tday[Idayf], uc_surf[Idayf,i]; tukeycf, numwin, linfit, prewhit);
 poweru = zeros(length(period),Nx);
 powerv = zeros(length(period),Nx);
 Threads.@threads for i in 1:Nx
-    _, _, poweru[:,i] = fft_spectra(tday[Iday], uc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
-    _, _, powerv[:,i] = fft_spectra(tday[Iday], vc_surf[Iday,i]; tukeycf, numwin, linfit, prewhit);
+    _, _, poweru[:,i] = fft_spectra(tday[Idayf], uc_surf[Idayf,i]; tukeycf, numwin, linfit, prewhit);
+    _, _, powerv[:,i] = fft_spectra(tday[Idayf], vc_surf[Idayf,i]; tukeycf, numwin, linfit, prewhit);
 end
 
 println("max freq: ",freq[end]," cpd")

@@ -1,5 +1,5 @@
 #= include_functions.jl
-Maarten Buijsman, USM, 2026-08-07
+Maarten Buijsman, USM, 2026-8-29
 This file includes all function files.
 pathname is defined in the main file
 NOTE: instead, this file path can also be included 
@@ -17,6 +17,7 @@ include(string(pathname,"gridding_functions.jl"));            # includes meshgri
 include(string(pathname,"fft_spectra_vectorized.jl"));        # tested in using_DSP.jl
 include(string(pathname,"gaussfilt.jl"));                     # 1-D Gaussian smoothing of vectors
 include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testing_sturmL.jl
+include(string(pathname,"komega_spectrum.jl"));                # 2D space-time FFT k-omega power spectrum
 
 # other
 include(string(pathname,"coriolis.jl"));  # tested in testing_sturmL.jl
