@@ -1,5 +1,5 @@
 #= IW_coarsegraining_tile.jl
-Maarten Buijsman, USM DMS, 2026-9-4
+Maarten Buijsman, USM DMS, 2026-10-2
 Load model runs and perform coarsegraining diagnostics
 Tiled in x to avoid memory overflow for large domains (e.g. 200 m, 2000 km)
 
@@ -53,8 +53,8 @@ const T2 = 12+25.2/60
 xlim = 2000
 
 # D2 NH flux forcing, GM-spectrum-initialized
-mainnm  = 13   # 4 km grid, then toggled to 13 (200 m) by run_diag_12_13.sh
-runnms  = collect(27:39) # varying N2 MERCATOR, F=25kW/m, GM u,v init
+mainnm  = 16   # GM81-initialized (corrected amplitude, calibrated to 1x GM81 over days 10-20); 200 m grid; 1-12 GM only, 27-38 GM + tide
+runnms  = collect(38:38)  # lat 0-45 N, series complete
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -74,6 +74,7 @@ filename = string(dirsim,fnames,".nc")
 titlenm  = string(LAT,"°N; mode 1")
 titlenm2 = string(LAT,"°N")
 println(fname_short2,"; lat=",LAT," -------------------")
+flush(stdout)   # explicit flush: stdout doesn't auto-flush during long blocking NetCDF reads when redirected to a file
 
 # === Load grid and time metadata — keep ds open for tile reads ===
 ds = NCDataset(filename,"r");
@@ -134,6 +135,7 @@ nx_base = Nx ÷ ntile;
 # === Tile loop ===
 for i_tile in 1:ntile
     println("  tile ",i_tile," / ",ntile)
+    flush(stdout)
 
     # interior x-center indices (global, 1-based)
     ix_a = (i_tile-1)*nx_base + 1;
@@ -379,7 +381,9 @@ elapsed = @elapsed begin
         looptime = @elapsed begin
             run_coarsegraining(runnm, LAT)
         end
-        println("finished ", runnm," in $(round(looptime, digits=1)) s")        
+        println("finished ", runnm," in $(round(looptime, digits=1)) s")
+        flush(stdout)
     end
 end
 println("finished in $(round(elapsed, digits=1)) s")
+flush(stdout)

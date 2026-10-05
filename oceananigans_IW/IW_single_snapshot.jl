@@ -1,5 +1,5 @@
 #= IW_single_snapshot.jl
-Maarten Buijsman, USM DMS, 2026-9-3
+Maarten Buijsman, USM DMS, 2026-9-8
 Plot a snapshot per run (loop over runnms, 1 figure each):
 heatmap of u velocity with superposed density (rhoc) contours.
 Long transects are split into 1-4 stacked x-subplots (chunks).
@@ -55,9 +55,9 @@ const tspin = 4; #days
 # and latitude can never drift out of sync. runnms need not be a full block --
 # any subset of run-IDs already present in RUN_TABLE works.
 
-# D2 NH flux forcing
-mainnm  = 13   # GM-spectrum-initialized, 200 m grid
-runnms  = [29] # varying N2 MERCATOR, F=25kW/m, GM u,v init; runs completed so far
+# GM spectrum IC only, no tidal forcing (redistribution fix)
+mainnm  = 15   # 200 m grid, GM spectrum only, Flux=0
+runnms  = collect(1:13) # varying N2 MERCATOR, free decay
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]

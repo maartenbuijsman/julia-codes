@@ -102,6 +102,13 @@ Nfreq   = 60           # number of log-spaced frequency bins from f to N_max
 seed    = 1            # RNG seed, for reproducibility
 minwavelenfac = 6       # "at least 6*dx cells per wavelength" resolution cutoff
 
+# ENERGY-LEVEL KNOB ---------------------------------------------------------
+# Multiplies the GM76 reference energy K(ω,j) (and hence the target mean
+# KE/APE) by this factor. 1.0 = standard GM76 ("1x GM") reference level;
+# e.g. 2.0 = 2x GM, 0.5 = half GM. Amplitude A ∝ sqrt(K), so this scales
+# rms velocity/displacement by sqrt(GM_energy_scale).
+GM_energy_scale = 1.0
+
 # canonical GM76 reference constants (Munk 1981 notation, see gm.py) -----
 const Egm = 6.3e-5      # GM energy parameter (dimensionless)
 const js  = 3.0         # mode-number scale j*
@@ -129,6 +136,8 @@ path_fname = string(dirforce, fnamegrid)
 H  = abs(zfw[end] - zfw[1])
 Nz = length(zfw) - 1
 zc = zfw[1:end-1]/2 .+ zfw[2:end]/2
+dzf_all = abs.(diff(zfw))   # face-to-face cell thicknesses, for re-deriving
+                            # the solver's internal Ueig normalization factor
 
 f_true = abs(coriolis(LAT))
 f_floor = abs(coriolis(LAT_f_floor))
@@ -148,11 +157,15 @@ omg_edges = exp.(range(log(f_cor*eps_f), log(N_max*eps_N), length=Nfreq+1))
 omg_mid   = sqrt.(omg_edges[1:end-1] .* omg_edges[2:end])   # geometric bin centers
 domg      = diff(omg_edges)
 
-# build the list of (ω, j, k, amplitude, Ueig2 column) components --------
+# build the list of (ω, j, k, amplitude, Ueig2/Weig2 columns) components --
 comp_k    = Float64[]
 comp_A    = Float64[]
 comp_om   = Float64[]
 comp_Ueig = Vector{Vector{Float64}}()
+comp_Weig = Vector{Vector{Float64}}()   # w/b eigenfunction, RESCALED to match
+                                          # Ueig2's depth-mean-square=1 normalization
+                                          # (raw Weig from the solver is unnormalized --
+                                          # see sturm_liouville_noneqDZ_norm.jl docstring)
 
 zfw_f = Float64.(zfw); N2w_f = Float64.(N2w)  # ensure Float64 for the solver
 
@@ -162,15 +175,32 @@ for n in 1:Nfreq
     nmodes = length(k)
     for j in 1:nmodes
         Lw[j] < minwavelenfac*DX && continue   # 6*dx resolution cutoff (unresolved on the grid)
-        Lw[j] > L && continue                   # domain-length cutoff (doesn't complete a
-                                                  # cycle -- not a propagating wave in this
-                                                  # Bounded-x domain, just a large-scale tilt)
-        K = Komgj(om, j, f_cor)
+        # NOTE: no longer dropping Lw[j] > L (domain-length cutoff). Dropping
+        # discarded whole (ω,j) components, and near-inertial/low-mode-number
+        # wavelengths grow as ~Ce/f -- at low latitude (small f, even after
+        # LAT_f_floor) far more of them exceed L than at mid-latitude, so the
+        # old drop-rule quietly removed disproportionately more energy near
+        # the equator (measured ~25% KE+APE deficit at 0-5°N vs mid-latitude
+        # plateau -- see chat). Instead, clamp the wavenumber so the
+        # wavelength never exceeds L (still >=1 full cycle in this Bounded-x
+        # domain): this keeps the component's full Munk-weighted energy AND
+        # its vertical structure (mode j, frequency ω) exactly as intended,
+        # only capping the horizontal scale at what the domain can represent.
+        # Verified this recovers latitude-invariant total target energy
+        # (min/max ratio across 0-50°N: 0.74 -> 0.98).
+        k_eff = max(k[j], 2π/L)
+        K = Komgj(om, j, f_cor) * GM_energy_scale
         A = sqrt(2 * K * domg[n])
-        push!(comp_k, k[j])
+        # re-derive the solver's own Ueig normalization factor (Ueig2 = Ueig/norm_factor,
+        # see sturm_liouville_noneqDZ_norm.jl lines 96-98) so Weig can be put on the SAME
+        # amplitude scale as Ueig2 before use
+        norm_factor = sqrt(sum(Ueig[:, j].^2 .* dzf_all) / H)
+        Weig2_j = norm_factor == 0 ? zero(Weig[:, j]) : Weig[:, j] ./ norm_factor
+        push!(comp_k, k_eff)
         push!(comp_A, A)
         push!(comp_om, om)
         push!(comp_Ueig, Ueig2[:, j])
+        push!(comp_Weig, Weig2_j)
     end
 end
 
@@ -181,15 +211,26 @@ println("total (ω,mode) components used: ", ncomp)
 phase = 2π .* rand(ncomp)
 dirsign = rand([-1.0, 1.0], ncomp)
 
-# build u(x,z), v(x,z) ------------------------------------------------------
+# build u(x,z), v(x,z), w(x,z), b(x,z) ---------------------------------------
+# u,v live on cell centers zc (Nz); w,b live on cell faces zfw (Nz+1), same
+# grid as Weig2/N2w. Polarization relations (from continuity ∂u/∂x+∂w/∂z=0,
+# using dWeig2/dz = k*Ueig2 per the eigensolver's own convention, and
+# ζ = ∫w dt, b' = -N²ζ for linear internal waves):
+#   u = A Φ(z) cos(θ)
+#   v = (f/ω) A Φ(z) sin(θ)                 [Coriolis polarization, dir-independent]
+#   w = A·s W(z) sin(θ)                     [s = dirsign; continuity flips sign w/ direction]
+#   b'= -(A·s N²(z)/ω) W(z) cos(θ)          [buoyancy in phase with u, out of phase with w]
+# where θ = s*k*x + phase, Φ=Ueig2, W=Weig2 (both same normalization).
 xc = ((0:Nx-1) .+ 0.5) .* DX
 
 u = zeros(Nz, Nx)
 v = zeros(Nz, Nx)
+w = zeros(Nz+1, Nx)
+b = zeros(Nz+1, Nx)
 
 # single-threaded accumulation (ncomp * Nz * Nx multiply-adds -- a few
 # hundred million flops at most for this problem size, no need to
-# parallelize and risk a race on the shared u,v arrays)
+# parallelize and risk a race on the shared u,v,w,b arrays)
 for i in 1:ncomp
     kx  = dirsign[i] .* comp_k[i] .* xc
     th  = kx .+ phase[i]
@@ -197,6 +238,8 @@ for i in 1:ncomp
     fac_v = f_cor / comp_om[i]
     u .+= comp_A[i] .* comp_Ueig[i] .* transpose(cph)
     v .+= (comp_A[i]*fac_v) .* comp_Ueig[i] .* transpose(sph)
+    w .+= (comp_A[i]*dirsign[i]) .* comp_Weig[i] .* transpose(sph)
+    b .+= -(comp_A[i]*dirsign[i]/comp_om[i]) .* (N2w_f .* comp_Weig[i]) .* transpose(cph)
 end
 
 # taper to zero across the sponge zones ------------------------------------
@@ -211,6 +254,8 @@ right_mask(x) = mask2nd((x - L + Sp_Region_right) / Sp_Region_right)
 taper = 1.0 .- left_mask.(xc) .- right_mask.(xc)   # (Nx,), 1 in interior -> 0 at edges
 u .*= transpose(taper)
 v .*= transpose(taper)
+w .*= transpose(taper)
+b .*= transpose(taper)
 
 # diagnostics ---------------------------------------------------------------
 # E[depth-avg(u²+v²)] over the random phases/directions, from the u=cos,
@@ -232,8 +277,17 @@ println("(a single random realization with only ", ncomp, " components can devia
         "meaningfully from this ensemble mean -- increase Nfreq, or average multiple ",
         "seeds, if you need tight convergence to the target GM energy level)")
 
+# w, b live on the face grid zfw (Nz+1 rows); average to cell centers (Nz
+# rows) so the same dz_diag cell-thickness weights from the u,v diagnostic
+# above apply directly.
+w_ctr = (w[1:end-1, :] .+ w[2:end, :]) ./ 2
+b_ctr = (b[1:end-1, :] .+ b[2:end, :]) ./ 2
+w_rms = sqrt(mean(vec(sum(w_ctr.^2 .* dz_diag, dims=1)) ./ H))
+b_rms = sqrt(mean(vec(sum(b_ctr.^2 .* dz_diag, dims=1)) ./ H))
+println("achieved rms w: ", round(w_rms, digits=6), " m/s; rms b: ", round(b_rms, digits=8), " m/s²")
+
 # figures --------------------------------------------------------------------
-fig = Figure(size=(1000, 800))
+fig = Figure(size=(1000, 1500))
 
 axu = Axis(fig[1,1], title="GM-spectrum u(x,z), LAT=$(LAT)°N, DX=$(DX/1e3) km",
            xlabel="x [km]", ylabel="z [m]")
@@ -246,15 +300,25 @@ clim2 = maximum(abs, v) * 0.8
 hmv = heatmap!(axv, xc/1e3, zc, transpose(v), colormap=Reverse(:RdBu), colorrange=(-clim2, clim2))
 Colorbar(fig[2,2], hmv, label="v [m/s]")
 
+axw = Axis(fig[3,1], title="GM-spectrum w(x,z)", xlabel="x [km]", ylabel="z [m]")
+climw = maximum(abs, w) * 0.8
+hmw = heatmap!(axw, xc/1e3, zfw, transpose(w), colormap=Reverse(:RdBu), colorrange=(-climw, climw))
+Colorbar(fig[3,2], hmw, label="w [m/s]")
+
+axb = Axis(fig[4,1], title="GM-spectrum b'(x,z)", xlabel="x [km]", ylabel="z [m]")
+climb = maximum(abs, b) * 0.8
+hmb = heatmap!(axb, xc/1e3, zfw, transpose(b), colormap=Reverse(:RdBu), colorrange=(-climb, climb))
+Colorbar(fig[4,2], hmb, label="b' [m/s²]")
+
 fig
 if figflag == 1
-    save(string(dirfig, "GM_init_uv_lat", @sprintf("%04.1f", LAT), "_DX", Integer(DX), ".png"), fig)
+    save(string(dirfig, "GM_init_uvwb_lat", @sprintf("%04.1f", LAT), "_DX", Integer(DX), ".png"), fig)
 end
 
 # save fields -----------------------------------------------------------------
 if savefl == 1
-    fnameout = @sprintf("GM_init_uv_lat%04.1f_DX%d.jld2", LAT, Integer(DX))
-    jldsave(string(dirout, fnameout); xc, zc, u, v, LAT, DX, f_cor, N_max, ncomp)
+    fnameout = @sprintf("GM_init_uvwb_lat%04.1f_DX%d.jld2", LAT, Integer(DX))
+    jldsave(string(dirout, fnameout); xc, zc, zfw, u, v, w, b, LAT, DX, f_cor, N_max, ncomp, GM_energy_scale)
     println(fnameout, " saved ........")
 end
 

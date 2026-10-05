@@ -1,5 +1,5 @@
 # build_N2_forcing_Mercator_zonalmean_40W.jl
-# MCB/Claude, USM, 2026-8-10
+# MCB/Claude, USM, 2026-9-26
 #
 # Final N2 forcing profiles for IW_Amz_200m_2000km_bash_cuda.jl, based ONLY
 # on Mercator data (dropping WOCE -- Mercator's open-Atlantic zonal mean
@@ -198,8 +198,12 @@ end
 # ---------------------------------------------------------------------------
 # diagnostic plot: 3 latitude-group subplots, full depth + upper 400 m
 
-groups = [1:5, 6:11, 12:nlat]   # now 15 latitudes incl. 28.8N (PSI critical lat)
-grouptitles = ["0-15°N", "20-40°N", "45-60°N"]
+# 55N/60N dropped from these two diagnostic figures (still fully processed and
+# saved above for every latitude incl. 55/60 -- this only trims what's PLOTTED
+# here), leaving 13 latitudes split 4/5/4 across the 3 panels (15N moved into
+# panel 2).
+groups = [1:4, 5:9, 10:13]
+grouptitles = ["0-10°N", "15-30°N", "35-50°N"]
 
 # per-subplot x-axis ranges matching N2_zonalmean_Atl_offshelf_monthly_3panels(_upper400m).png
 # (plot_N2_zonalmean_Atl_offshelf_monthly.jl let each panel auto-scale to its
@@ -216,10 +220,11 @@ function group_xmax(depth_mid_ref, N2_ref, rng, maxdepth)
     1.05*maximum(filter(!isnan, N2_ref[idx,rng]))
 end
 
-for (ylim, suffix, ttl) in [((-4000,0), "", "full depth"), ((-400,0), "_upper400m", "upper 400 m")]
+# full-depth version: unchanged plain GridLayout figure with a shared title
+for (ylim, suffix, ttl) in [((-4000,0), "", "full depth")]
     fig = Figure(size = (1500, 800))
     for (g,rng) in enumerate(groups)
-        ax = Axis(fig[1,g], xlabel = "N² (s⁻²)", ylabel = "Depth (m)", title = grouptitles[g])
+        ax = Axis(fig[1,g], xlabel = "N² [s⁻²]", ylabel = "Depth [m]", title = grouptitles[g])
         ng = length(rng)
         cols = get(ColorSchemes.viridis, range(0,1,length=ng))
         for (i,k) in enumerate(rng)
@@ -236,3 +241,58 @@ for (ylim, suffix, ttl) in [((-4000,0), "", "full depth"), ((-400,0), "_upper400
     println("saved: ", string(dirfig,"N2_forcing_Mercator_zonalmean_3panels$suffix.png"))    
     #display(fig)
 end
+
+# ---------------------------------------------------------------------------
+# upper-400m version: paper-ready 3-panel figure, restyled to match the
+# comparison figures in IW_analysis_energy_2000km_ppr.jl -- explicit bbox
+# layout (subplot_hor_vertpos), Dsh=0 (panels share their vertical edges, so
+# ticks go inward), no shared figure Label (removed entirely -- the panel
+# titles below carry the group info instead), and the panel letter folded
+# directly into each axis's own title rather than a separate corner box.
+cm_to_pt = 72/2.54
+fig_wN = 18*cm_to_pt
+fig_hN = 12*cm_to_pt          # single row, so Dsv is irrelevant (numpv=1)
+const MARGBN = 42.0           # pt: x tick labels + xlabel
+const MARGTN = 21.0           # pt: panel title (folds in the (a)/(b)/(c) letter)
+posN = subplot_hor_vertpos(3, 1, 0.09, 0.02, MARGBN/fig_hN, MARGTN/fig_hN, 0.0, 0.0)
+bbN(i) = BBox(subplot_bbox(posN[i], fig_wN, fig_hN)...)
+const TICKSIZEN = 4.0
+
+# fixed x-range (0, 0.00052 s⁻²) is identical across all 3 panels (see xlims!
+# below), so with Dsh=0 an outermost tick would sit exactly on the shared
+# column edge -- these ticks are kept well clear of both edges instead
+# (same "inside ticks" convention as the row-1/row-4 forced ticks in
+# IW_energy_flux_CGE_2col_ppr.jl), so no tick from one panel can be mistaken
+# for its neighbour's.
+# Grid (tick marks/gridlines) runs 0:1e-4:5e-4, unchanged across panels.
+# Labels are the bare integer multiple of 1e-4 (0,1,2,3,4[,5]) rather than the
+# full decimal -- the xlabel below carries the "×10⁻⁴" scale instead, so
+# narrow single-digit labels are all that's needed and every tick from 0-4
+# fits with no crowding. Panel (c) also labels the last tick (5, i.e. 0.0005):
+# its curves sit closer to the left edge than (a)/(b)'s, so there's no
+# crowding risk there and its own max is worth reading directly.
+xtickvalsN = collect(0.0:1e-4:5e-4)
+xticklabelsN(g) = [(idx = round(Int, v/1e-4); (idx<=4 || g==3) ? string(idx) : "")
+                    for v in xtickvalsN]
+
+figN = Figure(size = (fig_wN, fig_hN), fontsize = 10)
+letters = ("(a)", "(b)", "(c)")
+for (g,rng) in enumerate(groups)
+    ax = Axis(figN.scene, bbox = bbN(g),
+        xtickalign = 1, ytickalign = 1, xticksize = TICKSIZEN, yticksize = TICKSIZEN,
+        xticks = (xtickvalsN, xticklabelsN(g)),
+        xlabel = "N² [×10⁻⁴ s⁻²]", ylabel = "Depth [m]",
+        ylabelvisible = g==1, yticklabelsvisible = g==1,
+        title = string(letters[g], " ", grouptitles[g]))
+    ng = length(rng)
+    cols = get(ColorSchemes.viridis, range(0,1,length=ng))
+    for (i,k) in enumerate(rng)
+        N2w = k == k0 ? N2w_ref : interp_lookup(zMs[k], NMs[k]).(zfw_ref)
+        lines!(ax, N2w, zfw_ref, color = cols[i], label = string(lat[k],"°N"))
+    end
+    xlims!(ax, [0 0.00052])
+    ylims!(ax, -400, 0)
+    axislegend(ax, position = :rb, framevisible = false, labelsize = 11)
+end
+savefig300(string(dirfig,"N2_forcing_Mercator_zonalmean_3panels_upper400m.png"), figN)
+println("saved: ", string(dirfig,"N2_forcing_Mercator_zonalmean_3panels_upper400m.png"))

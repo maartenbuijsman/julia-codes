@@ -1,4 +1,11 @@
-#= IW_GM_flux_LAT_2000km_bash_cuda.jl
+#= IW_GM_only_test.jl -- GM-ONLY TEST COPY of IW_GM_flux_LAT_2000km_bash_cuda.jl
+Maarten Buijsman, USM DMS, 2026-9-11 (GM-only test run, generated with Claude Code)
+    Quick test of the new w,b-consistent GM initial condition (see that file's
+    header + claudecodes/GM_spectrum_init_2D.jl for the derivation): M2 tidal
+    forcing target is set to 0 (nudge_rate forced to 0 below), coarser DX=4000m
+    for speed, short stop_time=4days with output every 15 min throughout, plus
+    a domain-mean KE/APE printout each progress callback to directly watch the
+    early-time decay/stabilization behavior.
 Maarten Buijsman, USM DMS, 2026-9-2  (nudging generator, generated with Claude Code)
     Same as IW_flux_LAT_2000km_bash_cuda.jl, PLUS a Garrett-Munk spectrum
     initial condition for u,v,w,b (see claudecodes/GM_spectrum_init_2D.jl for
@@ -65,10 +72,7 @@ println("number of threads is ", Threads.nthreads())
 # RUN MODE: "batch" (parse command-line ARGS, via run_batch.sh) or
 # "manual" (edit the parameters below directly, for debugging)
 # -------------------------------------------------------
-runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
-#runmode = "manual"       # 6 ARGS regardless of this flag, so leave this on
-                        # "batch" for real batch runs; only set to "manual"
-                        # when running this file directly (REPL/IDE) to debug
+runmode = "manual"      # GM-only test: always manual, no ARGS needed
 
 # N2 forcing source: "amz1" (original WOCE-based, single fixed profile) or
 # "zonalmean" (Mercator-based, matched to this run's `lat`) -- NOTE: zonalmean
@@ -110,13 +114,18 @@ if runmode == "batch"
 
 elseif runmode == "manual"
 
-    # ---- MANUAL MODE PARAMETERS: edit these directly for debugging ----
-    mainnm    = 9           # 200 m production series
-    runnm     = 99          # scratch slot
-    lat       = 40.0        # debug latitude
-    numM      = [1]         # e.g. [1] or [1,2]
-    target1   = 10_000.0    # mode-1 target (forcing_metric="flux" -> 10 kW/m)
+    # ---- MANUAL MODE PARAMETERS: GM-only test (REDISTRIBUTION method) ----
+    mainnm    = 99          # test series (kept separate from real AMZexpt numbering)
+    runnm     = 50          # base runnm; overridden below if ARGS given
+    lat       = 25.0        # default; overridden below if ARGS given
+    numM      = [1]         # unused: target1=target2=0 disables M2 forcing below
+    target1   = 0.0         # mode-1 target = 0 -> GM-only, no M2 tidal forcing
     target2   = 0.0         # mode-2 target
+    # optional quick override for a by-latitude sweep: julia thisfile.jl <runnm> <lat>
+    if length(ARGS) >= 2
+        runnm = parse(Int, ARGS[1])
+        lat   = parse(Float64, ARGS[2])
+    end
     # ---------------------------------------------------------------
 
 else
@@ -146,29 +155,22 @@ TM2 = (12 + 25.2 / 60) * 3600   # M2 tidal period
 # numM = [1];
 # Usur1, Usur2 = 0.4, 0.0  
 
-#high resolution: 100/200 m
+#GM-only test: coarser grid for speed, same domain/sponge widths as production
 L   = 2_000_000;                   # domain length
-DX  = 200;                         # 11. series 200 m production grid (Nx = 10000)
-#DX  = 100;                        #
-#DX  = 4000;                        # 10. series
-max_Δt = 2minutes  
-Δt     = 15seconds   # nonhyd
+DX  = 4000;                         # 10-series test grid (Nx = 500)
+max_Δt = 5minutes
+Δt     = 30seconds   # nonhyd
 
 println("domain length = ",L/1e3," km")
 
 
-# run duration and output frequency
-#dtoutput   = 15minutes 
+# run duration and output frequency -- short test: 4 days, output every 15 min
+# throughout (want fine time resolution over the whole run to see the
+# early-time decay/stabilization, not just after some "mid_time")
 start_time = 0days
-mid_time   = 10days      # old output regime
-stop_time  = 20days      # old output regime
+stop_time  = 4days
 
-#println("stop_time: ", stop_time, "; lat: ", lat, "; select mode: ", numM)
-
-t_coarse = range(start_time,  mid_time, step=60minutes)  # 0 → day 10, every 60 min
-t_fine   = range(mid_time,   stop_time, step=5minutes)   # day 10 → 20, every 5 min
-
-output_times = vcat(collect(t_coarse), collect(t_fine)[2:end])  # avoid duplicate at day 4
+output_times = collect(range(start_time, stop_time, step=15minutes))
 
 ###########------ LOAD N and grid params ------#############
 
@@ -351,19 +353,19 @@ dzf_gm_all = abs.(diff(zfw_gm)); H_gm = sum(dzf_gm_all)   # for re-deriving the
                                                             # solver's own Ueig norm_factor
 
 # REDISTRIBUTION method (v2 of the domain-length-cutoff fix, replacing the
-# earlier k-clamp -- see chat / series 14 vs 15). Dropping Lw>L components
-# loses disproportionately more energy at low latitude (near-inertial
-# wavelengths ~Ce/f grow as f shrinks). The k-clamp fix (representing them at
-# k=2π/L) restored the total energy but, at low latitude where MANY
-# components hit this, piled a lot of energy onto one single domain-filling
-# wavenumber, giving u,v an artificial dominant large-scale coherent
-# structure and appearing to cause anomalously slow energy decay at the
-# equator (series 14). Here instead: DROP over-long components as originally,
-# but track their total missing energy, then boost EVERY surviving
-# component's energy by the same proportional factor so total target energy
-# still comes out latitude-invariant, without introducing any new dominant
-# wavenumber -- keeps the natural multi-wavelength shape of the resolvable
-# spectrum, just uniformly scaled up.
+# k-clamp): dropping Lw>L components loses disproportionately more energy at
+# low latitude (near-inertial wavelengths ~Ce/f grow as f shrinks). The
+# k-clamp fix (representing them at k=2π/L) restored the total energy but, at
+# low latitude where MANY components hit this, piled a lot of energy onto one
+# single domain-filling wavenumber, giving u,v an artificial dominant
+# large-scale coherent structure (visibly different field character, and
+# possibly responsible for anomalously slow energy decay at the equator in
+# series 14 -- see chat). Here instead: DROP over-long components as
+# originally, but track their total missing energy, then boost EVERY
+# surviving component's energy by the same proportional factor so total
+# target energy still comes out latitude-invariant, without introducing any
+# new dominant wavenumber -- keeps the natural multi-wavelength shape of the
+# resolvable spectrum, just uniformly scaled up.
 K_missing_gm = 0.0
 K_present_gm = 0.0
 
@@ -395,9 +397,8 @@ end
 ncomp_gm = length(comp_k_gm)
 boost_gm = 1.0 + K_missing_gm / K_present_gm
 comp_A_gm = sqrt.(2.0 .* comp_Kdomg_gm .* boost_gm)
-println("GM init: K_missing/K_present=", round(K_missing_gm/K_present_gm, digits=4),
-        " -> boost=", round(boost_gm, digits=4))
-println("GM init: ", ncomp_gm, " (ω,mode) components")
+println("GM init: ", ncomp_gm, " (ω,mode) components; K_missing/K_present=",
+        round(K_missing_gm/K_present_gm, digits=4), " -> boost=", round(boost_gm, digits=4))
 
 phase_gm   = 2π .* rand(ncomp_gm)
 dirsign_gm = rand([-1.0, 1.0], ncomp_gm)
@@ -521,7 +522,10 @@ end
 
 # --- nudging (relaxation) parameters -----------------------------------------
 nudge_tau  = 300.0                 # relaxation timescale [s] inside the source patch
-nudge_rate = 1.0 / nudge_tau       # [1/s]
+nudge_rate = (target1 <= 0 && target2 <= 0) ? 0.0 : 1.0 / nudge_tau   # [1/s]
+                                    # GM-only test: no M2 target -> disable the
+                                    # u-nudge entirely (else it would relax u
+                                    # toward 0 inside the small Gaussian patch)
 @printf("nudging: tau=%.0f s (rate=%.2e 1/s); est. amplitude deficit tau*Cg/width=%.3f\n",
         nudge_tau, nudge_rate, nudge_tau * Cgn[1] / gausW_width)
 
@@ -734,6 +738,24 @@ progress(sim) = @printf(
     sim.Δt, AdvectiveCFL(sim.Δt)(sim.model), DiffusiveCFL(sim.Δt)(sim.model))
 
 simulation.callbacks[:progress] = Callback(progress, IterationInterval(100))
+
+# GM-only test diagnostic: domain-mean KE/APE vs time, to directly watch the
+# early-time decay/stabilization this test is checking for.
+N2c_diag = reshape(0.5 .* (N2w[1:end-1] .+ N2w[2:end]), 1, 1, Nz)   # cell centers
+function ke_ape_diag(sim)
+    m  = sim.model
+    uraw = Array(interior(m.velocities.u))   # x-faces: (Nx+1, 1, Nz)
+    vraw = Array(interior(m.velocities.v))   # cell centers already: (Nx, 1, Nz)
+    wraw = Array(interior(m.velocities.w))   # z-faces: (Nx, 1, Nz+1)
+    bp   = Array(interior(m.tracers.b))      # cell centers already: (Nx, 1, Nz)
+    uc = 0.5 .* (uraw[1:end-1, :, :] .+ uraw[2:end, :, :])   # interp to x-centers
+    wc = 0.5 .* (wraw[:, :, 1:end-1] .+ wraw[:, :, 2:end])   # interp to z-centers
+    KE  = 0.5*mean(uc.^2 .+ vraw.^2 .+ wc.^2)
+    APE = 0.5*mean(bp.^2 ./ N2c_diag)
+    @printf("   >>> t=%s  mean KE=%.6e m2/s2  mean APE=%.6e m2/s2  KE+APE=%.6e m2/s2\n",
+            prettytime(sim), KE, APE, KE+APE)
+end
+simulation.callbacks[:ke_ape_diag] = Callback(ke_ape_diag, IterationInterval(100))
 
 fields = Dict("u"    => model.velocities.u,
               "v"    => model.velocities.v,

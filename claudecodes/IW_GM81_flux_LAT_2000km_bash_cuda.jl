@@ -1,4 +1,23 @@
-#= IW_GM_flux_LAT_2000km_bash_cuda.jl
+#= IW_GM81_flux_LAT_2000km_bash_cuda.jl
+Maarten Buijsman, USM DMS, 2026-9-30  (nudging generator, generated with Claude Code)
+
+SERIES 16 version of oceananigans_IW/IW_GM_flux_LAT_2000km_bash_cuda.jl
+(series 13-15). Changes, everything else identical:
+  - GM initial condition = GM81 (Munk 1981) with the corrected amplitude
+    A² = 2 b² N0 <N> E0 B(ω) H(j) Δω, built by claudecodes/gm81_ic.jl.
+    Series 13-15 used A² = 2 b² N0² (1 + f²/ω²) E0 B H Δω, i.e. ~3x GM81.
+  - modes and v polarization use the model's f (v = 0 at the equator); the
+    2.5-deg f floor is kept only in B(ω).
+  - the initial field is rescaled by ONE factor so that its depth-integrated
+    KE + APE over x = 100-1800 km is exactly GMscale x E_GM81
+    (E_GM81 = rho0 b² N0 E0 ∫N dz). GMscale > 1 is chosen so that the
+    day 10-20 mean comes out at 1x GM81 (calibrated from series 15 decay).
+  - two extra command-line arguments: GMscale and outfine (1 = production
+    output, 0 = hourly-only output for the calibration runs). Metadata of
+    the IC is saved to forcingfiles/GMIC_AMZexpt<mainnm>.<runnm>.jld2.
+Original header of the series 13-15 script follows.
+
+IW_GM_flux_LAT_2000km_bash_cuda.jl
 Maarten Buijsman, USM DMS, 2026-9-2  (nudging generator, generated with Claude Code)
     Same as IW_flux_LAT_2000km_bash_cuda.jl, PLUS a Garrett-Munk spectrum
     initial condition for u,v,w,b (see claudecodes/GM_spectrum_init_2D.jl for
@@ -27,7 +46,7 @@ Interpolation (linear_interpolation, cumtrapz) pre-computed on CPU and stored
 as CuArray lookup tables  GPU kernels can only index arrays, not call CPU functions.
 
 Run modes (set `runmode` below):
-    "batch"  : parameters come from 6 command-line ARGS, as supplied by
+    "batch"  : parameters come from 8 command-line ARGS, as supplied by
                run_batch.sh from a params_XX.jl file.
     "manual" : ARGS are ignored; parameters are hardcoded directly in the
                "MANUAL MODE PARAMETERS" block below. Use this for
@@ -35,10 +54,10 @@ Run modes (set `runmode` below):
                are no command-line ARGS to parse.
 
 Command-line usage (batch mode):
-    julia IW_Amz_bash_cuda.jl <mainnm> <runnm> <lat> <numM> <Usur1> <Usur2>
+    julia IW_GM81_flux_LAT_2000km_bash_cuda.jl <mainnm> <runnm> <lat> <numM> <Usur1> <Usur2> <GMscale> <outfine>
 
 Example:
-    julia IW_Amz_bash_cuda.jl 4 3 0.0 1 0.4 0.0
+    julia IW_GM81_flux_LAT_2000km_bash_cuda.jl 16 92 5.0 1 0.0 0.0 1.92 0
 
 N2 forcing source (set `N2source` below):
     "amz1"           : original WOCE-based N2_amz1.jld2 (single fixed profile).
@@ -65,8 +84,8 @@ println("number of threads is ", Threads.nthreads())
 # RUN MODE: "batch" (parse command-line ARGS, via run_batch.sh) or
 # "manual" (edit the parameters below directly, for debugging)
 # -------------------------------------------------------
-runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch.sh always passes
-#runmode = "manual"       # 6 ARGS regardless of this flag, so leave this on
+runmode = "batch"      # "batch" or "manual" -- NOTE: run_batch_16.sh always passes
+#runmode = "manual"       # 8 ARGS regardless of this flag, so leave this on
                         # "batch" for real batch runs; only set to "manual"
                         # when running this file directly (REPL/IDE) to debug
 
@@ -91,14 +110,16 @@ forcing_metric = "flux"
 
 if runmode == "batch"
 
-    if length(ARGS) != 6
-        error("Usage: julia <script> <mainnm> <runnm> <lat> <numM> <target1> <target2>\n" *
+    if length(ARGS) != 8
+        error("Usage: julia <script> <mainnm> <runnm> <lat> <numM> <target1> <target2> <GMscale> <outfine>\n" *
               "  mainnm  : experiment number (integer)\n" *
               "  runnm   : run number       (integer)\n" *
               "  lat     : latitude         (float)\n" *
               "  numM    : mode selection, e.g. 1 or 1,2\n" *
               "  target1 : mode-1 forcing target (units per forcing_metric)\n" *
-              "  target2 : mode-2 forcing target")
+              "  target2 : mode-2 forcing target\n" *
+              "  GMscale : initial GM energy E(0) as a multiple of E_GM81 (float)\n" *
+              "  outfine : 1 = 5-min output days 10-20 (production); 0 = hourly only (calibration)")
     end
 
     mainnm = parse(Int,     ARGS[1])
@@ -107,6 +128,8 @@ if runmode == "batch"
     numM   = parse.(Int,    split(ARGS[4], ","))   # e.g. "1" → [1]; "1,2" → [1,2]
     target1 = parse(Float64, ARGS[5])   # mode-1 target (units per forcing_metric)
     target2 = parse(Float64, ARGS[6])   # mode-2 target
+    GMscale = parse(Float64, ARGS[7])   # E(0) / E_GM81
+    outfine = parse(Int,     ARGS[8])   # 1 = production output, 0 = hourly only
 
 elseif runmode == "manual"
 
@@ -117,13 +140,15 @@ elseif runmode == "manual"
     numM      = [1]         # e.g. [1] or [1,2]
     target1   = 10_000.0    # mode-1 target (forcing_metric="flux" -> 10 kW/m)
     target2   = 0.0         # mode-2 target
+    GMscale   = 2.0         # E(0) / E_GM81
+    outfine   = 0           # hourly output only
     # ---------------------------------------------------------------
 
 else
     error("runmode must be \"batch\" or \"manual\", got: ", runmode)
 end
 
-println("runmode = $runmode, mainnm = $mainnm, runnm = $runnm, lat = $lat, numM = $numM, metric = $forcing_metric, target1 = $target1, target2 = $target2")
+println("runmode = $runmode, mainnm = $mainnm, runnm = $runnm, lat = $lat, numM = $numM, metric = $forcing_metric, target1 = $target1, target2 = $target2, GMscale = $GMscale, outfine = $outfine")
 
 # -------------------------------------------------------
 
@@ -168,7 +193,13 @@ stop_time  = 20days      # old output regime
 t_coarse = range(start_time,  mid_time, step=60minutes)  # 0 → day 10, every 60 min
 t_fine   = range(mid_time,   stop_time, step=5minutes)   # day 10 → 20, every 5 min
 
-output_times = vcat(collect(t_coarse), collect(t_fine)[2:end])  # avoid duplicate at day 4
+if outfine == 1
+    output_times = vcat(collect(t_coarse), collect(t_fine)[2:end])  # avoid duplicate at day 4
+else
+    # calibration runs: hourly for all 20 days (~13 GB instead of ~82 GB);
+    # enough for the energy level vs time, not for the tidal-band diagnostics
+    output_times = collect(range(start_time, stop_time, step=60minutes))
+end
 
 ###########------ LOAD N and grid params ------#############
 
@@ -265,205 +296,34 @@ println("fraction gauss_width/L1 is ", @sprintf("%5.3f", gausW_width / Ln[1]))
 
 zcw = zfw[1:end-1] / 2 + zfw[2:end] / 2;
 
-###########------ GM SPECTRUM INITIAL CONDITION ------#############
-#= Builds u_gm(x,y,z), v_gm(x,y,z), w_gm(x,y,z), b_gm(x,y,z) for
-set!(model, u=u_gm, v=v_gm, w=w_gm, b=b_gm) below.
-Reuses this run's own zfw, N2w, pm.f, L, DX, Nx, nonhyd, zcw (already loaded
-above for the M2 forcing target) rather than reloading anything. Only the
-GM-specific pieces (multi-frequency eigensolver loop, Munk weighting, random
-synthesis) are new. All GM-only helper functions/constants use a _gm suffix
-so they cannot collide with or overwrite the sponge functions (mask2nd,
-left_mask, right_mask, heaviside) defined later in this file for the actual
-forcing -- ported from claudecodes/GM_spectrum_init_2D.jl; see that script's
-header and the chat discussion around it for the full derivation/assumptions.
-This runs once on the CPU at setup time (set! functions are evaluated once
-per grid point when building the model, not inside a GPU kernel), so plain
-CPU Julia + Interpolations.linear_interpolation is fine here. =#
+###########------ GM81 SPECTRUM INITIAL CONDITION ------#############
+#= Builds u_gm(x,z), v_gm(x,z), w_gm(x,z), b_gm(x,z) for set!(model, ...) below
+with the shared GM81 builder claudecodes/gm81_ic.jl (see its header for the
+equations; the same file is used by the CPU check IW_GM81_IC_check.jl).
+Reuses this run's own zfw, N2w, pm.f, L, DX, nonhyd (already loaded above for
+the M2 forcing target). Series 13-15 built the field inline here with
+A² = 2 b² N0² (1 + f²/ω²) E0 B H Δω (about 3x GM81) and the floored f in the
+modes and polarization; gm81_ic.jl uses A² = 2 b² N0 <N> E0 B H Δω and the
+model's f. The functions are evaluated once per grid point on the CPU at
+setup (set! is not a GPU kernel), so plain CPU Julia + Interpolations is
+fine; build_gm81_ic is a function, so its closures capture locals and are
+type-stable (the let-block PERFORMANCE fix of series 15 is built in). =#
 
-using Random
-using Interpolations   # linear_interpolation, Line() -- the file's own copy of this
-                        # `using` (further down, for the M2-forcing setup) comes AFTER
-                        # this GM block runs, so it's needed here too; repeating a
-                        # `using` is harmless in Julia.
+include("/home/mbui/Documents/julia-codes/claudecodes/gm81_ic.jl")
 
-# PERFORMANCE: the whole block is wrapped in a `let` so u_gm/v_gm/w_gm/b_gm
-# close over LOCAL (type-stable) variables instead of top-level globals.
-# Top-level global closures are a well-known Julia slow-path (each access is
-# a dynamic, boxed lookup); with ncomp_gm ~O(1000s) at production DX and a
-# Nx*Nz~10^6-point set! evaluation per field, this was the difference between
-# ~5 minutes and multiple HOURS just to build the initial condition, before
-# the GPU time-stepping even starts. Confirmed by direct benchmark: the
-# global-closure pattern measured ~10x slower per grid point.
-u_gm, v_gm, w_gm, b_gm = let pm=pm, N2w=N2w, zfw=zfw, zcw=zcw, L=L, DX=DX,
-                              Sp_Region_left=Sp_Region_left, Sp_Region_right=Sp_Region_right,
-                              nonhyd=nonhyd
-
-gm_seed          = 1     # RNG seed for phase/direction, reproducibility
-gm_Nfreq         = 60    # log-spaced frequency bins from f to N_max
+gm_seed          = 1     # RNG seed for phase/direction, reproducibility (same for GM-only and GM+tide)
+gm_Nfreq         = 60    # log-spaced frequency bins from f_B to N_max
 gm_minwavelenfac = 6     # resolution cutoff: keep only λ >= 6*DX
-gm_LAT_f_floor   = 2.5   # floor f at this latitude's Coriolis value (GM76's
-                          # B(ω) collapses to zero as f->0; N(z) itself is
-                          # unaffected, only f used for wave dynamics)
+gm_LAT_f_floor   = 2.5   # f floor for B(ω) only (GM81's B(ω) -> 0 as f -> 0)
 
-# ENERGY-LEVEL KNOB: multiplies the GM76 reference energy K(ω,j) (and hence
-# the target mean KE/APE). 1.0 = standard GM76 ("1x GM"); e.g. 2.0 = 2x GM,
-# 0.5 = half GM. Amplitude A ∝ sqrt(K), so this scales rms velocity by
-# sqrt(GM_energy_scale).
-GM_energy_scale = 1.0
-
-Egm_gm  = 6.3e-5      # GM76 energy parameter -- (no `const`: local to the
-js_gm   = 3.0         # mode-number scale j*     enclosing `let`, so it's
-N0_gm   = 5.24e-3     # reference buoyancy freq  already type-stable/fast
-bgm_gm  = 1300.0      # stratification e-folding scale [m]  without `const`,
-jsum_gm = (π*js_gm/tanh(π*js_gm) - 1)/(2*js_gm^2)   # which isn't legal here anyway)
-
-Bomg_gm(om, fc)      = 2/π * fc/om / sqrt(om^2 - fc^2)
-Hmode_gm(j)          = 1.0 / (j^2 + js_gm^2) / jsum_gm
-Eomgj_gm(om, j, fc)  = Bomg_gm(om, fc) * Hmode_gm(j) * Egm_gm
-Komgj_gm(om, j, fc)  = bgm_gm^2 * N0_gm^2 * (om^2 + fc^2) / om^2 * Eomgj_gm(om, j, fc)
-
-f_gm_true  = abs(pm.f)
-f_gm_floor = abs(FPlane(latitude=gm_LAT_f_floor).f)
-f_gm       = max(f_gm_true, f_gm_floor)
-if f_gm > f_gm_true
-    println("GM init: f floored from ", f_gm_true, " to ", f_gm, " rad/s (LAT_f_floor=", gm_LAT_f_floor, ")")
-end
-N_max_gm = sqrt(maximum(N2w))
-println("GM init: LAT=", lat, "; f=", f_gm, " rad/s; N_max=", N_max_gm, " rad/s")
-
-Random.seed!(gm_seed)
-eps_f_gm = 1.001; eps_N_gm = 0.999
-omg_edges_gm = exp.(range(log(f_gm*eps_f_gm), log(N_max_gm*eps_N_gm), length=gm_Nfreq+1))
-omg_mid_gm   = sqrt.(omg_edges_gm[1:end-1] .* omg_edges_gm[2:end])
-domg_gm      = diff(omg_edges_gm)
-
-comp_k_gm    = Float64[]
-comp_Kdomg_gm = Float64[]   # K(ω,j)*Δω per surviving component; -> A after boost
-comp_om_gm   = Float64[]
-comp_Ueig_gm = Vector{Vector{Float64}}()
-comp_Weig_gm = Vector{Vector{Float64}}()   # w/b eigenfunction, RESCALED to match
-                                             # Ueig2's depth-mean-square=1 normalization
-                                             # (raw Weig from the solver is unnormalized --
-                                             # see sturm_liouville_noneqDZ_norm.jl docstring)
-
-zfw_gm = Float64.(zfw); N2w_gm = Float64.(N2w)
-dzf_gm_all = abs.(diff(zfw_gm)); H_gm = sum(dzf_gm_all)   # for re-deriving the
-                                                            # solver's own Ueig norm_factor
-
-# REDISTRIBUTION method (v2 of the domain-length-cutoff fix, replacing the
-# earlier k-clamp -- see chat / series 14 vs 15). Dropping Lw>L components
-# loses disproportionately more energy at low latitude (near-inertial
-# wavelengths ~Ce/f grow as f shrinks). The k-clamp fix (representing them at
-# k=2π/L) restored the total energy but, at low latitude where MANY
-# components hit this, piled a lot of energy onto one single domain-filling
-# wavenumber, giving u,v an artificial dominant large-scale coherent
-# structure and appearing to cause anomalously slow energy decay at the
-# equator (series 14). Here instead: DROP over-long components as originally,
-# but track their total missing energy, then boost EVERY surviving
-# component's energy by the same proportional factor so total target energy
-# still comes out latitude-invariant, without introducing any new dominant
-# wavenumber -- keeps the natural multi-wavelength shape of the resolvable
-# spectrum, just uniformly scaled up.
-K_missing_gm = 0.0
-K_present_gm = 0.0
-
-for n in 1:gm_Nfreq
-    om = omg_mid_gm[n]
-    k_gm_n, Lw_gm_n, _, _, _, Weig_gm_n, Ueig_gm_n, Ueig2_gm_n =
-        sturm_liouville_noneqDZ_norm(zfw_gm, N2w_gm, f_gm, om, nonhyd)
-    for j in 1:length(k_gm_n)
-        Lw_gm_n[j] < gm_minwavelenfac*DX && continue   # unresolved on the grid -- still dropped, unchanged
-        K = Komgj_gm(om, j, f_gm) * GM_energy_scale
-        if Lw_gm_n[j] > L
-            K_missing_gm += K * domg_gm[n]   # too long for this domain -- redistribute, don't synthesize directly
-            continue
-        end
-        K_present_gm += K * domg_gm[n]
-        # re-derive the solver's own Ueig normalization factor (Ueig2 = Ueig/norm_factor,
-        # see sturm_liouville_noneqDZ_norm.jl lines 96-98) so Weig can be put on the SAME
-        # amplitude scale as Ueig2 before use
-        norm_factor = sqrt(sum(Ueig_gm_n[:, j].^2 .* dzf_gm_all) / H_gm)
-        Weig2_gm_j = norm_factor == 0 ? zero(Weig_gm_n[:, j]) : Weig_gm_n[:, j] ./ norm_factor
-        push!(comp_k_gm, k_gm_n[j])
-        push!(comp_Kdomg_gm, K * domg_gm[n])
-        push!(comp_om_gm, om)
-        push!(comp_Ueig_gm, Ueig2_gm_n[:, j])
-        push!(comp_Weig_gm, Weig2_gm_j)
-    end
-end
-
-ncomp_gm = length(comp_k_gm)
-boost_gm = 1.0 + K_missing_gm / K_present_gm
-comp_A_gm = sqrt.(2.0 .* comp_Kdomg_gm .* boost_gm)
-println("GM init: K_missing/K_present=", round(K_missing_gm/K_present_gm, digits=4),
-        " -> boost=", round(boost_gm, digits=4))
-println("GM init: ", ncomp_gm, " (ω,mode) components")
-
-phase_gm   = 2π .* rand(ncomp_gm)
-dirsign_gm = rand([-1.0, 1.0], ncomp_gm)
-
-# per-component z-interpolants (built once; cheap, ncomp_gm ~ O(100-1000))
-# Ueig2 lives on cell centers (zcw); Weig2 and N2w live on cell faces (zfw).
-Ueig_itp_gm = [linear_interpolation(zcw, comp_Ueig_gm[i], extrapolation_bc=Line()) for i in 1:ncomp_gm]
-Weig_itp_gm = [linear_interpolation(zfw_gm, comp_Weig_gm[i], extrapolation_bc=Line()) for i in 1:ncomp_gm]
-N2_itp_gm   = linear_interpolation(zfw_gm, N2w_gm, extrapolation_bc=Line())
-
-# sponge-zone taper: 1 in the interior, ramps to 0 exactly at x=0 and x=L over
-# the SAME widths as the production sponge (Sp_Region_left/right, already
-# defined below in this file -- referenced here, not redefined)
-mask2nd_gm(X)     = X > 0 ? X^2 : 0.0
-left_mask_gm(x)   = mask2nd_gm((Sp_Region_left - x) / Sp_Region_left)
-right_mask_gm(x)  = mask2nd_gm((x - L + Sp_Region_right) / Sp_Region_right)
-taper_gm(x)       = 1.0 - left_mask_gm(x) - right_mask_gm(x)
-
-# NOTE: this grid is Flat in y, so Oceananigans' set!/FunctionField machinery
-# calls initial-condition functions with just (x,z) here, not (x,y,z) -- found
-# via a MethodError on the first attempt (u_gm(::Float64,::Float64)).
-function u_gm(x, z)
-    s = 0.0
-    @inbounds for i in 1:ncomp_gm
-        s += comp_A_gm[i] * Ueig_itp_gm[i](z) * cos(dirsign_gm[i]*comp_k_gm[i]*x + phase_gm[i])
-    end
-    return s * taper_gm(x)
-end
-
-function v_gm(x, z)
-    s = 0.0
-    @inbounds for i in 1:ncomp_gm
-        fac = f_gm / comp_om_gm[i]
-        s += comp_A_gm[i] * fac * Ueig_itp_gm[i](z) * sin(dirsign_gm[i]*comp_k_gm[i]*x + phase_gm[i])
-    end
-    return s * taper_gm(x)
-end
-
-# w, b (buoyancy tracer PERTURBATION -- consistent with the BackgroundField B
-# below carrying the mean stratification) from the same eigenmodes, so the
-# initial condition is a dynamically-balanced wave from t=0 instead of just
-# u,v alone. From continuity (∂u/∂x+∂w/∂z=0, using dWeig2/dz=k*Ueig2 per the
-# eigensolver's own convention) and ζ=∫w dt, b'=-N²ζ for linear internal
-# waves:
-#   w  = A·s·W(z)·sin(θ)                  (s = dirsign; continuity flips sign w/ direction)
-#   b' = -(A·s·N²(z)/ω)·W(z)·cos(θ)       (in phase with u, quadrature with w)
-# where θ = s*k*x + phase, W = Weig2 (same normalization as Ueig2).
-function w_gm(x, z)
-    s = 0.0
-    @inbounds for i in 1:ncomp_gm
-        s += comp_A_gm[i] * dirsign_gm[i] * Weig_itp_gm[i](z) * sin(dirsign_gm[i]*comp_k_gm[i]*x + phase_gm[i])
-    end
-    return s * taper_gm(x)
-end
-
-function b_gm(x, z)
-    s = 0.0
-    N2z = N2_itp_gm(z)
-    @inbounds for i in 1:ncomp_gm
-        s += -(comp_A_gm[i] * dirsign_gm[i] / comp_om_gm[i]) * N2z * Weig_itp_gm[i](z) * cos(dirsign_gm[i]*comp_k_gm[i]*x + phase_gm[i])
-    end
-    return s * taper_gm(x)
-end
-
-(u_gm, v_gm, w_gm, b_gm)
-end # let (see PERFORMANCE note above)
+gmic = build_gm81_ic(zfw, N2w, pm.f, L, DX, Sp_Region_left, Sp_Region_right;
+                     nonhyd = nonhyd, seed = gm_seed, Nfreq = gm_Nfreq,
+                     minwavelenfac = gm_minwavelenfac, LAT_f_floor = gm_LAT_f_floor, rho0 = rho0)
+u_gm, v_gm, w_gm, b_gm = gmic.u, gmic.v, gmic.w, gmic.b
+@printf("GM81 init: LAT=%.1f; f_model=%.3e, f_B=%.3e rad/s; <N>=%.3e rad/s; %d (ω,mode) components; dropped (λ>L) energy fraction %.3f\n",
+        lat, pm.f, gmic.f_B, gmic.Nmean, gmic.ncomp, gmic.Emiss_frac)
+@printf("GM81 init: E_GM81 = %.2f kJ/m2; expected E of unit field = %.3f x E_GM81; target s = %.2f x E_GM81\n",
+        gmic.EGM81/1e3, gmic.Eexp/gmic.EGM81, GMscale)
 
 #= plot Ueig
 fig = Figure()
@@ -719,10 +579,39 @@ model = NonhydrostaticModel(grid;
 
 println(model)
 
-###########------ GM SPECTRUM INITIAL CONDITION (apply) ------#############
-println("setting GM-spectrum initial condition for u,v,w,b ...")
+###########------ GM81 INITIAL CONDITION (apply + normalize) ------#############
+# 1) set the unit-normalized GM81 field; 2) measure its depth-integrated
+# KE + APE over x = 100-1800 km on the actual model grid (after set!'s
+# incompressibility projection), with the same definition as the analysis
+# (claudecodes/IW_GM15_decay_vs_GM76.jl); 3) rescale u, v, w, b by ONE factor
+# alpha so the run starts at exactly GMscale x E_GM81. A uniform factor keeps
+# the field divergence-free and polarization-consistent; it also restores the
+# energy of the dropped (λ < 6DX or λ > L) components, like the old
+# proportional "redistribution" boost.
+println("setting GM81 initial condition for u,v,w,b ...")
 set!(model, u=u_gm, v=v_gm, w=w_gm, b=b_gm)
-println("... GM initial condition set.")
+
+dz_ic  = abs.(diff(zfw))                                     # same vertical order as the model (bottom -> top)
+N2c_ic = (N2w[1:end-1] .+ N2w[2:end]) ./ 2
+x_ic   = collect(range(DX/2, L - DX/2, length = Nx))         # cell centres
+Ix_ic  = findall(100e3 .<= x_ic .<= 1800e3)
+ic_arrays() = (Array(interior(model.velocities.u)), Array(interior(model.velocities.v)),
+               Array(interior(model.velocities.w)), Array(interior(model.tracers.b)))
+gm_energy(uu, vv, ww, bb) = gm81_energy(dropdims(uu, dims=2), dropdims(vv, dims=2), dropdims(ww, dims=2),
+                                        dropdims(bb, dims=2), dz_ic, N2c_ic, Ix_ic; rho0 = rho0)
+
+u0, v0, w0, b0 = ic_arrays()
+E_raw, KE_raw, APE_raw = gm_energy(u0, v0, w0, b0)
+alpha_gm = sqrt(GMscale * gmic.EGM81 / E_raw)
+set!(model, u = alpha_gm .* u0, v = alpha_gm .* v0, w = alpha_gm .* w0, b = alpha_gm .* b0)
+E_ic, KE_ic, APE_ic = gm_energy(ic_arrays()...)
+@printf("GM81 init: unit field E = %.2f kJ/m2 (%.3f x E_GM81, KE/APE = %.2f) -> alpha = %.4f -> E(0) = %.2f kJ/m2 = %.3f x E_GM81\n",
+        E_raw/1e3, E_raw/gmic.EGM81, KE_raw/APE_raw, alpha_gm, E_ic/1e3, E_ic/gmic.EGM81)
+jldsave(string(dirin, @sprintf("GMIC_AMZexpt%02i.%02i.jld2", mainnm, runnm));
+        lat, GMscale, EGM81 = gmic.EGM81, E_raw, alpha = alpha_gm, E_ic, KE_ic, APE_ic,
+        ncomp = gmic.ncomp, Emiss_frac = gmic.Emiss_frac, f_B = gmic.f_B, Nmean = gmic.Nmean,
+        seed = gm_seed, Nfreq = gm_Nfreq, minwavelenfac = gm_minwavelenfac)
+println("... GM81 initial condition set.")
 
 ###########------ SIMULATION ------#############
 

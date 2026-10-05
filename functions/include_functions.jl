@@ -1,8 +1,8 @@
 #= include_functions.jl
-Maarten Buijsman, USM, 2026-8-29
+Maarten Buijsman, USM, 2026-9-9
 This file includes all function files.
 pathname is defined in the main file
-NOTE: instead, this file path can also be included 
+NOTE: instead, this file path can also be included
 in ~/.julia/config/startup.jl
 =#
 
@@ -18,6 +18,9 @@ include(string(pathname,"fft_spectra_vectorized.jl"));        # tested in using_
 include(string(pathname,"gaussfilt.jl"));                     # 1-D Gaussian smoothing of vectors
 include(string(pathname,"sturm_liouville_noneqDZ_norm.jl"));  # tested in testing_sturmL.jl
 include(string(pathname,"komega_spectrum.jl"));                # 2D space-time FFT k-omega power spectrum
+include(string(pathname,"subplot_hor_vertpos.jl"));            # explicit MATLAB-style bbox subplot positions
+include(string(pathname,"text_fignum.jl"));                    # MATLAB-style (a)/(b)/... panel-corner labels
+include(string(pathname,"savefig_dpi.jl"));                    # savefig300: PNG saved AND tagged at a true 300 dpi
 
 # other
 include(string(pathname,"coriolis.jl"));  # tested in testing_sturmL.jl

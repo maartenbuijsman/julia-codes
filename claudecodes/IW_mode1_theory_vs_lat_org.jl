@@ -174,5 +174,5 @@ axislegend(ax_F,  position=(0.02, 0.62), labelsize=9, framevisible=false)   # in
 axislegend(ax_KE, position=:lt, labelsize=9, framevisible=false)
 
 display(figE)
-save(string(dirfig, "mode1_theory_vs_lat_mainnm", mainnm, ".png"), figE; px_per_unit=300/72)
+savefig300(string(dirfig, "mode1_theory_vs_lat_mainnm", mainnm, ".png"), figE)
 println("saved mode1_theory_vs_lat_mainnm", mainnm, ".png")

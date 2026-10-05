@@ -10,7 +10,7 @@
 cd /home/mbui/Documents/julia-codes/oceananigans_IW
 LOG=/home/mbui/ModelOutput/diagout/diag_12_13_run.log
 
-echo "=== [3/4] mainnm=13 energetics RETRY started: $(date) ===" >> "$LOG"
+echo "=== [3/4] mainnm=13 energetics RETRY2 (runs 32-39 only, 27-31 already done) started: $(date) ===" >> "$LOG"
 julia --startup-file=no --threads=auto IW_total_energetics_tile.jl >> "$LOG" 2>&1
 echo "=== [3/4] mainnm=13 energetics finished: $(date) ===" >> "$LOG"
 

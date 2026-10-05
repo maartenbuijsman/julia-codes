@@ -1,5 +1,5 @@
 #= IW_analysis_coarsegr.jl
-Maarten Buijsman, USM DMS, 2026-8-25
+Maarten Buijsman, USM DMS, 2026-9-6
 Load coarse graining results from various sims. and make figures
 =#
 
@@ -50,12 +50,19 @@ const grav=9.81;
 # last, collect(40:52), ever took effect) -- kept as commented alternatives.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 10
-runnms  = collect(1:13) # varying  N2 MERCATOR        F=12.5kW/m
+#mainnm  = 10
+#runnms  = collect(1:13) # varying  N2 MERCATOR        F=12.5kW/m
 #runnms  = collect(27:39) # varying  N2 MERCATOR       F=25kW/m
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N  F=25kW/m
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N   F=25kW/m
 #runnms  = collect(66:78) # constant N2 MERCATOR        F=50kW/m
+
+# 200m, GM-spectrum-initialized (mainnm=13) -- studying the effect of GM on
+# the cross-scale transfers: GM-only/no-tide (Flux=0) vs GM+D2-tide (F=25kW/m)
+# vs D2-tide-only/no-GM (mainnm=11) -- same lat/flux as 13.27-39
+mainnm  = 13
+runnms  = collect(1:13)   # GM only, no tide, Flux=0 (params_13_noforce.jl)
+#runnms  = collect(27:39) # D2 tide only, no GM, varying N2 MERCATOR, F=25kW/m [mainnm=11]
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -123,7 +130,12 @@ CGE = zeros(length(runnms), length(xc))
 CGEsum = copy(CGE)
 Πxztot = nothing
 dx = xc[2]-xc[1]
-Lsmooth = 1600  # Gaussian σ [m] Lsmooth = 400 ≈ 2 grid cells; kills 2Δx grid noise, keeps ≳1 km structure
+Lsmooth = 1600  # Gaussian standard deviation σ [m] (gaussfilt's L argument, fwhm=false default)
+                # -- 8 grid cells on the 200m grid, truncated at ±4σ=6.4km. Only applied
+                # below when dx<500 (200m-grid runs); 4km-grid runs are never smoothed.
+                # gaussfilt's edge renormalization preserves the domain mean exactly
+                # (verified directly: real CG data and a synthetic ramp both matched to
+                # floating-point roundoff, ~1e-11 relative), it only redistributes energy locally.
 
 for i=1:length(runnms)
     runnm = runnms[i]; LAT = LATS[i];
@@ -170,9 +182,9 @@ fcH     = 1e5;                                       # scale Π to 1e4 W/(kg m),
 fc5H    = 1;                                          # CGEsum already in W/(kg m^2), as in panel (d)
 LdomH   = 2000e3;
 #cmaxH   = maximum(abs.(CGE))*fcH                     # symmetric range about 0
-cmaxH   = 1                    # symmetric range about 0
+cmaxH   = 0.1                  # symmetric range about 0 -- reduced 10x for 13.1-13 (GM only), whose Π is ~10x weaker than the tide-forced blocks
 #cmaxsH  = maximum(abs.(CGEsum))*fc5H                  # symmetric range about 0
-cmaxsH  = 10*fc5H 
+cmaxsH  = 1*fc5H
 
 figCGE = Figure(size=(700,850))
 axCGE  = Axis(figCGE[1, 1], title = string("(a) cross-scale energy transfer — ",titstr),

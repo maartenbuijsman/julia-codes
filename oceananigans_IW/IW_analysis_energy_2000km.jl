@@ -1,5 +1,5 @@
 #= IW_analysis_energy_2000km.jl
-Maarten Buijsman, USM DMS, 2026-8-25
+Maarten Buijsman, USM DMS, 2026-9-6
 Load energy and fft results from various sims. and make figures
 =#
 
@@ -31,7 +31,7 @@ include(string(pathname,"include_functions.jl"))
 include(string(dirparams,"run_master.jl"))  # RUN_TABLE, get_runs(), n2_filename(), elim_flim()
 
 # print figures
-figflag = 0
+figflag = 1
 
 const T2 = 12+25.2/60
 const rho0=1020; 
@@ -47,12 +47,19 @@ const grav=9.81;
 # collect(27:39), ever took effect) -- kept as a commented alternative.
 
 # D2 NH flux forcing, 4 km
-mainnm  = 10
-runnms  = collect(1:12) # varying  N2 MERCATOR             F=12.5 kW/m
+#mainnm  = 10
+#runnms  = collect(1:12) # varying  N2 MERCATOR             F=12.5 kW/m
 #runnms  = collect(27:39) # varying  N2 MERCATOR              F=25   kW/m
 #runnms  = collect(40:52) # constant N2 MERCATOR 2.5N        F=25   kW/m
 #runnms  = collect(53:65) # constant N2 MERCATOR 50N         F=25   kW/m
 #runnms  = collect(66:78) # constant N2 MERCATOR             F=50   kW/m
+
+# 200m, GM-spectrum-initialized + D2 tide (mainnm=13) -- energy-side
+# counterpart to the coarse-graining transfer analysis above
+mainnm  = 11
+#runnms  = collect(27:39)  # GM + D2 tide [mainnm=13]
+#runnms  = collect(1:13)   # GM only, no tide [mainnm=13]
+runnms  = collect(27:39) # D2 tide only, no GM
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]

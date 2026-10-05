@@ -1,5 +1,5 @@
 #= IW_total_energetics_tile.jl
-Maarten Buijsman, USM DMS, 2026-9-4
+Maarten Buijsman, USM DMS, 2026-10-2
 Compute undecomposed energetics: KE, APE, and pressure fluxes
 for total and high-passed fields
 Oceananigans pressure is kinematic p_kin = p_true/rho0
@@ -60,8 +60,8 @@ const grav=9.81;
 # any subset of run-IDs already present in RUN_TABLE works.
 
 # D2 NH flux forcing
-mainnm  = 13   # GM-spectrum-initialized; 4 km grid, then toggled to 13 (200 m) by run_diag_12_13.sh
-runnms  = collect(27:39) # varying N2 MERCATOR, F=25kW/m, GM u,v init
+mainnm  = 16   # GM81-initialized (corrected amplitude, calibrated to 1x GM81 over days 10-20); 200 m grid; 1-12 GM only, 27-38 GM + tide
+runnms  = collect(38:38)  # lat 0-45 N, series complete
 
 runs = get_runs(mainnm, runnms)   # errors immediately if a runnm isn't in RUN_TABLE
 LATS = [r.lat for r in runs]
@@ -76,6 +76,7 @@ fname_short2 = fnames
 filename = string(dirsim,fnames,".nc")
 
 println(fname_short2,"; lat=",LAT," -------------------")
+flush(stdout)   # explicit flush: stdout doesn't auto-flush during long blocking NetCDF reads when redirected to a file
 
 # look up this run's metadata (lat/Flux/DX/N2 source) from the master table
 row = get_runs(mainnm, [runnm])[1]
@@ -202,6 +203,7 @@ tim_ape   = zeros(ntile)
 tim_press = zeros(ntile)
 
 println("starting tile loop, ntile=",ntile)
+flush(stdout)
 for i_tile in 1:ntile
     ix_a = (i_tile-1)*nx_base + 1
     ix_b = (i_tile == ntile) ? Nx : i_tile*nx_base
@@ -397,6 +399,7 @@ for i_tile in 1:ntile
             " filt_high=",round(tim_filth[i_tile],digits=1)," filt_low=",round(tim_filtl[i_tile],digits=1),
             " KE=",round(tim_ke[i_tile],digits=1)," APE=",round(tim_ape[i_tile],digits=1),
             " press=",round(tim_press[i_tile],digits=1)," s")
+    flush(stdout)
 
     # clear tile memory
     uc_t=nothing; vc_t=nothing; wc_t=nothing; bc_t=nothing; pcp_t=nothing; rhop_t=nothing
@@ -551,7 +554,9 @@ elapsed = @elapsed begin
         looptime = @elapsed begin
             run_analysis(runnm,LAT,savefl)
         end
-        println("finished ", runnm," in $(round(looptime, digits=1)) s")        
-    end 
+        println("finished ", runnm," in $(round(looptime, digits=1)) s")
+        flush(stdout)
+    end
 end
 println("finished in $(round(elapsed, digits=1)) s")
+flush(stdout)

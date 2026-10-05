@@ -1,5 +1,5 @@
 #= run_master.jl
-Maarten Buijsman, USM DMS, 2026-9-3
+Maarten Buijsman, USM DMS, 2026-9-30
 Master lookup table for the AMZ Oceananigans internal-wave (mainnm/runnm) runs.
 One row (RunInfo) per individual run: latitude, mode-1 forcing flux, nominal
 grid spacing, and which N2 stratification profile IW_flux_LAT_2000km_bash_cuda.jl
@@ -62,6 +62,49 @@ append!(RUN_TABLE, expand_block(12, collect(27:39), LAT13, fill(25e3,13), 4000, 
 # mainnm 13 (200 m, Garrett-Munk-spectrum-initialized D2 NH flux forcing) -----
 # same as mainnm 12 but DX=200m (11-series grid); params_13.jl
 append!(RUN_TABLE, expand_block(13, collect(27:39), LAT13, fill(25e3,13), 200, "zonalmean", 99))
+
+# mainnm 13, runnm 1:13 (200 m, GM spectrum only, NO tidal forcing, Flux=0) ---
+# free-decay/background GM-spectrum evolution, no external tidal energy input;
+# params_13_noforce.jl
+append!(RUN_TABLE, expand_block(13, collect(1:13),  LAT13, fill(0.0,13), 200, "zonalmean", 99))
+
+# mainnm 14, runnm 1:13 (200 m, GM spectrum only, NO tidal forcing, Flux=0) ---
+# w,b-consistent GM IC + k-clamp domain-length-cutoff fix (v1 of that fix; see
+# chat). PARTIAL: only runnm 1:5 (lat 0-15) actually completed -- batch was
+# stopped after finding the k-clamp fix caused anomalously slow energy decay
+# at low latitude (large-scale coherent structure artifact from piling
+# excess energy onto one wavenumber); superseded by mainnm 15 (redistribution
+# fix). runnm 6 (lat 20) is a partial/truncated file, runnm 7:13 never ran.
+# Generated from a since-deleted v2 snapshot of IW_GM_flux_LAT_2000km_bash_cuda.jl;
+# params_14_noforce.jl
+append!(RUN_TABLE, expand_block(14, collect(1:13),  LAT13, fill(0.0,13), 200, "zonalmean", 99))
+
+# mainnm 15, runnm 1:13 (200 m, GM spectrum only, NO tidal forcing, Flux=0) ---
+# same as mainnm 14's noforce block, but with the REDISTRIBUTION fix instead
+# of k-clamp: dropped (Lw>L) components' energy is spread proportionally
+# across the surviving resolvable spectrum instead of being represented at a
+# single domain-filling wavenumber -- avoids the large-scale-structure
+# artifact seen in mainnm 14 (see chat). From the current (updated)
+# IW_GM_flux_LAT_2000km_bash_cuda.jl; params_15_noforce.jl
+append!(RUN_TABLE, expand_block(15, collect(1:13),  LAT13, fill(0.0,13), 200, "zonalmean", 99))
+
+# mainnm 15, runnm 27:39 (200 m, Garrett-Munk + M2 tidal forcing) ------------
+# same as mainnm 13's runnm 27:39 GM+tide block (25 kW/m, matching the 10-13
+# series for direct comparison), but with the redistribution-fix GM IC;
+# params_15.jl
+append!(RUN_TABLE, expand_block(15, collect(27:39), LAT13, fill(25e3,13), 200, "zonalmean", 99))
+
+# mainnm 16 (200 m, GM81 initial condition with the CORRECTED amplitude) -------
+# claudecodes/IW_GM81_flux_LAT_2000km_bash_cuda.jl + claudecodes/gm81_ic.jl:
+# A² = 2 b² N0 <N> E0 B H Δω (series 13-15 used b² N0² (1+f²/ω²), ~3x GM81),
+# model f in the modes/polarization (v = 0 at the equator), and the IC
+# rescaled to E(0) = GMs x E_GM81 so that the day 10-20 mean is 1x GM81.
+# runnm 91:93: calibration, GM only (Flux=0), hourly output; params_16_cal.jl
+append!(RUN_TABLE, expand_block(16, [91, 92, 93], [0.0, 5.0, 28.8], fill(0.0,3), 200, "zonalmean", 99))
+# runnm 1:12 (GM only, Flux=0) and 27:38 (GM + 25 kW/m D2 tide), lat 0-45 N:
+# PLANNED -- GMs per latitude set after the calibration runs
+append!(RUN_TABLE, expand_block(16, collect(1:12),  LAT13[1:12], fill(0.0,12),  200, "zonalmean", 99))
+append!(RUN_TABLE, expand_block(16, collect(27:38), LAT13[1:12], fill(25e3,12), 200, "zonalmean", 99))
 
 # --- lookup helpers -----------------------------------------------------------
 

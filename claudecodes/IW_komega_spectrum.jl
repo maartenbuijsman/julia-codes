@@ -20,6 +20,26 @@ x window: 500-1000 km (well clear of the source at x=80 km and the sponge
 past ~1850 km). Time window: last 10 days of the run (spin-up excluded).
 Uses u (not v): u is the along-domain component, i.e. the propagation
 direction the whole k1/k2 mode-1 analysis is about.
+
+REVISED 2026-9-5: no longer lowpass-filters+decimates x before the FFT.
+That step (previously applied to the INPUT u,v before calling
+komega_spectrum) was found in IW_komega_spectrum_notide.jl to silently
+discard real high-frequency power (~50% by 4 cpd, ~98% by 10 cpd on the
+200m grid) -- NOT frequency-neutral, so it corrupted P(ω) (which reuses
+the same power/powerKE arrays) even though the heatmaps' own k-range
+(xmax=1/23 cyc/km, kmax_disp*1.05) happened to stay narrow enough that the
+visual bound/free-wave story wasn't obviously wrong. Now the full 2D FFT
+runs on the FULL 200m-resolution u,v, and each heatmap crops the
+ALREADY-COMPUTED (freq,k) power matrix to its own displayed range right
+before heatmap!() (a display crop of real output, not an input filter) --
+CairoMakie still only ever rasterizes a small array. P(ω) and the
+power(k)-at-omega/2omega line plots use the FULL uncropped arrays (line
+plots don't have the heatmap cell-count problem).
+
+Batch-processes every previously-diagnosed 200m (mainnm=11) run in one
+pass: (11,7) lat=25 F=12.5kW/m, (11,11) lat=40 F=12.5kW/m, (11,37) lat=40
+F=25kW/m, (11,66) lat=0 F=50kW/m -- the whole single-run pipeline is
+wrapped in process_run() and called once per pair.
 =#
 
 println("number of threads is ",Threads.nthreads())
@@ -56,7 +76,7 @@ const ω  = 2π / (T2*3600)      # M2 frequency [rad/s]
 # a wider window is needed to separate the bound (2k1) and free (k2) waves at
 # 2ω: at lat=25 k2-2k1 ~ 0.002 cyc/km, same order as dk on the previous
 # 500km window (500-1000km), so the two were barely resolved
-const xleft_km  = 200.0
+const xleft_km  = 100.0   # widened from 200 so it also covers the P(omega) segments below (100-1600km)
 const xright_km = 1800.0
 const tlast_days = 10.0        # use the last N days of the record
 
@@ -71,10 +91,13 @@ const n_periods = floor(Int, tlast_days/T2_days)
 const tdur_days = n_periods*T2_days
 println("using ", n_periods, " whole M2 periods = ", tdur_days, " days (out of ", tlast_days, " requested) -- no time taper")
 
-# run selection -- one run at a time (a k-omega spectrum is inherently
-# per-run); swap mainnm/runnm to look at a different one
-mainnm = 11
-runnm  = 37   # lat=40, F=25 kW/m -- 200m grid, standard (no GM) forcing -- compare against 12.37
+# run selection -- every previously-diagnosed 200m (mainnm=11) run,
+# reprocessed with the fixed (no pre-decimation) pipeline, plus 13.37 (200m,
+# GM-initialized WITH D2 tidal forcing -- compare against 11.37, its non-GM
+# equivalent at the same lat/flux)
+const RUNS = [(13,34)]   # lat=28.8 (M2 critical latitude), GM+tide
+
+function process_run(mainnm, runnm)
 
 row = get_runs(mainnm, [runnm])[1]
 LAT = row.lat
@@ -144,32 +167,9 @@ println("x window: ", xf[Ix[1]]/1e3, "-", xf[Ix[end]]/1e3, " km (", length(Ix), 
 println("t window: ", tday[It[1]], "-", tday[It[end]], " days (", length(It), " points, dt=", dt, " s)")
 
 Nz = size(ds["u"], 2)
-u_slice = permutedims(ds["u"][Ix, Nz, It], (2,1))   # (Nt, Nx), Nz = surface (z_aac[end] ~ 0 m)
+u_slice = permutedims(ds["u"][Ix, Nz, It], (2,1))   # (Nt, Nx), Nz = surface (z_aac[end] ~ 0 m), FULL 200m resolution
 v_slice = permutedims(ds["v"][Ix, Nz, It], (2,1))
 close(ds)
-
-# subsample in x (with an anti-alias lowpass filter first) down to just
-# above the k-range we ever plot (~1/23 cyc/km) -- the FFT and (worse) the
-# CairoMakie heatmap both scale with Nx, and on the 200m grid (mainnm=11,
-# Nx~8000) rendering the full-resolution heatmap silently overran CairoMakie
-# and dropped every element drawn afterward (colorbar, legend, dispersion
-# curves, markers all vanished from the saved PNG with no error). dk depends
-# on the window LENGTH (Nx*dx), not on dx itself, so decimating at fixed
-# window length changes only the Nyquist wavenumber (which we don't need),
-# not the resolution we actually use.
-target_dx_km = 5.0                          # -> k-Nyquist = 1/(2*5km) = 0.1 cyc/km, ~2.3x our xmax=1/23
-xdec = max(1, floor(Int, target_dx_km*1e3/dx))
-if xdec > 1
-    cutoff_km = 2*target_dx_km              # antialias cutoff, safely inside the new Nyquist
-    for t in axes(u_slice,1)
-        u_slice[t,:] = lowhighpass_butter(u_slice[t,:], cutoff_km*1e3, dx, 4, "low")
-        v_slice[t,:] = lowhighpass_butter(v_slice[t,:], cutoff_km*1e3, dx, 4, "low")
-    end
-    u_slice = u_slice[:, 1:xdec:end]
-    v_slice = v_slice[:, 1:xdec:end]
-    dx = dx*xdec
-    println("decimated x by ", xdec, "x (antialiased at ", cutoff_km, " km) -> dx=", dx, " m, Nx=", size(u_slice,2))
-end
 
 # 2D k-omega spectrum via the shared komega_spectrum() function
 # (functions/komega_spectrum.jl) -- handles de-meaning (both marginals),
@@ -274,7 +274,7 @@ minsep = 0.08*xmax
 xtick_keep = Int[]; last_k = -Inf
 for i in inrange
     if xtick_k_all[i] - last_k >= minsep
-        push!(xtick_keep, i); global last_k = xtick_k_all[i]
+        push!(xtick_keep, i); last_k = xtick_k_all[i]
     end
 end
 ax.xticks = (xtick_k_all[xtick_keep], ["1/$(wavelen_km_candidates[i])" for i in xtick_keep])
@@ -302,7 +302,7 @@ scatter!(ax, [NaN],[NaN]; marker=:rect, open_kw..., label="(2ω, 2k1) bound")
 axislegend(ax, position=:lt, labelsize=8, patchsize=(14,6), rowgap=2, patchlabelgap=4)
 
 display(fig)
-if figflag==1; save(string(dirfig,"komega_",fnames,".png"), fig; px_per_unit=300/72); end
+if figflag==1; savefig300(string(dirfig,"komega_",fnames,".png"), fig); end
 
 println("epsilon_k (from the spectrum markers) = ", (k2_cpkm^2-(2*k1_cpkm)^2)/(2*k1_cpkm)^2)
 
@@ -336,7 +336,12 @@ pmaxKE = log10(maximum(powerKE))
 figKE = Figure(size=(800,600))
 axKE = Axis(figKE[1,1], title=string("k-ω spectrum of KE (Pu+Pv) — ",fnames," (lat=",LAT,")"),
     xlabel="wavenumber [cycles/km] (1/wavelength)", ylabel="frequency [cpd]")
-hmKE = heatmap!(axKE, k_cpkm, freq_cpd, log10.(powerKE)', colormap = Reverse(:Spectral), colorrange=(pmaxKE-8,pmaxKE))
+# crop the ALREADY-COMPUTED (freq,k) power matrix to the displayed range
+# before heatmap!() -- same reasoning as the `ax` heatmap's `kidx` crop
+# above, now needed here too since k_cpkm/freq_cpd are full-resolution
+kidxKE = findall(-1e-9 .<= k_cpkm .<= kmax_disp*1.05*1.02)
+fidxKE = findall(-1e-9 .<= freq_cpd .<= disp_fmax_cpd*1.02)
+hmKE = heatmap!(axKE, k_cpkm[kidxKE], freq_cpd[fidxKE], log10.(powerKE[fidxKE,kidxKE])', colormap = Reverse(:Spectral), colorrange=(pmaxKE-8,pmaxKE))
 Colorbar(figKE[1,2], hmKE, label="log10 power [m²/s²·day·km]")
 ylims!(axKE, 0, disp_fmax_cpd)
 xlims!(axKE, 0, kmax_disp*1.05)
@@ -369,55 +374,81 @@ axislegend(axKE2, position=:rt, labelsize=10)
 display(figKE2)
 if figflag==1; save(string(dirfig,"komega_KE_power_at_2omega_",fnames,".png"), figKE2); end
 
-# frequency spectrum P(ω): integrate the KE=Pu+Pv k-omega spectrum over the
-# FULL wavenumber range (power/powerKE were never cropped -- only the display
-# k_cpkm[kidx] subset used for the heatmaps above was) to check for the
-# classic GM continuum slope, P(ω) ~ ω^-2
-dk_cpkm = k_cpkm[2] - k_cpkm[1]
-Pomega = vec(sum(powerKE, dims=2)) .* dk_cpkm
-# x-range: 0.1 to 48 cpd (per Maarten's request -- reads "1/48 cpd" but that
-# would be BELOW 0.1, and the requested tick list tops out at 48, so treating
-# it as "48 cpd" / a typo for the upper bound, not its reciprocal)
+# ---- P(ω): segment-averaged 1D FFT-in-time spectra, NOT the 2D k-omega
+# integral -- much cheaper (plain 1D FFTs, no huge 2D transform) and gives
+# 3 independent regional estimates instead of one domain-wide number. For
+# each of 3 x-segments, run fft_spectra() (functions/fft_spectra_vectorized.jl)
+# on u and v at EVERY x-point in that segment, then average the resulting
+# POWER (Pu+Pv) across those x-points -- NOT the raw complex FFT
+# coefficients, which would partially cancel by phase for a propagating
+# wave and isn't what an energy spectrum should do. tukeycf=0 (boxcar):
+# tdur_days (the time window used for u_slice/v_slice above) is already
+# snapped to a whole number of M2 periods, so there's no edge mismatch to
+# taper away, same reasoning as the 2D FFT's taper=(:none,:hann) above.
+xseg_km = xf[Ix] ./ 1e3
+segments_km = [(100.0,600.0), (600.0,1100.0), (1100.0,1600.0)]
+seg_colors = [:seagreen, :black, :dodgerblue]
+seg_labels = ["100-600 km", "600-1100 km", "1100-1600 km"]
+
+seg_dx_km = 4.0   # subsample spacing within each segment -- e.g. a
+                        # 500km segment at native 200m spacing has 2500
+                        # x-points (2500 fft_spectra() calls, each with its
+                        # own per-call overhead: window build, regression
+                        # detrend, etc.); every 4km gives ~125 x-points per
+                        # segment, still plenty for a robust power average,
+                        # ~20x fewer calls
+seg_freq = Float64[]
+seg_PKE = Vector{Vector{Float64}}(undef, length(segments_km))
+for (si, (lo,hi)) in enumerate(segments_km)
+    idxseg_all = findall(lo .<= xseg_km .<= hi)
+    stride = max(1, round(Int, seg_dx_km/dx_km))
+    idxseg = idxseg_all[1:stride:end]
+    n = length(idxseg)
+    Pu_acc = Float64[]; Pv_acc = Float64[]
+    for ix in idxseg
+        _, f1d, Pu_x = fft_spectra(tday[It], u_slice[:,ix]; tukeycf=0.0, numwin=1, linfit=true)
+        _,   _, Pv_x = fft_spectra(tday[It], v_slice[:,ix]; tukeycf=0.0, numwin=1, linfit=true)
+        if isempty(Pu_acc)
+            Pu_acc = zeros(length(Pu_x)); Pv_acc = zeros(length(Pv_x))
+            seg_freq = f1d   # cpd (tday is in days)
+        end
+        Pu_acc .+= Pu_x; Pv_acc .+= Pv_x
+    end
+    seg_PKE[si] = (Pu_acc .+ Pv_acc) ./ n
+    println("segment ", seg_labels[si], ": averaged over ", n, " x-points")
+end
+
 xlo, xhi = 0.1, 48.0
-# crop to the displayed range BEFORE plotting, not just via xlims!() --
-# Makie's log-scale y-autolimits are computed from the full data passed to
-# lines!(), so leaving in the full freq_cpd (up to ~144 cpd Nyquist) blows the
-# y-axis out to 1e-20..1e20 even though xlims! only shows xlo-xhi
-ipos = findall((freq_cpd .>= xlo) .& (freq_cpd .<= xhi))
+ipos = findall((seg_freq .>= xlo) .& (seg_freq .<= xhi))
 
-# ω^-2 reference line (the GM continuum slope), vertically anchored to match
-# the data at a frequency clear of the discrete tidal harmonics (2.6 cpd,
-# between M2 at 1.93 and 2ω at 3.87 cpd) so the anchor reflects the
-# background continuum, not a harmonic spike
+# ω^-2 / ω^-3 references anchored from the middle segment (600-1100km), same
+# anchoring logic as before (continuum at 2.6 cpd, harmonic envelope at M2)
 f_anchor = 2.6
-i_anchor = argmin(abs.(freq_cpd[ipos] .- f_anchor))
-gm_ref = Pomega[ipos][i_anchor] .* (freq_cpd[ipos] ./ freq_cpd[ipos][i_anchor]).^(-2)
-
-# ω^-3 reference line -- this one anchored AT the M2 (fundamental) harmonic
-# peak itself, to test whether the DISCRETE harmonic peaks (M2, 2xM2, 3xM2,
-# ...) decay envelope-to-envelope like ω^-3, a different question from the
-# continuum's own slope between the peaks
-i_m2 = argmin(abs.(freq_cpd[ipos] .- f1_cpd))
-harm_ref = Pomega[ipos][i_m2] .* (freq_cpd[ipos] ./ freq_cpd[ipos][i_m2]).^(-3)
+i_anchor = argmin(abs.(seg_freq[ipos] .- f_anchor))
+gm_ref = seg_PKE[2][ipos][i_anchor] .* (seg_freq[ipos] ./ seg_freq[ipos][i_anchor]).^(-2)
+i_m2 = argmin(abs.(seg_freq[ipos] .- f1_cpd))
+harm_ref = seg_PKE[2][ipos][i_m2] .* (seg_freq[ipos] ./ seg_freq[ipos][i_m2]).^(-3)
 
 figPom = Figure(size=(700,450))
-axPom = Axis(figPom[1,1], title=string("P(ω) = ∫P(k,ω)dk — ",fnames," (lat=",LAT,")"),
+axPom = Axis(figPom[1,1], title=string("P(ω), segment-averaged (u,v FFT per x, power-averaged) — ",fnames," (lat=",LAT,")"),
     xlabel="frequency [cpd]", ylabel="power [m²/s²·day]", xscale=log10, yscale=log10)
-lines!(axPom, freq_cpd[ipos], Pomega[ipos], color=:black, label="P(ω), KE=Pu+Pv")
-lines!(axPom, freq_cpd[ipos], gm_ref, color=:red, linestyle=:dash, label="ω⁻² (continuum) reference")
-lines!(axPom, freq_cpd[ipos], harm_ref, color=:purple, linestyle=:dashdot, label="ω⁻³ (harmonic envelope) reference")
+for (si, lbl) in enumerate(seg_labels)
+    lines!(axPom, seg_freq[ipos], seg_PKE[si][ipos], color=seg_colors[si], label=lbl)
+end
+lines!(axPom, seg_freq[ipos], gm_ref, color=:red, linestyle=:dash, label="ω⁻² (continuum) reference")
+lines!(axPom, seg_freq[ipos], harm_ref, color=:purple, linestyle=:dashdot, label="ω⁻³ (harmonic envelope) reference")
 vlines!(axPom, [fcor_cpd], color=:gray, linestyle=:dash, label="inertial frequency f")
 vlines!(axPom, [f1_cpd-fcor_cpd], color=:orange, linestyle=:dash, label="M2-f")
 xlims!(axPom, xlo, xhi)
-# FIXED y-limits (not per-run percentile-based) so 10.37/11.37/12.37 share
-# the exact same axes for a direct GM-vs-no-GM comparison. Chosen from
-# 12.37's own range (ylo=quantile 0.03 ~2.3e-8, yhi=max*2 ~0.24) with a bit
-# of margin -- floored at all rather than the strict per-run minimum since
-# Pomega genuinely dips to ~1e-26 at some frequencies (a real spectral null,
-# not a bug) that would otherwise blow the log-scale axis out per-run
-ylims!(axPom, 1e-8, 0.3)
+ylims!(axPom, 1e-10, 1e0)   # FIXED y-limits so all runs/segments share the same axes
 pomega_xticks = [0.5,1,2,3,4,6,8,10,12,24,48]
 axPom.xticks = (pomega_xticks, string.(pomega_xticks))
-axislegend(axPom, position=:lb, labelsize=10)
+axislegend(axPom, position=:lb, labelsize=9)
 display(figPom)
 if figflag==1; save(string(dirfig,"komega_Pomega_",fnames,".png"), figPom); end
+
+end # process_run
+
+for (mainnm, runnm) in RUNS
+    process_run(mainnm, runnm)
+end
